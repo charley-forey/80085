@@ -55,7 +55,18 @@ def test_a_job_that_works_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fine() -> int:
         return 7
 
+    async def recorded(name: str, affected: int) -> None:
+        """The heartbeat writes to a real database and this is a unit test.
+
+        Stubbed rather than made non-fatal in `run`: a heartbeat that could not
+        be written is a genuine problem -- it is the same database the job just
+        committed to -- and swallowing it would report success while the row
+        that proves the job ran silently went missing. `job_runs` not existing
+        is exactly how this surfaced.
+        """
+
     monkeypatch.setattr(scheduler, "JOBS", {"fine": fine})
+    monkeypatch.setattr(scheduler, "_record", recorded)
     monkeypatch.setattr(sys, "argv", ["80085-scheduler", "fine"])
 
     assert scheduler.main() == 0

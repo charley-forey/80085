@@ -2641,3 +2641,41 @@ status, column or endpoint. And after `MAX_RUNTIME_FAILURES` consecutive
 runtime failures the worker exits: one that cannot run anything is not merely
 useless, it is actively starving the workers that work.
 
+### 63. The scheduler leaves a mark, because Railway only alarms on what exists
+
+Decision 54 made Railway the scheduler and said exit codes are the alarm: a
+non-zero exit becomes a crashed deployment, "the only signal a cron service
+emits that anybody sees without going looking". True, and it covers the loud
+failure only. Railway cannot alarm about a service that is not there. A cron
+service never created, deleted, or given a schedule that does not fire produces
+no deployment, no crash and no signal at all -- while `/v1/ready` stays green,
+recall and execution carry on working, and evidence quietly stops being
+reconciled.
+
+`scripts/smoke.py` had no way to see it. The tempting candidate,
+`execution_stats.updated_at`, is written by the execution path too, so a recent
+value proves only that somebody ran something. That is a check that passes for
+the wrong reason -- the same shape as the egress suite catching its own refusal
+and calling it a drop, and the site publishing a corpus count nobody compared
+to the manifest.
+
+So `job_runs` holds one row per job, overwritten on success: name, when it
+finished, and how many rows it touched. `/v1/ready` reports it as an *age*, so
+a reader needs no clock of their own, and lists every job the scheduler knows
+about whether or not it has ever run -- a name absent from the response is
+indistinguishable from a name nobody thought to look for, and "never" is the
+answer worth seeing. Smoke fails if `evidence` is over two hours stale or
+`retention` over two days, each about two ticks.
+
+Three things it deliberately is not. It is **not a history**: what is
+actionable is "when did this last succeed", and an audit log of cron ticks
+would need a retention job of its own. It is **not written unless the job
+succeeded**, because a heartbeat that updated whether or not the work happened
+would report health on the strength of having been asked. And a heartbeat that
+fails to write is **not swallowed**: it goes to the same database the job just
+committed to, so a failure there is real, and the first thing it caught was a
+missing migration.
+
+A test also asserts `scheduler.JOBS` and smoke's staleness table name the same
+jobs. Adding a job that nothing watches would recreate the silence this closes.
+
