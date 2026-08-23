@@ -7,10 +7,48 @@ the environment (spec section 17).
 
 from __future__ import annotations
 
+from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ExecutionTier(StrEnum):
+    """How long an Experience is allowed to run for.
+
+    Raising the global timeout would hand every anonymous stranger a
+    long-running compute farm, so length is tiered instead: `quick` is the
+    default and open to everyone, the longer tiers are granted per
+    organization and are deliberately not self-serve.
+    """
+
+    QUICK = "quick"
+    STANDARD = "standard"
+    EXTENDED = "extended"
+
+
+TIER_TIMEOUT_SECONDS: dict[ExecutionTier, int] = {
+    ExecutionTier.QUICK: 60,
+    ExecutionTier.STANDARD: 600,
+    ExecutionTier.EXTENDED: 3600,
+}
+
+
+def tier_for_duration(seconds: int | None) -> ExecutionTier:
+    """The smallest tier that covers a declared `max_duration_seconds`.
+
+    The field already exists on the record request, so an author says how long
+    they need and the platform decides which tier that lands in -- and whether
+    they are allowed it. Asking for a tier by name would be asking to be
+    trusted.
+    """
+    if seconds is None:
+        return ExecutionTier.QUICK
+    for tier in (ExecutionTier.QUICK, ExecutionTier.STANDARD):
+        if seconds <= TIER_TIMEOUT_SECONDS[tier]:
+            return tier
+    return ExecutionTier.EXTENDED
 
 
 class SandboxLimits(BaseSettings):
@@ -25,6 +63,24 @@ class SandboxLimits(BaseSettings):
     pids: int = 128
     max_output_bytes: int = 1_048_576
     network: bool = False
+
+    def for_tier(self, tier: str | None) -> SandboxLimits:
+        """These limits, with the wall clock the tier allows.
+
+        Only the wall clock moves. cpu, memory, tmpfs and pids are Docker
+        cgroup flags that E2B does not enforce (DECISIONS 19), so tiering them
+        would be a promise one of the two runtimes silently breaks. Wall clock
+        is enforced by both.
+
+        An unknown tier is `quick`: a worker that does not understand what the
+        API sent must not guess upwards.
+        """
+        try:
+            chosen = ExecutionTier(tier or ExecutionTier.QUICK)
+        except ValueError:
+            chosen = ExecutionTier.QUICK
+        wanted = TIER_TIMEOUT_SECONDS[chosen]
+        return self.model_copy(update={"timeout_seconds": max(self.timeout_seconds, wanted)})
 
 
 class Settings(BaseSettings):

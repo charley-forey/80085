@@ -66,7 +66,10 @@ def client() -> httpx.AsyncClient:
 
 
 async def run_job(job: dict[str, Any]) -> SandboxResult:
-    limits = settings().sandbox
+    # The API sends a tier name, never a number of seconds: the worker looks up
+    # what that tier is worth locally, so a compromised API -- or a replayed
+    # lease -- cannot talk this process into running something for an hour.
+    limits = settings().sandbox.for_tier(job.get("tier"))
     request = SandboxRequest(
         execution_id=job["execution_id"],
         image=job["image"],

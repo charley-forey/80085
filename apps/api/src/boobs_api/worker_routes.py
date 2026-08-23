@@ -39,8 +39,10 @@ from boobs_schemas.tables import (
     Execution,
     Experience,
     ExperienceVersion,
+    Policy,
     Verification,
 )
+from boobs_security import policy as tiers
 from boobs_security.keys import Scope
 from boobs_verification.verifiers import RegistryVerifier
 
@@ -70,6 +72,7 @@ class LeasedJob(Strict):
     command: list[str]
     inputs: dict[str, str] = Field(default_factory=dict, description="filename -> base64")
     network: bool = False
+    tier: str = Field(default="quick", description="resolved execution tier, not the one asked for")
     lease_expires_at: Any = None
 
 
@@ -124,10 +127,33 @@ async def lease(request: LeaseRequest, db: DbSession, principal: CurrentPrincipa
         await db.execute(select(Artifact).where(Artifact.id == version.artifact_id))
     ).scalar_one()
 
+    # The tier the version asked for is a request. What it gets depends on a
+    # policy row that no endpoint writes, and -- for the hour-long tier -- on
+    # the run being checked by a verifier that looks at the output rather than
+    # believing the exit code.
+    granted = tiers.granted_tiers(
+        (
+            await db.execute(
+                select(Policy.rules).where(Policy.organization_id == version.organization_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    tier, tier_reason = tiers.resolve_execution_tier(
+        version.execution_tier, granted, (version.verification or {}).get("verifier")
+    )
+
     await SqlEventStore(db).append(
         execution.id,
         EventType.EXECUTION_STARTED,
-        {"image": artifact.reference, "digest": artifact.digest, "worker": request.worker_id},
+        {
+            "image": artifact.reference,
+            "digest": artifact.digest,
+            "worker": request.worker_id,
+            "tier": str(tier),
+            "tier_reason": tier_reason,
+        },
     )
     queue_depth = await leases.depth(db)
 
@@ -152,6 +178,7 @@ async def lease(request: LeaseRequest, db: DbSession, principal: CurrentPrincipa
             command=list(version.command or []),
             inputs=inputs,
             network=version.requires_network,
+            tier=str(tier),
             lease_expires_at=execution.lease_expires_at,
         ),
         queue_depth=queue_depth,

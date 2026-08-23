@@ -9,6 +9,16 @@ or sockets of any kind. Inputs and outputs move as tar streams through
 The image is always referenced by digest. A tag would let the bytes change
 under a version that evidence was collected for, which would make every
 success rate in the system a lie.
+
+An Experience may declare that it needs the network, and that declaration is
+made by its own author with nobody approving it. `--network=bridge` would
+therefore be an attacker-chosen flag that reaches the cloud metadata service,
+the worker's own LAN, and everything else routable from the host. So a
+networked run does not get the default bridge: it gets a dedicated network
+whose traffic is filtered by the host firewall, and the destinations that
+matter -- link-local, metadata, loopback, RFC1918 -- are refused whatever the
+flag says. If the filter cannot be installed, the run is refused rather than
+run unfiltered.
 """
 
 from __future__ import annotations
@@ -16,6 +26,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import json
+import shutil
 import tarfile
 import time
 from collections.abc import Sequence
@@ -38,6 +50,91 @@ WORKDIR = "/work"
 PULL_TIMEOUT = 300
 DOCKER = "docker"
 
+# A networked sandbox never joins the default bridge, because the filter below
+# is pinned to one interface and the default bridge carries everything else on
+# the host too. The bridge name must fit the kernel's 15-character limit.
+EGRESS_NETWORK = "80085-egress"
+EGRESS_BRIDGE = "br-80085egress"
+BRIDGE_NAME_OPT = "com.docker.network.bridge.name"
+
+# Where a networked artifact must never be able to send a packet, whoever
+# recorded it. Everything here is either the host's own neighbourhood or an
+# address that means something private to the machine the worker runs on.
+BLOCKED_DESTINATIONS = (
+    "169.254.0.0/16",  # link-local, and 169.254.169.254 is every cloud's IAM credentials
+    "127.0.0.0/8",  # the host's loopback, via a martian route
+    "10.0.0.0/8",  # RFC1918
+    "172.16.0.0/12",  # RFC1918, and Docker's own default address pools
+    "192.168.0.0/16",  # RFC1918
+    "100.64.0.0/10",  # carrier NAT, and several clouds' internal fabric
+    "192.0.0.0/24",  # IETF protocol assignments
+    "198.18.0.0/15",  # benchmarking range, routed internally by some hosts
+    "224.0.0.0/4",  # multicast
+    "240.0.0.0/4",  # reserved
+)
+
+# DOCKER-USER is the chain Docker guarantees it evaluates before its own rules
+# and never flushes; it sees forwarded traffic, which is everything leaving the
+# bridge. INPUT is the other half: a packet addressed to the host itself is
+# delivered locally and never reaches FORWARD, so blocking only DOCKER-USER
+# would leave every service on the worker reachable from inside the sandbox.
+FILTERED_CHAINS = ("DOCKER-USER", "INPUT")
+IPTABLES = "iptables"
+
+
+def egress_rule(chain: str, destination: str) -> list[str]:
+    """One firewall rule, as arguments after the -C/-I verb."""
+    return [chain, "-i", EGRESS_BRIDGE, "-d", destination, "-j", "DROP"]
+
+
+def egress_rules() -> list[list[str]]:
+    return [egress_rule(chain, cidr) for chain in FILTERED_CHAINS for cidr in BLOCKED_DESTINATIONS]
+
+
+def manual_egress_setup() -> str:
+    """The rules an operator can install by hand, for the error message.
+
+    A worker that cannot run `iptables` is a normal deployment (unprivileged
+    user, Docker Desktop, a daemon on another machine). Telling it "refused"
+    without telling it what to install is how a security control gets turned
+    off instead of fixed.
+    """
+    lines = [f"docker network create --opt {BRIDGE_NAME_OPT}={EGRESS_BRIDGE} {EGRESS_NETWORK}"]
+    lines += [" ".join([IPTABLES, "-I", *rule[:1], "1", *rule[1:]]) for rule in egress_rules()]
+    return "\n  ".join(lines)
+
+
+def _refusal(reason: str) -> str:
+    """Why a networked run was refused, and how to make it possible."""
+    return (
+        f"refusing to run a networked artifact: {reason}. Unfiltered, the "
+        "container reaches cloud metadata (169.254.169.254) and the worker's "
+        "own private network, and the flag that asked for the network was set "
+        "by the artifact's author. Install the filter once, as root:\n  " + manual_egress_setup()
+    )
+
+
+async def _iptables(*args: str) -> int:
+    """Run iptables and report only whether it worked.
+
+    ponytail: shells out to the host's iptables, so the worker needs
+    CAP_NET_ADMIN (root, in practice) and a Linux Docker host. Upgrade path
+    when that is too much: install these rules once at provisioning time, or
+    put an egress proxy on the network and drop everything else.
+    """
+    process = await asyncio.create_subprocess_exec(
+        IPTABLES,
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(process.wait(), 30)
+        return process.returncode or 0
+    await _reap(process)
+    return 1
+
 
 class DockerOciRuntime:
     """ExecutionRuntime backed by the local Docker daemon.
@@ -48,6 +145,9 @@ class DockerOciRuntime:
 
     def __init__(self, docker: str = DOCKER) -> None:
         self._docker = docker
+        # The filter is installed once per process. The rules themselves are
+        # idempotent on the host, so a restarting worker does not stack them.
+        self._egress_ready = False
 
     async def execute(self, request: SandboxRequest) -> SandboxResult:
         if not OCI_PINNED_RE.match(request.image):
@@ -111,14 +211,14 @@ class DockerOciRuntime:
     async def _pull(self, image: str) -> None:
         await self._docker_run("pull", "--quiet", image, timeout=PULL_TIMEOUT)
 
-    def _create_args(self, request: SandboxRequest) -> Sequence[str]:
+    def _create_args(self, request: SandboxRequest, network: str) -> Sequence[str]:
         args = [
             "create",
             "--rm=false",
             f"--name=80085-{request.execution_id}",
             f"--label=80085.execution_id={request.execution_id}",
             # Isolation
-            "--network=none" if not request.network else "--network=bridge",
+            f"--network={network}",
             "--read-only",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
@@ -130,9 +230,17 @@ class DockerOciRuntime:
             f"--pids-limit={request.pids}",
             f"--tmpfs=/tmp:rw,noexec,nosuid,size={request.tmpfs_mb}m",
             # Writable working directory that survives docker cp before start.
-            # ponytail: anonymous volume, so tmpfs size limits do not apply to
-            # /work. Upgrade path if disk abuse matters: a quota-enabled volume
-            # driver, or --storage-opt size= on a driver that supports it.
+            # ponytail: still an anonymous volume, so nothing bounds the size of
+            # /work and a hostile artifact can fill the worker's disk. Neither
+            # obvious fix works on a stock Docker host: a tmpfs-backed local
+            # volume is unmounted between `docker cp` and `start` (refcount
+            # zero) and loses the inputs, and `--storage-opt size=` needs
+            # devicemapper, btrfs, zfs or xfs project quotas rather than the
+            # overlay2 everyone actually runs. So the only bound is the wall
+            # clock -- which is exactly why the longer execution tiers are
+            # granted by an operator instead of being self-serve. Upgrade path:
+            # a quota-enabled volume driver, or a per-execution loopback
+            # filesystem mounted by the operator, not by this process.
             "-v",
             WORKDIR,
             f"--workdir={WORKDIR}",
@@ -144,8 +252,58 @@ class DockerOciRuntime:
         return args
 
     async def _create(self, request: SandboxRequest) -> str:
-        _, stdout, _ = await self._docker_run(*self._create_args(request))
+        # No network at all is the default and needs no filter. A run that asks
+        # for the network gets the filtered network or does not run.
+        network = await self._egress_network() if request.network else "none"
+        _, stdout, _ = await self._docker_run(*self._create_args(request, network))
         return stdout.decode().strip()
+
+    # ------------------------------------------------------------------ egress
+
+    async def _egress_network(self) -> str:
+        if not self._egress_ready:
+            await self._ensure_egress_network()
+            await self._ensure_egress_filter()
+            self._egress_ready = True
+        return EGRESS_NETWORK
+
+    async def _ensure_egress_network(self) -> None:
+        """A dedicated bridge, so the filter can name one interface."""
+        code, stdout, _ = await self._docker_run("network", "inspect", EGRESS_NETWORK, check=False)
+        if code != 0:
+            await self._docker_run(
+                "network",
+                "create",
+                f"--opt={BRIDGE_NAME_OPT}={EGRESS_BRIDGE}",
+                EGRESS_NETWORK,
+                check=False,  # another worker may have won the race
+            )
+            _, stdout, _ = await self._docker_run("network", "inspect", EGRESS_NETWORK)
+        options = json.loads(stdout)[0].get("Options") or {}
+        if options.get(BRIDGE_NAME_OPT) != EGRESS_BRIDGE:
+            raise ExecutionFailed(
+                _refusal(
+                    f"the {EGRESS_NETWORK} network exists but is not on {EGRESS_BRIDGE}, "
+                    "so the filter would not cover it"
+                )
+            )
+
+    async def _ensure_egress_filter(self) -> None:
+        """Install the DROP rules, or refuse the run.
+
+        Fail closed on purpose. Every other outcome here -- no iptables, no
+        privileges, a chain that is not there -- ends with a container that can
+        read the host's IAM credentials, and a control that quietly turns
+        itself off under those conditions is not a control.
+        """
+        if shutil.which(IPTABLES) is None:
+            raise ExecutionFailed(_refusal(f"{IPTABLES} is not on PATH"))
+        for rule in egress_rules():
+            if await _iptables("-w", "5", "-C", *rule) == 0:
+                continue
+            if await _iptables("-w", "5", "-I", rule[0], "1", *rule[1:]) != 0:
+                joined = " ".join(rule)
+                raise ExecutionFailed(_refusal(f"could not install: {IPTABLES} -I {joined}"))
 
     async def _copy_in(self, container: str, files: dict[str, bytes]) -> None:
         buffer = io.BytesIO()

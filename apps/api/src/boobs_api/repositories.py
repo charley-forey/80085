@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common import ids
 from boobs_common.clock import now
+from boobs_common.config import tier_for_duration
 from boobs_common.errors import Conflict, NotFound, ValidationError
 from boobs_domain.entities import DIGEST_RE, OCI_PINNED_RE
 from boobs_domain.enums import ExperienceStatus, VerificationLevel
@@ -144,6 +145,10 @@ class ExperienceRepository:
             runtime_version=request.environment.runtime_version,
             requires_network=request.constraints.network,
             required_capabilities=list(request.constraints.required_capabilities),
+            # A declared duration is a request for a tier, not a grant of one:
+            # whether the organization may actually use it is decided at lease
+            # time, against a policy row nothing in the API can write.
+            execution_tier=tier_for_duration(request.constraints.max_duration_seconds),
             search_text=text,
             embedding=embedding,
             created_by=principal.agent_id,

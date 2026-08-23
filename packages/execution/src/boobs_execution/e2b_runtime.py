@@ -16,6 +16,15 @@ are enforced here, and the image is still refused unless it is pinned by
 digest (DECISIONS 13): if the bytes could change under a version, every
 success rate in the system would be a lie.
 
+Two things this runtime does **not** do, said out loud rather than implied:
+`cpu`, `memory_mb`, `tmpfs_mb` and `pids` are cgroup flags with no E2B
+equivalent and are not enforced here (DECISIONS 19), and `network` stays
+all-or-nothing -- `allow_internet_access` has no destination filter, so the
+link-local and RFC1918 blocks `docker_oci` installs have no counterpart. What
+saves it is topology rather than policy: the microVM runs in E2B's cloud, so
+"the private network" it can reach is not the worker's. Cloud metadata inside
+E2B's own fabric is E2B's boundary to hold, not something this code can claim.
+
 E2B runs *templates*, not registry references, so the pinned image is turned
 into a template once per digest and reused. The template's identity is
 derived from the reference, which contains the digest, so a different digest

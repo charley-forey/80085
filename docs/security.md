@@ -27,6 +27,7 @@ one file: `packages/execution/src/boobs_execution/docker_oci.py`.
 | Control | Flag | Stops |
 |---|---|---|
 | No network | `--network none` | exfiltration, SSRF, C2, mining pools |
+| Filtered egress | dedicated bridge + `DROP` rules | metadata theft, LAN scanning, host services |
 | Read-only root | `--read-only` | persistence, tampering with the image |
 | Non-root | `--user 65534:65534` | most privilege escalation |
 | No capabilities | `--cap-drop ALL` | raw sockets, mounts, ptrace |
@@ -43,6 +44,70 @@ one file: `packages/execution/src/boobs_execution/docker_oci.py`.
 
 Limits come from a policy object (`SANDBOX_*`), not from constants. They are
 defaults, not universal truths.
+
+## Egress, when an Experience asks for the network
+
+`constraints.network` is set by the artifact's own author, and nothing
+approves it. `--network=bridge` would therefore be an attacker-chosen flag
+that reaches the cloud metadata service, the worker's LAN, and every service
+bound on the worker itself. Ranking penalises such an Experience; it does not
+stop it running.
+
+So a networked run does not join the default bridge. It joins `80085-egress`,
+a dedicated Docker network on the `br-80085egress` interface, and the worker
+installs `DROP` rules for that interface in two chains:
+
+* **`DOCKER-USER`** -- forwarded traffic: the metadata service, other
+  containers, the LAN, the internet.
+* **`INPUT`** -- traffic addressed to the worker itself, which is delivered
+  locally and never reaches `FORWARD`. Filtering only `DOCKER-USER` would
+  leave every service on the worker reachable from inside the sandbox.
+
+Dropped whatever the flag says: `169.254.0.0/16` (including
+`169.254.169.254`), `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`, `100.64.0.0/10`, `192.0.0.0/24`, `198.18.0.0/15`,
+`224.0.0.0/4`, `240.0.0.0/4`. Public DNS and public HTTP still work, which is
+the point: this is a deny-list on the private world, not an allowlist of
+destinations.
+
+**It fails closed.** No `iptables`, no privileges, no `DOCKER-USER` chain, or
+a network already on some other interface -- and the networked run is refused
+with the exact commands an operator needs to install the rules by hand. A
+control that switches itself off when it cannot run is not a control. Runs
+with `network: false` are unaffected and need none of this.
+
+What it does **not** stop: which *public* hosts are reachable (spec section
+17's per-domain allowlist is still unbuilt), exfiltration through DNS to a
+public resolver, or a kernel-level bypass. It is IPv4 only -- the network is
+created without IPv6 -- so enabling IPv6 on it would open a hole the rules do
+not cover.
+
+## Tiered execution
+
+`SANDBOX_TIMEOUT_SECONDS` is one number for everybody, and raising it to make
+real agent workflows possible would hand every anonymous stranger an hour of
+networked compute per request. Length is a tier instead:
+
+| Tier | Wall clock | Who gets it |
+|---|---|---|
+| `quick` | today's `SANDBOX_TIMEOUT_SECONDS` (60s) | everyone; the default |
+| `standard` | 10 minutes | organizations with a `policies` grant |
+| `extended` | 1 hour | a grant **and** a verifier that checks output |
+
+`extended` needs more than approval because `exit_code` -- the floor verifier
+-- passes for an artifact that mines for an hour and exits 0. Only verifiers
+that look at what the run produced (`json_schema`, `sha256`) qualify.
+
+An author asks by declaring `constraints.max_duration_seconds`; the smallest
+tier that covers it is recorded on the version. The **lease** decides what
+that request is worth, against `policies` rows that no endpoint writes, and an
+unapproved request is downgraded to `quick` rather than refused. The API sends
+a tier *name*, never a number of seconds, and the worker looks up locally what
+that name is worth.
+
+**Only the wall clock moves.** `cpu`, `memory_mb`, `tmpfs_mb` and `pids` are
+Docker cgroup flags with no E2B equivalent, so tiering them would be a promise
+one of the two runtimes silently breaks. Wall clock is enforced by both.
 
 ## Why `docker cp` instead of a bind mount
 
@@ -93,7 +158,9 @@ it. A database dump yields no working credentials.
 
 `tests/security/` attacks the sandbox with real containers and real payloads:
 network access, DNS, read-only rootfs, uid, `setuid(0)`, daemon socket,
-writable mounts, wall clock, fork bomb, memory hog, output flood, output size.
+writable mounts, wall clock, fork bomb, memory hog, output flood, output size,
+and -- with `network: true` -- the metadata service, the link-local range, the
+host's own gateway, and a real listener on a real RFC1918 address.
 
 **If one of these fails, fix the sandbox. Never relax the test.**
 
@@ -136,7 +203,22 @@ run.
   network reachability, output size and digest pinning are enforced in both.
 * **No image signing or SBOM yet.** Digest pinning proves the bytes did not
   change; it does not prove who produced them.
-* **No egress allowlist.** `network: true` is currently all-or-nothing. Spec
-  §17 describes per-domain policy; the field is in the schema, the enforcement
-  is not built.
-* **`/work` is not disk-quota bounded** (see above).
+* **No egress allowlist.** Link-local, metadata, loopback and RFC1918 are now
+  dropped for every networked run (see above), but the *public* internet is
+  still all-or-nothing: an artifact granted the network can talk to any public
+  address, and DNS to a public resolver is a working exfiltration channel.
+  Spec §17 describes per-domain policy; the field is in the schema, the
+  enforcement is not built.
+* **Egress filtering needs a Linux Docker host and `CAP_NET_ADMIN`.** The
+  worker shells out to `iptables`. On Docker Desktop, an unprivileged worker,
+  or a remote daemon it cannot install the rules -- and refuses the networked
+  run instead of running it unfiltered. `E2BRuntime` has no egress filter at
+  all: `allow_internet_access` is a boolean with no destination policy. Its
+  mitigation is topology, not policy -- the microVM is in E2B's cloud, so the
+  private network it can reach is not the worker's.
+* **`/work` is not disk-quota bounded** (see above). Neither obvious fix works
+  on a stock Docker host: a tmpfs-backed local volume is unmounted between
+  `docker cp` and `start` and loses the inputs, and `--storage-opt size=`
+  needs devicemapper, btrfs, zfs or xfs project quotas rather than overlay2.
+  The only bound is the wall clock, which is one more reason the longer
+  execution tiers are granted by an operator rather than self-serve.
