@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -32,6 +31,17 @@ pytestmark = [pytest.mark.security, pytest.mark.usefixtures("docker")]
 
 DIGESTS = Path(__file__).resolve().parents[2] / "capabilities" / "digests.json"
 LISTENER_PORT = 8080
+LISTENER = (
+    "import socket\n"
+    "s = socket.socket()\n"
+    "s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+    f"s.bind(('0.0.0.0', {LISTENER_PORT}))\n"
+    "s.listen(8)\n"
+    "while True:\n"
+    "    connection, _ = s.accept()\n"
+    "    connection.sendall(b'reachable')\n"
+    "    connection.close()\n"
+)
 
 
 @pytest.fixture(scope="module")
@@ -39,6 +49,16 @@ def image() -> str:
     if not DIGESTS.is_file():
         pytest.skip("run scripts/build_capabilities.py first")
     return str(json.loads(DIGESTS.read_text())["csv_to_json"])
+
+
+async def docker_cli(*args: str, check: bool = True) -> str:
+    process = await asyncio.create_subprocess_exec(
+        "docker", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if check:
+        assert process.returncode == 0, stderr.decode()
+    return stdout.decode().strip()
 
 
 async def attempt(image: str, code: str) -> SandboxResult | str:
@@ -120,8 +140,8 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
 
     Everything else here can pass on a laptop for the wrong reason -- nothing
     answers on 169.254.169.254 at home. This one puts a service that *does*
-    answer on the same network as the sandbox and requires the filter to be
-    what stops it.
+    answer on the same network as the sandbox, so the filter has to be what
+    stops it.
     """
     runtime = DockerOciRuntime()
     try:
@@ -129,36 +149,11 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
     except ExecutionFailed as refusal:
         pytest.skip(f"egress filter cannot be installed on this host: {refusal}")
 
-    listener = subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--detach",
-            f"--network={network}",
-            image,
-            "python",
-            "-c",
-            "import socket\n"
-            "s = socket.socket()\n"
-            "s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
-            f"s.bind(('0.0.0.0', {LISTENER_PORT}))\n"
-            "s.listen(8)\n"
-            "while True:\n"
-            "    connection, _ = s.accept()\n"
-            "    connection.sendall(b'reachable')\n"
-            "    connection.close()\n",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    listener = await docker_cli(
+        "run", "--rm", "--detach", f"--network={network}", image, "python", "-c", LISTENER
+    )
     try:
-        details = json.loads(
-            subprocess.run(
-                ["docker", "inspect", listener], capture_output=True, text=True, check=True
-            ).stdout
-        )
+        details = json.loads(await docker_cli("inspect", listener))
         address = details[0]["NetworkSettings"]["Networks"][EGRESS_NETWORK]["IPAddress"]
         assert address, "the listener has no address on the sandbox network"
         await asyncio.sleep(2)  # let it bind before the sandbox goes for it
@@ -171,7 +166,7 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
         )
         assert_unreachable(outcome)
     finally:
-        subprocess.run(["docker", "rm", "-f", listener], capture_output=True, check=False)
+        await docker_cli("rm", "-f", listener, check=False)
 
 
 async def test_a_networked_run_is_refused_when_the_filter_cannot_be_installed(

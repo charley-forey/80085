@@ -121,6 +121,12 @@ Treat every artifact as hostile.
 * The sandbox gets: `--network none`, `--read-only`, `--cap-drop ALL`,
   `--security-opt no-new-privileges`, `--user 65534`, cpu/memory/pids/time
   limits, no host mounts, no Docker socket, no ambient credentials.
+* An Experience that asks for the network gets a filtered bridge, never the
+  default one: link-local, cloud metadata, loopback and RFC1918 are dropped
+  whatever the flag says, and a run is refused if those rules cannot be
+  installed. See `docs/security.md` and DECISIONS 25.
+* How long a run may take is a tier (`quick`/`standard`/`extended`) granted
+  through the `policies` table, not a number a recorder chooses. DECISIONS 26.
 * Inputs and outputs move as tar streams via `docker cp`. That is why no bind
   mount is needed — do not add one.
 * Never put secrets in source, Experience metadata, embeddings, execution
