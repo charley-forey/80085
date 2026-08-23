@@ -54,7 +54,12 @@ def test_capability_reproduces_its_fixture(name: str, tmp_path: Path) -> None:
     assert expected, f"{name}: fixture declares no expected output"
     for path in expected:
         relative = path.relative_to(expected_root)
-        assert (tmp_path / relative).read_bytes() == path.read_bytes(), f"{name}: {relative}"
+        blob = path.read_bytes()
+        # A fixture recorded on Windows carries CRLF, .gitattributes stops git
+        # from ever normalising it, and the file then only matches the machine
+        # that produced it. Caught in CI once; cheaper to assert than rediscover.
+        assert b"\r\n" not in blob, f"{name}: {relative} has CRLF; fixtures are LF"
+        assert (tmp_path / relative).read_bytes() == blob, f"{name}: {relative}"
 
 
 @pytest.mark.parametrize("name", sorted(CORPUS))
