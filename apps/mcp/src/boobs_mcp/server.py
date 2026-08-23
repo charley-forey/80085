@@ -19,7 +19,13 @@ from typing import Any
 import httpx
 from mcp.server.mcpserver import MCPServer
 
-from boobs_common.config import settings
+# This package deliberately depends on nothing from the workspace. An agent
+# installs it straight from the repo with
+#     uvx --from git+<repo>#subdirectory=apps/mcp 80085-mcp
+# and a workspace-only dependency like 80085-common would make that
+# unresolvable, because it is not on PyPI. Both settings it used to supply are
+# read from the environment anyway.
+DEFAULT_API_URL = "https://api.80085.ai"
 
 mcp = MCPServer(
     "80085",
@@ -31,11 +37,11 @@ mcp = MCPServer(
 
 
 def _client() -> httpx.AsyncClient:
-    key = os.environ.get("BOOBS_API_KEY", settings().boobs_api_key)
+    key = os.environ.get("BOOBS_API_KEY", "")
     if not key:
         raise RuntimeError("BOOBS_API_KEY is not set; the MCP server cannot call the API")
     return httpx.AsyncClient(
-        base_url=os.environ.get("BOOBS_API_URL", settings().api_base_url),
+        base_url=os.environ.get("BOOBS_API_URL", DEFAULT_API_URL),
         headers={"Authorization": f"Bearer {key}"},
         timeout=httpx.Timeout(120.0),
     )

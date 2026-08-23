@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Query, Response, status
 from sqlalchemy import select
@@ -111,17 +111,29 @@ async def bootstrap(
     organization: str = Body(embed=True),
     agent: str = Body(embed=True),
     token: str = Body(embed=True),
+    scopes: Annotated[list[str] | None, Body(embed=True)] = None,
 ) -> dict[str, Any]:
     """Create an organization, an agent and its first API key.
 
     Guarded by BOOBS_BOOTSTRAP_TOKEN because it mints credentials. This is
     the MVP's account creation; a real signup flow replaces it.
+
+    `scopes` narrows the key below the default of everything. The website's
+    public recall proxy needs a key that can read and nothing else, and a
+    credential that can only be minted at full privilege is a credential that
+    cannot be safely exposed anywhere.
     """
     import os
 
     expected = os.environ.get("BOOBS_BOOTSTRAP_TOKEN", "")
     if not expected or token != expected:
         raise Forbidden("invalid bootstrap token")
+
+    granted = sorted(Scope.ALL) if scopes is None else sorted(set(scopes))
+    if not set(granted) <= Scope.ALL:
+        raise ValidationError(f"unknown scopes: {sorted(set(granted) - Scope.ALL)}")
+    if not granted:
+        raise ValidationError("a key with no scopes can do nothing")
 
     org = Organization(id=ids.new_id(ids.ORGANIZATION), name=organization, created_at=now())
     agent_row = Agent(
@@ -134,7 +146,7 @@ async def bootstrap(
         agent_id=agent_row.id,
         name=f"{agent} default",
         key_hash=key_hash,
-        scopes=sorted(Scope.ALL),
+        scopes=granted,
         created_at=now(),
     )
     # Flushed in dependency order: without ORM relationships, the unit of work
@@ -147,7 +159,7 @@ async def bootstrap(
         "organization_id": org.id,
         "agent_id": agent_row.id,
         "api_key": plaintext,
-        "scopes": sorted(Scope.ALL),
+        "scopes": granted,
     }
 
 

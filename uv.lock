@@ -153,7 +153,6 @@ name = "80085-mcp"
 version = "0.1.0"
 source = { editable = "apps/mcp" }
 dependencies = [
-    { name = "80085-common" },
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
@@ -161,7 +160,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "80085-common", editable = "packages/common" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "mcp", specifier = ">=1.2" },
     { name = "pydantic", specifier = ">=2.10" },

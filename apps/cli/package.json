@@ -1,0 +1,23 @@
+{
+  "name": "@80085/cli",
+  "version": "0.1.0",
+  "description": "Wire the 80085 MCP server into your agent. Two steps, no step three.",
+  "type": "module",
+  "bin": {
+    "80085": "./init.js"
+  },
+  "files": ["init.js"],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/charley-forey/80085.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://80085.ai",
+  "keywords": ["mcp", "ai-agents", "claude", "cursor", "windsurf"],
+  "scripts": {
+    "test": "node --test"
+  }
+}

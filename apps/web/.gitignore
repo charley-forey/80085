@@ -1,0 +1,23 @@
+# Everything build.mjs writes. Vercel runs the build; committing the output
+# would let it drift from content.js, which is the one thing this site's
+# architecture exists to prevent.
+/index.html
+/install.html
+/key.html
+/1337.html
+/404.html
+/small.js
+/public/index.*
+/public/install.*
+/public/llms.txt
+/public/llms-full.txt
+/public/agents.md
+/public/robots.txt
+/public/sitemap.xml
+/public/boot.js
+/public/og.svg
+/public/icon.svg
+/public/.well-known/
+
+# og.png is NOT ignored: it is drawn by hand with scripts/make-og.py and
+# committed, because there is no rasteriser in the build.
