@@ -1,0 +1,86 @@
+[project]
+name = "80085"
+version = "0.1.0"
+description = "80085.ai - shared, evidence-backed memory of executable solutions for AI agents"
+requires-python = ">=3.12"
+dependencies = [
+    "80085-api",
+    "80085-worker",
+    "80085-mcp",
+]
+
+[tool.uv.workspace]
+# Listed explicitly: apps/web is a static site, not a Python package, so an
+# "apps/*" glob would make uv refuse to resolve the workspace.
+members = ["apps/api", "apps/worker", "apps/mcp", "packages/*"]
+
+[tool.uv.sources]
+80085-api = { workspace = true }
+80085-worker = { workspace = true }
+80085-mcp = { workspace = true }
+80085-common = { workspace = true }
+80085-domain = { workspace = true }
+80085-schemas = { workspace = true }
+80085-retrieval = { workspace = true }
+80085-execution = { workspace = true }
+80085-verification = { workspace = true }
+80085-reputation = { workspace = true }
+80085-security = { workspace = true }
+80085-observability = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "alembic>=1.14",
+    "types-jsonschema",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "boobs_api", "boobs_common", "boobs_domain", "boobs_execution",
+    "boobs_mcp", "boobs_observability", "boobs_reputation",
+    "boobs_retrieval", "boobs_schemas", "boobs_security",
+    "boobs_verification", "boobs_worker",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B"]
+# _docker_run wraps a subprocess; its `timeout` is not an async-API timeout.
+"packages/execution/**" = ["ASYNC109"]
+"scripts/**" = ["S"]
+# The control arm deliberately blocks on docker build; that is what it times.
+"benchmarks/**" = ["S", "ASYNC220", "ASYNC221"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "boobs_domain.*"
+disallow_untyped_defs = true
+disallow_any_generics = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: requires docker compose services",
+    "security: sandbox escape / resource exhaustion tests",
+    "e2e: full cross-agent loop",
+    "benchmark: control vs treatment measurement",
+]

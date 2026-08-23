@@ -1,0 +1,71 @@
+# Local development services (spec section 34).
+#
+# The worker is deliberately NOT here: it needs the Docker daemon to run
+# sandboxes, and handing a container the host socket would undo the isolation
+# the sandbox exists to provide. Run it on the host: `make worker`.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: boobs
+      POSTGRES_PASSWORD: boobs
+      POSTGRES_DB: boobs
+    # 55432 on the host: a native PostgreSQL service commonly owns 5432.
+    ports: ["55432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boobs"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  registry:
+    image: registry:2
+    ports: ["5000:5000"]
+    volumes: ["registrydata:/var/lib/registry"]
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["uvicorn", "boobs_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://boobs:boobs@postgres:5432/boobs
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_BUCKET: boobs
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_started}
+
+volumes:
+  pgdata:
+  miniodata:
+  registrydata:

@@ -1,0 +1,13 @@
+.git
+.venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+node_modules
+tests
+benchmarks
+docs
+capabilities/digests.json
+*.md
+.env

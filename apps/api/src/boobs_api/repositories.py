@@ -1,0 +1,259 @@
+"""Postgres implementations of the domain protocols (spec section 10).
+
+Everything tenant-scoped goes through PolicyEngine before it is returned, so
+there is exactly one path by which an object can leave the database.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from typing import Any
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from boobs_common import ids
+from boobs_common.clock import now
+from boobs_common.errors import Conflict, NotFound, ValidationError
+from boobs_domain.entities import DIGEST_RE, OCI_PINNED_RE
+from boobs_domain.enums import ExperienceStatus, VerificationLevel
+from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
+from boobs_retrieval.embedding import Embedder, embedder
+from boobs_retrieval.intent import normalize
+from boobs_retrieval.pipeline import recall, searchable_text
+from boobs_schemas.api import RecordExperienceRequest
+from boobs_schemas.tables import (
+    Artifact,
+    Execution,
+    ExecutionEvent,
+    Experience,
+    ExperienceVersion,
+)
+from boobs_security.policy import ScopePolicyEngine
+
+
+class ArtifactRepository:
+    """Artifacts are content-addressed and shared across tenants: identical
+    bytes are the same artifact no matter who registered them first."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def register(
+        self, principal: Principal, reference: str, size_bytes: int | None = None
+    ) -> Artifact:
+        if not OCI_PINNED_RE.match(reference):
+            raise ValidationError(
+                "artifact reference must be pinned as repository@sha256:<digest>; "
+                "tags are refused because the bytes behind them can change"
+            )
+        digest = reference.rsplit("@", 1)[1]
+        if not DIGEST_RE.match(digest):
+            raise ValidationError(f"malformed digest {digest!r}")
+
+        existing = (
+            await self._db.execute(select(Artifact).where(Artifact.digest == digest))
+        ).scalar_one_or_none()
+        if existing is not None:
+            return existing
+
+        artifact = Artifact(
+            id=ids.new_id(ids.ARTIFACT),
+            type="oci",
+            reference=reference,
+            digest=digest,
+            size_bytes=size_bytes,
+            registered_by=principal.agent_id,
+            created_at=now(),
+        )
+        self._db.add(artifact)
+        await self._db.flush()
+        return artifact
+
+    async def resolve(self, artifact_id: str) -> Artifact:
+        artifact = (
+            await self._db.execute(select(Artifact).where(Artifact.id == artifact_id))
+        ).scalar_one_or_none()
+        if artifact is None:
+            raise NotFound(f"artifact {artifact_id} not found")
+        return artifact
+
+
+class ExperienceRepository:
+    def __init__(
+        self,
+        db: AsyncSession,
+        policy: ScopePolicyEngine | None = None,
+        model: Embedder | None = None,
+    ) -> None:
+        self._db = db
+        self._policy = policy or ScopePolicyEngine()
+        self._model = model or embedder()
+
+    async def create(
+        self, principal: Principal, request: RecordExperienceRequest
+    ) -> tuple[Experience, ExperienceVersion]:
+        await self._policy.authorize(principal, "experience.record")
+
+        artifacts = ArtifactRepository(self._db)
+        artifact = await artifacts.register(
+            principal, request.artifact.reference, request.artifact.size_bytes
+        )
+
+        if request.experience_id:
+            experience = await self.get(principal, request.experience_id)
+            await self._policy.authorize(principal, "experience.record", experience)
+            version_number = experience.latest_version + 1
+        else:
+            intent = request.goal.intent or normalize(request.goal.statement).canonical
+            experience = Experience(
+                id=ids.new_id(ids.EXPERIENCE),
+                organization_id=principal.organization_id,
+                goal_statement=request.goal.statement,
+                goal_intent=intent,
+                tags=list(request.goal.tags),
+                status=ExperienceStatus.CANDIDATE,
+                verification_level=VerificationLevel.UNVERIFIED,
+                visibility=request.visibility,
+                latest_version=0,
+                created_by=principal.agent_id,
+                created_at=now(),
+                updated_at=now(),
+            )
+            self._db.add(experience)
+            version_number = 1
+
+        text = searchable_text(
+            experience.goal_statement, experience.goal_intent, list(experience.tags)
+        )
+        version = ExperienceVersion(
+            id=ids.new_id(ids.VERSION),
+            experience_id=experience.id,
+            organization_id=principal.organization_id,
+            version=version_number,
+            artifact_id=artifact.id,
+            command=list(request.command),
+            inputs=request.inputs.model_dump() if request.inputs else None,
+            outputs=request.outputs.model_dump() if request.outputs else None,
+            verification=request.verification.model_dump() if request.verification else None,
+            lineage=request.lineage.model_dump(),
+            os=request.environment.os,
+            architecture=request.environment.architecture,
+            runtime=request.environment.runtime,
+            runtime_version=request.environment.runtime_version,
+            requires_network=request.constraints.network,
+            required_capabilities=list(request.constraints.required_capabilities),
+            search_text=text,
+            embedding=self._model.embed([text])[0],
+            created_by=principal.agent_id,
+            created_at=now(),
+        )
+        self._db.add(version)
+        experience.latest_version = version_number
+        experience.updated_at = now()
+        await self._db.flush()
+        return experience, version
+
+    async def get(self, principal: Principal, experience_id: str) -> Experience:
+        experience = (
+            await self._db.execute(select(Experience).where(Experience.id == experience_id))
+        ).scalar_one_or_none()
+        if experience is None:
+            raise NotFound(f"experience {experience_id} not found")
+        await self._policy.authorize(principal, "experience.read", experience)
+        return experience
+
+    async def get_version(
+        self, principal: Principal, experience_id: str, version: int | None = None
+    ) -> ExperienceVersion:
+        experience = await self.get(principal, experience_id)
+        wanted = version if version is not None else experience.latest_version
+        row = (
+            await self._db.execute(
+                select(ExperienceVersion).where(
+                    ExperienceVersion.experience_id == experience_id,
+                    ExperienceVersion.version == wanted,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise NotFound(f"experience {experience_id} has no version {wanted}")
+        return row
+
+    async def search(self, principal: Principal, query: RecallQuery) -> list[Any]:
+        await self._policy.authorize(principal, "experience.recall")
+        return await recall(self._db, principal, query, self._model)
+
+
+class ExecutionRepository:
+    def __init__(self, db: AsyncSession, policy: ScopePolicyEngine | None = None) -> None:
+        self._db = db
+        self._policy = policy or ScopePolicyEngine()
+
+    async def create(self, execution: Execution) -> Execution:
+        self._db.add(execution)
+        await self._db.flush()
+        return execution
+
+    async def get(self, principal: Principal, execution_id: str) -> Execution:
+        execution = (
+            await self._db.execute(select(Execution).where(Execution.id == execution_id))
+        ).scalar_one_or_none()
+        if execution is None:
+            raise NotFound(f"execution {execution_id} not found")
+        # Executions are never cross-tenant readable: they are the caller's own
+        # run of someone else's Experience, and may contain the caller's data.
+        if execution.organization_id != principal.organization_id:
+            raise NotFound(f"execution {execution_id} not found")
+        return execution
+
+
+class SqlEventStore:
+    """Append-only execution event stream (spec section 20)."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def append(
+        self, execution_id: str, event_type: str, payload: dict[str, Any]
+    ) -> ExecutionEvent:
+        next_sequence = (
+            await self._db.execute(
+                select(func.coalesce(func.max(ExecutionEvent.sequence), 0) + 1).where(
+                    ExecutionEvent.execution_id == execution_id
+                )
+            )
+        ).scalar_one()
+        event = ExecutionEvent(
+            id=ids.new_id(ids.EVENT),
+            execution_id=execution_id,
+            sequence=int(next_sequence),
+            event_type=event_type,
+            payload=payload,
+            created_at=now(),
+        )
+        self._db.add(event)
+        try:
+            await self._db.flush()
+        except Exception as exc:  # concurrent append raced us on the sequence
+            raise Conflict(f"event sequence conflict for {execution_id}") from exc
+        return event
+
+    async def stream(self, execution_id: str) -> AsyncIterator[ExecutionEvent]:
+        rows = (
+            await self._db.execute(
+                select(ExecutionEvent)
+                .where(ExecutionEvent.execution_id == execution_id)
+                .order_by(ExecutionEvent.sequence)
+            )
+        ).scalars()
+        for row in rows:
+            yield row
+
+
+def sandbox_failure_reason(result: SandboxResult) -> str | None:
+    if result.error:
+        return result.error
+    if result.exit_code not in (0, None):
+        return f"exit_code={result.exit_code}"
+    return None

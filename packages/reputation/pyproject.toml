@@ -1,0 +1,17 @@
+[project]
+name = "80085-reputation"
+version = "0.1.0"
+description = "evidence aggregation over immutable executions"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0.36",
+    "80085-domain",
+    "80085-schemas",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/boobs_reputation"]
