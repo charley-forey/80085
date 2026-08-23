@@ -172,6 +172,16 @@ class ExecuteRequest(Strict):
     wait_seconds: int = Field(
         default=0, ge=0, le=300, description="Block up to N seconds for a terminal status."
     )
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description=(
+            "Retry token. Repeating a request with the same key returns the execution the "
+            "first one created rather than running the sandbox a second time. Scoped to "
+            "your organization; pick something unique to the attempt, such as a uuid4."
+        ),
+    )
 
     @field_validator("inputs")
     @classmethod

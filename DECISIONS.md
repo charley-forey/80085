@@ -308,6 +308,21 @@ Locked in by `tests/integration/test_readiness.py`.
 pgvector. Plain `postgres:*` does not. Anything replacing it must carry
 pgvector or the registry loses semantic recall.
 
+**Platform healthcheck:** Railway now health-checks `/v1/ready`, not
+`/v1/health`. Liveness only proves a process answers sockets, which is the one
+failure the platform can already see for itself; the outage above was invisible
+to it precisely because the process was fine.
+
+The obvious objection is that `/v1/ready` also 503s on a transient object
+storage blip, and cycling a container over that would trade a small outage for
+a bigger one. It does not: Railway queries the healthcheck only while a
+deployment is going live and explicitly does not monitor it afterwards, and
+`restartPolicyType` reacts to the process exiting, not to an HTTP status. So
+the whole effect is that a deploy is not switched to until its dependencies
+actually work, and a blip during a deploy window fails *that deploy* while the
+previous deployment keeps serving. That is the behaviour we want in both
+directions.
+
 ---
 
 ### 19. A second runtime: E2B, selected by `BOOBS_RUNTIME`
@@ -463,3 +478,70 @@ check must exercise the dependency the way the product does, and a probe that
 `all(checks.values())` fails readiness on the fallback by itself.
 
 Locked in by `tests/unit/test_ready_reports_the_embedder.py`.
+
+---
+
+### 23. Object storage never runs inside a database transaction
+
+**Found by audit, not by an outage -- the outage this describes had not
+happened yet.** `get_db` commits at the end of the request, so a handler that
+called S3 halfway through held a Postgres connection for the length of the
+round trip. Worker lease read inputs while holding the queue row lock from
+`SELECT ... FOR UPDATE SKIP LOCKED`; worker result wrote outputs and logs
+before its own writes; execute staged inputs before the commit that enqueues.
+
+The pool is `pool_size=10, max_overflow=10` -- twenty connections per process.
+Under a burst of concurrent workers that is twenty S3 round trips holding
+twenty connections, and the twenty-first request queues on the pool while the
+CPU is idle. A slow bucket would have presented as a database outage, in a
+system whose object storage is by definition slower and less reliable than its
+database.
+
+Every handler now ends its transaction before any non-database network I/O
+(`deps.release`) and opens a fresh one for the writes. Two orderings are
+load-bearing rather than incidental:
+
+* **Execute stages inputs before it inserts the row**, because committing the
+  row *is* the enqueue -- a worker can lease it immediately. A row whose inputs
+  were never written would run the artifact against nothing and the platform
+  would record that as evidence, which is the only failure here that corrupts
+  the product rather than merely wasting bytes.
+* **Result uploads before it records `output_key`**, for the same reason in
+  reverse: a row naming bytes that do not exist fails every later read.
+
+What is given up is atomicity across the object-storage call, which Postgres
+was never providing: the surviving failure mode is an uploaded object that no
+row references, which nothing reads and a bucket lifecycle rule can sweep. The
+lease handler additionally commits its claim before fetching inputs, so a
+failure after that point leaves a row `running` until its lease expires --
+which is exactly the mechanism decision 8 built for.
+
+Locked in by `tests/unit/test_object_storage_outside_transactions.py`, which
+asserts the ordering directly rather than measuring it.
+
+---
+
+### 24. Execute takes an optional idempotency key
+
+Execute is the only operation that spends real compute. A client that timed out
+after the commit and retried got a second Execution row and a second real
+sandbox run -- silently, because both calls succeed. Retrying a request that
+appears to have failed is what every well-behaved HTTP client does.
+
+`idempotency_key` is optional on `ExecuteRequest` and unique per organization
+via a partial index (`ux_executions_idempotency`, `WHERE idempotency_key IS NOT
+NULL`), so the majority of rows that carry no key are unconstrained. A repeat
+returns the execution the first call created. A genuine race is settled by the
+index rather than by a lock: the loser catches the unique violation and reports
+the winner's row.
+
+Scoped per organization because a global key space would let one tenant's uuid
+collide with another's -- handing over an execution id that is not theirs, or
+refusing a run because a stranger picked the same token.
+
+Nothing is updated, so the append-only guards on `executions` are untouched:
+the row is the receipt, and the receipt is written once.
+
+**Not done:** the MCP `run_experience` tool does not send one. An MCP retry is a
+fresh tool call the model chose to make, which is a decision to run again rather
+than a transport retry, and inventing a key on its behalf would suppress that.

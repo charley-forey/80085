@@ -18,7 +18,7 @@ from boobs_common.errors import Conflict, NotFound, ValidationError
 from boobs_domain.entities import DIGEST_RE, OCI_PINNED_RE
 from boobs_domain.enums import ExperienceStatus, VerificationLevel
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
-from boobs_retrieval.embedding import Embedder, embedder
+from boobs_retrieval.embedding import Embedder, embed_in_thread, embedder
 from boobs_retrieval.intent import normalize
 from boobs_retrieval.pipeline import recall, searchable_text
 from boobs_schemas.api import RecordExperienceRequest
@@ -126,6 +126,7 @@ class ExperienceRepository:
         text = searchable_text(
             experience.goal_statement, experience.goal_intent, list(experience.tags)
         )
+        embedding = (await embed_in_thread(self._model, [text]))[0]
         version = ExperienceVersion(
             id=ids.new_id(ids.VERSION),
             experience_id=experience.id,
@@ -144,7 +145,7 @@ class ExperienceRepository:
             requires_network=request.constraints.network,
             required_capabilities=list(request.constraints.required_capabilities),
             search_text=text,
-            embedding=self._model.embed([text])[0],
+            embedding=embedding,
             created_by=principal.agent_id,
             created_at=now(),
         )
@@ -194,6 +195,22 @@ class ExecutionRepository:
         self._db.add(execution)
         await self._db.flush()
         return execution
+
+    async def by_idempotency_key(self, principal: Principal, key: str) -> Execution | None:
+        """The execution some earlier request with this key already created.
+
+        Scoped to the caller's organization by the same predicate as the unique
+        index behind it, so a token cannot be used to observe -- or collide
+        with -- another tenant's runs.
+        """
+        return (
+            await self._db.execute(
+                select(Execution).where(
+                    Execution.organization_id == principal.organization_id,
+                    Execution.idempotency_key == key,
+                )
+            )
+        ).scalar_one_or_none()
 
     async def get(self, principal: Principal, execution_id: str) -> Execution:
         execution = (

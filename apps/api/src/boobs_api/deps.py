@@ -30,6 +30,24 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
+async def release(db: AsyncSession) -> None:
+    """End the request's transaction and hand its connection back to the pool.
+
+    get_db keeps one transaction open for the whole request, which is right for
+    the database writes and wrong for everything else. A handler that calls
+    object storage mid-transaction pins a Postgres connection for the length of
+    an S3 round trip, and the pool is ten plus ten overflow per process -- so a
+    burst of concurrent leases or results exhausts it while the CPU is idle,
+    and a slow bucket presents as a database outage.
+
+    Call this before any network I/O that is not the database. Writes on either
+    side of it stay atomic within their own transaction; what is given up is
+    atomicity *across* the object-storage call, which Postgres was never
+    providing anyway.
+    """
+    await db.commit()
+
+
 async def get_principal(
     db: DbSession, authorization: Annotated[str | None, Header()] = None
 ) -> Principal:
