@@ -2024,3 +2024,147 @@ reads — a 200 that changes nothing at lease time is the failure worth catching
 **Undo:** delete the route, the two models, the `admin.execution_tiers` entry
 and the window. Grants revert to the `INSERT` decision 26 described, and rows
 this wrote keep working, because they are that same row.
+
+---
+
+### 55. The front door stops answering "does this id exist"
+
+`GET /v1/experiences/{id}` answered **403** for an Experience that exists and
+is not visible to the caller, and **404** for one that was never recorded.
+Anyone who can call the API could therefore test an arbitrary id and read the
+answer off the status line. That is an existence oracle over every private
+Experience in the corpus.
+
+Decision 52 built the lineage traversal so that an edge naming another
+organization's private Experience and an edge naming an id that was never
+recorded produce byte-identical output, and said in as many words that this
+front door was worth revisiting and belonged in its own review. This is that
+review. Until now, the traversal's guarantee was partly cosmetic: a caller who
+could not tell the two cases apart from a walk could put the same id in the
+path instead and be told.
+
+**One sentence: the 403/404 distinction never crosses an organization.**
+
+#### Who is actually harmed, honestly
+
+Not by enumeration. An Experience id is `exp_` plus a uuid4; there is no
+sweeping the space and nothing about this change makes guessing harder. The
+realistic attack is **confirmation of an id obtained some other way** — a
+leaked log line, a lineage edge, a ticket, a screenshot pasted into a chat, a
+prompt an agent kept. An id in a stranger's hands is not evidence that the
+Experience is real, that its owner still keeps it, or that it is worth
+attacking. A 403 turned all three into a single request.
+
+That is a modest threat on its own, and it would be dishonest to call it more.
+What makes it worth closing is not its size but its shape: this repository has
+already ruled on this exact question twice, and both times the answer was 404.
+`ExecutionRepository.get` collapses a cross-tenant execution read to 404
+because the run "may contain the caller's data"; decision 52 collapsed an
+unresolvable lineage edge for precisely the oracle reason. The MCP client has
+been telling agents since decision 35 that 404 "may mean private, do not
+retry", which is advice that only makes sense if 404 is what tenancy returns.
+The read path was the odd one out, and an inconsistent rule is worse than
+either rule: it is the one a reviewer has to re-derive every time, and the one
+that quietly reopens the hole the careful endpoint closed.
+
+#### What is kept, and why: 403 inside one organization
+
+"Return 404 everywhere" would have been a smaller diff and a worse answer.
+
+A 403 is genuinely useful to a caller in the *same organization* who is
+refused: it says the id is real and the permission is not, instead of sending
+an operator to hunt for a typo they did not make. That is decision 39's
+reasoning about ids being uuid4s, and it survives — inside the tenancy
+boundary. The organization is the boundary every other rule in
+`policy.py` defends; there is no reason for this answer to be the one that
+crosses it, and no attacker outside it gains anything from a distinction drawn
+inside it. So:
+
+* **another organization's Experience, not visible** → `404`, identical error
+  and identical sentence to an id that was never recorded.
+* **the caller's own organization, not visible** (private to another agent)
+  → `403 not visible to this principal`, unchanged.
+
+Both halves are pinned by tests. The second is not an accident to be tidied up
+later; it is the decision.
+
+#### The scope hole, which was the same oracle with a cheaper key
+
+The row was fetched *before* the policy engine ran, so the missing-scope 403
+also depended on whether the row existed: a key holding only
+`experiences:write` got 403 for a real id and 404 for a fake one. Fixing only
+the visibility branch would have moved the oracle to the callers least
+entitled to it. Scope is now answered with no resource at all, before the
+`SELECT`, so a caller without `experiences:read` is told exactly the same
+thing either way.
+
+#### What an attacker can still learn
+
+* **From outside the owning organization: nothing about whether an id exists.**
+  Invisible and never-recorded are the same status, the same error class and
+  the same sentence, and the only difference between the two bodies is the id
+  the caller typed into the URL themselves.
+* **That public Experiences are public.** Reading one across a tenant boundary
+  is the entire product and is untouched.
+* **Inside their own organization, that a private id is real.** Deliberate,
+  see above. An organization is one trust boundary; this hands a colleague a
+  fact about their own tenant.
+* **Whether their *own* key has a scope.** A 403 for a missing scope is
+  unconditional now, which is what makes it safe to keep saying.
+* **Timing.** A visible-and-refused read does one `SELECT`; a miss does the
+  same `SELECT`. Both are one indexed primary-key lookup and neither computes
+  an embedding, so the two are not obviously separable — but nothing here
+  makes them constant-time, and a determined attacker with a quiet network is
+  not addressed. Closing a status-code oracle and leaving a timing side
+  channel is a real limitation, not a solved problem. It is not worth
+  constant-time work for a corpus whose ids are uuid4s and whose contents are
+  public by default.
+* **Existence of an *execution*, and of an artifact.** Executions were already
+  404 for everyone outside the owning organization. Artifacts are
+  content-addressed and deliberately shared across tenants (decision 13):
+  `artifacts.resolve` has no tenancy check because identical bytes are the
+  same artifact, and an artifact id is only ever obtained from a version the
+  caller could already read.
+* **From the worker protocol: nothing new.** `worker_routes.py` answers 403
+  when a worker without the lease tries to finish someone else's run. That is
+  a `worker:execute`-scoped surface, held by infrastructure and not by
+  callers, and the id in question was handed to the caller by the lease it is
+  answering about.
+
+#### Where it lives
+
+One place: `ExperienceRepository.get` in `repositories.py`, which is the only
+path by which a single Experience is read — `GET /v1/experiences/{id}`,
+`POST /v1/experiences/{id}/execute`, the lineage root, and recording a new
+version onto an existing Experience all arrive there. Nothing is re-decided at
+a call site.
+
+The refusal is still raised by the policy engine and then *translated*, rather
+than being re-derived from `visible_to` in a second place: `policy.py` stays
+the single definition of who may see what, and `repositories.py` only chooses
+which of two answers a refusal is allowed to be. Tenant isolation remains one
+file to audit.
+
+`recall` is unaffected and always was: it filters with `visibility_clause` and
+returns rows, so an invisible Experience is simply absent from the matches and
+there is nothing to be told.
+
+**Not fixed here, and it should be:** the docstring on
+`get_experience_lineage` in `routes.py` still says the root answers "404 if it
+is not there, 403 if it is not yours to see". That file is owned by another
+change in this wave and touching it would collide; the behaviour is asserted
+correctly in `tests/integration/test_lineage.py`, and the sentence is two
+lines to delete.
+
+Locked in by `tests/unit/test_the_read_path_is_not_an_existence_oracle.py`
+(both halves, including the write-only key) and by
+`tests/integration/test_registry_and_recall.py` and
+`tests/integration/test_lineage.py`, which assert the two answers are the same
+against a real database with a real private row — a claim about which branch a
+refusal takes does not survive being mocked. Two integration assertions that
+previously read `== 403` now read `== 404`: they were asserting the leak.
+
+**Undo:** delete the `try`/`except Forbidden` in `ExperienceRepository.get` and
+move the scope check back below the `SELECT`. No migration, no schema, no
+stored data — this decision changes which of two refusals a caller receives and
+nothing else.

@@ -301,9 +301,10 @@ _FIX = {
     401: f"The key sent was missing, malformed, unknown or revoked. {NO_KEY}",
     403: (
         "The key is real but not allowed to do this. A self-serve key may read, record and "
-        "run, and nothing else; and no key reaches another organization's private "
-        "Experiences. Retrying will not help -- use an Experience you can see, or a key that "
-        "owns this one."
+        "run, and nothing else; and it may not mutate an Experience another organization "
+        "owns. Something outside your organization that you may not see is reported missing, "
+        "not forbidden, so a 403 always means a real id and the wrong permission. Retrying "
+        "will not help -- use an Experience you can see, or a key that owns this one."
     ),
     404: (
         "No such id is visible to this key. Ids come from recall_experience, and an "

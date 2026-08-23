@@ -18,6 +18,7 @@ from tests.helpers import auth, bootstrap
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("docker")]
 
 DIGEST = "sha256:" + "11" * 32
+NEVER_RECORDED = "exp_" + "0" * 32
 PINNED = f"registry.test/80085/demo@{DIGEST}"
 
 
@@ -84,8 +85,18 @@ async def test_private_experience_is_invisible_to_another_tenant(
     )
     experience_id = created.json()["experience_id"]
 
+    # 404, and byte-identical to the answer for an id that was never recorded.
+    # This used to be 403, which made the read path an existence oracle: a
+    # stranger holding an id from a log or a screenshot could confirm it was
+    # real without ever being allowed to see a field of it. Asserted against a
+    # real row rather than a mock, because the claim is that the row is there.
     direct = await api.get(f"/v1/experiences/{experience_id}", headers=auth(stranger))
-    assert direct.status_code == 403
+    absent = await api.get(f"/v1/experiences/{NEVER_RECORDED}", headers=auth(stranger))
+    assert direct.status_code == absent.status_code == 404, direct.text
+    assert direct.json()["error"] == absent.json()["error"]
+    assert direct.json()["detail"].replace(experience_id, "ID") == absent.json()["detail"].replace(
+        NEVER_RECORDED, "ID"
+    )
 
     recalled = await api.post(
         "/v1/experiences/recall",
