@@ -452,6 +452,13 @@ the query, relevance multiplies rather than adds (decision 6), and `MIN_SCORE`
 still refuses a weak match. Fewer results, not wrong ones. An empty answer is a
 correct answer.
 
+**No embedder at all is a different failure, and it is unready.**
+`BOOBS_EMBEDDER=fastembed` refuses to fall back, so a model that will not load
+means every recall returns 500. That reports `unavailable` and fails the probe.
+`active_embedder` itself never raises: decision 18's rule is that a readiness
+check must exercise the dependency the way the product does, and a probe that
+500s exercises nothing and reports even less than one that answers.
+
 **Undo:** one line -- put a boolean in `checks` instead of the string, and
 `all(checks.values())` fails readiness on the fallback by itself.
 

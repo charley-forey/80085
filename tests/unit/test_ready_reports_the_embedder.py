@@ -67,3 +67,28 @@ async def test_the_hashing_fallback_does_not_make_the_api_unready(hashing: None)
 
     assert body["ready"] is True
     assert response.status_code == 200
+
+
+async def test_no_embedder_at_all_is_unready(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The other case. `BOOBS_EMBEDDER=fastembed` refuses to fall back, so a
+    model that will not load means every recall 500s -- that is unready, and it
+    is a different failure from degrading to hashing."""
+    monkeypatch.setenv("BOOBS_EMBEDDER", "fastembed")
+    monkeypatch.setattr(embedding, "FastEmbedEmbedder", _Unloadable)
+    embedding.embedder.cache_clear()
+    monkeypatch.setattr(storage, "healthy", _healthy)
+    response = Response()
+
+    body = await routes.ready(_Session(), response)  # type: ignore[arg-type]
+    embedding.embedder.cache_clear()
+
+    assert body["checks"]["embedder"] == "unavailable"
+    assert body["ready"] is False
+    assert response.status_code == 503
+
+
+class _Unloadable:
+    """A model that cannot be fetched: no network, no disk, no cache."""
+
+    def __init__(self, *_: Any, **__: Any) -> None:
+        raise RuntimeError("model unavailable")

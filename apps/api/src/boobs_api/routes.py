@@ -98,7 +98,9 @@ async def ready(db: DbSession, response: Response) -> dict[str, Any]:
         # outside the process. See DECISIONS.md 22.
         "embedder": await asyncio.to_thread(active_embedder),
     }
-    ok = all(checks.values())
+    # "unavailable" means an embedder was demanded and will not load, so recall
+    # would 500 -- genuinely unready. The hashing fallback is not.
+    ok = all(checks.values()) and checks["embedder"] != "unavailable"
     if not ok:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     # Queue depth is reported, not checked: a backlog means no worker is

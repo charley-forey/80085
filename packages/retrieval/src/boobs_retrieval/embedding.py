@@ -86,7 +86,8 @@ def embedder() -> Embedder:
 
 
 def active_embedder() -> str:
-    """Which embedder recall is really using: `fastembed` or `hashing`.
+    """Which embedder recall is really using: `fastembed`, `hashing`, or
+    `unavailable` when there is none and recall would fail outright.
 
     `embedder()` is lru_cached, so one failed model load at startup degrades
     every recall for the life of the process and the only evidence is a single
@@ -94,6 +95,10 @@ def active_embedder() -> str:
     visible from outside the process instead.
 
     This forces the model load on first call, which is the point: an answer of
-    "not loaded yet" would not tell an operator anything.
+    "not loaded yet" would not tell an operator anything. It never raises,
+    because a readiness probe that 500s tells them even less.
     """
-    return "fastembed" if isinstance(embedder(), FastEmbedEmbedder) else "hashing"
+    try:
+        return "fastembed" if isinstance(embedder(), FastEmbedEmbedder) else "hashing"
+    except Exception:  # noqa: BLE001 - BOOBS_EMBEDDER=fastembed and no model
+        return "unavailable"
