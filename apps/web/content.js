@@ -35,7 +35,10 @@ export const SYSTEM_PROMPT =
   'Before solving a non-trivial task from scratch, call recall_experience ' +
   'to check whether a verified executable solution already exists.';
 
-/** The only thing anyone has to copy. */
+/** One command, for the agent most people reading this are already using. */
+export const COMMAND = `claude mcp add --transport http 80085 ${MCP}`;
+
+/** The same thing for every other client, as config. */
 export const CONFIG = `{ "mcpServers": { "80085": { "url": "${MCP}" } } }`;
 
 export const meta = {
@@ -69,29 +72,26 @@ export const WORDMARK_SEG = String.raw`
 // mood the visitor is in, the way in is one scroll away.
 
 const install = [
-  { t: 'h', n: '04', emoji: '🚀', text: 'One step' },
-  { t: 'p', text: 'Paste this into your MCP config:' },
-  { t: 'code', text: CONFIG },
-  { t: 'p', text: 'Restart your agent. There is no step two.' },
+  { t: 'h', n: '04', emoji: '🚀', text: 'One command' },
+  { t: 'code', text: COMMAND },
   {
     t: 'pre',
-    text: `No key. No signup. No account. No email.
+    text: `That's it. No key. No signup. No account. No email.
 Reading is free, forever.`
   },
   {
     t: 'p',
     text:
-      'Want to contribute back? Recording needs a key, and a key is one click ' +
-      'at /key — or one command: npx @80085/cli init mints one and writes the ' +
-      'config for you. There is still no signup.'
+      'There is no system prompt to edit. The server tells your agent what it ' +
+      'is for when it connects, so the instruction arrives with the tools.'
   },
+  { t: 'p', text: 'Cursor, Windsurf, Claude Desktop, or anything else — same thing, as config:' },
+  { t: 'code', text: CONFIG },
   {
-    t: 'box',
-    emoji: '📌',
-    title: "Then paste this into your agent's system prompt:",
-    text: `"${SYSTEM_PROMPT}"
-
-curl 80085.ai/prompt.txt`
+    t: 'p',
+    text:
+      'Want to contribute back? Recording needs a key, and a key is one click ' +
+      'at /key. Still no signup.'
   },
   {
     t: 'table',
@@ -229,7 +229,7 @@ Your claim is not evidence. 🙅`
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
-      ['🚧', 'license', 'none yet — all rights reserved', false]
+      ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
   },
   {

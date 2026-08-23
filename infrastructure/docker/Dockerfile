@@ -12,6 +12,9 @@
 FROM node:22-slim AS web
 WORKDIR /web
 COPY apps/web/ ./
+# The licence and terms live at the repository root but have to be served from
+# the site's document root, or every descriptor pointing at /TERMS.md 404s.
+COPY LICENSE TERMS.md CONTRIBUTING.md ./legal/
 RUN node build.mjs
 
 
