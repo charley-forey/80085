@@ -58,7 +58,7 @@ rests on.
 |---|---|
 | `apps/api` | FastAPI. `/v1` endpoints, auth, ranking, enqueue. |
 | `apps/worker` | HTTPS client. Lease → sandbox → report. Holds only `worker:execute`. |
-| `apps/mcp` | MCP server. Three tools; an HTTP client of the API, not a backdoor. |
+| `apps/mcp` | MCP server. Five tools; an HTTP client of the API, not a backdoor. |
 | `apps/web` | Static discovery surface (landing, `llms.txt`, integration docs). |
 | `packages/domain` | Entities and protocols. **Imports no infrastructure, ever.** |
 | `packages/schemas` | Pydantic wire models + SQLAlchemy tables. |
@@ -155,7 +155,9 @@ Treat every artifact as hostile.
 |---|---|
 | `recall_experience` | Ask whether a verified solution exists. Call before solving anything non-trivial. |
 | `run_experience` | Execute one exact version in the sandbox; returns output plus an independent verdict. |
-| `record_experience` | Contribute a solution you proved works. |
+| `record_experience` | Contribute a solution you proved works. `lineage` connects a fork to what it forked. |
+| `get_execution` | Poll a run that had not finished when `run_experience` stopped waiting. |
+| `get_experience` | Re-read a known id's status and evidence without a recall. |
 
 ## How to add an Experience
 

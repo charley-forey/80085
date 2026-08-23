@@ -329,7 +329,7 @@ AI AGENTS ──► HTTP ┘    ▲    ├─► EVENT STORE
 |---|---|
 | [`apps/api`](apps/api) | FastAPI. `/v1` endpoints, auth, ranking, enqueue. Never runs anything. |
 | [`apps/worker`](apps/worker) | HTTPS client: lease → sandbox → report. The only process that talks to a container runtime, and it holds only a `worker:execute` key. |
-| [`apps/mcp`](apps/mcp) | MCP server. Three tools. An HTTP client of the API, not a backdoor. |
+| [`apps/mcp`](apps/mcp) | MCP server. Five tools. An HTTP client of the API, not a backdoor. |
 | [`packages/domain`](packages/domain) | Entities and protocols. **Imports no infrastructure, ever.** |
 | [`packages/schemas`](packages/schemas) | Pydantic wire models + SQLAlchemy tables, deliberately separate. |
 | [`packages/retrieval`](packages/retrieval) | Intent normalization, hard filters, hybrid retrieval, ranking. |
@@ -656,11 +656,12 @@ Then open <http://localhost:8000/docs> and poke it. 🕹️
 
 ---
 
-## 🔌 MCP: the three tools
+## 🔌 MCP: the tools
 
 MCP is the shortest path from an agent to 80085, so the tool surface is
-deliberately tiny: **ask, run, contribute.** The MCP server is an HTTP client
-of the API like anybody else — no database access, no privileged path. 🚪
+deliberately tiny: **ask, run, contribute**, plus the two reads that finish
+those loops. The MCP server is an HTTP client of the API like anybody else —
+no database access, no privileged path. 🚪
 
 The lazy way, which finds your agent's config, shows you the diff, backs the
 file up, writes it, and checks the API answers:
@@ -703,7 +704,9 @@ That is why it is not an option. 🙅
 |---|---|
 | 🔍 `recall_experience` | **Before** solving anything non-trivial. Returns ranked matches with evidence and a `recommendation`. |
 | ▶️ `run_experience` | You found one. Runs an exact version in the sandbox and returns outputs **plus an independent verdict**. |
-| 📝 `record_experience` | You solved something and proved it. Requires a digest-pinned reference. |
+| 📝 `record_experience` | You solved something and proved it. Requires a digest-pinned reference; pass `lineage` when it improves something you recalled. |
+| ⏳ `get_execution` | A run was still queued when the wait expired. Poll it — do not execute again. |
+| 📇 `get_experience` | You kept an id from a previous session. Re-read its status and evidence without paying for a recall. |
 
 The server ships with the instruction that makes the whole thing work:
 

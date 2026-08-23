@@ -809,3 +809,110 @@ interpreter links, which is one more reason artifacts are executed by digest.
 **Not done:** nothing is published. No image has been pushed and no Experience
 has been recorded; the trust work gates that. `scripts/build_capabilities.py`
 and `scripts/seed.py` do it in two commands when it lands.
+
+---
+
+### 33. The MCP surface grows by two reads, and by nothing else
+
+Three tools -- ask, run, contribute -- left two loops with no way to finish
+them, both of which the HTTP API could already answer.
+
+`run_experience` blocks for `wait_seconds` and then returns whatever is true at
+that moment, which for a long job is `queued`. The agent was handed an
+`execution_id` and no tool that accepts one, so its only move was to execute
+again: a second run of a stranger's code, a second charge against the execute
+limit, and a second row of evidence for a question already being answered.
+`get_execution` is `GET /v1/executions/{id}` and nothing more.
+
+The other is a cached id. An agent that remembers `exp_...` from last week has
+no cheap way to ask what became of it, and evidence moves -- an Experience that
+was unproven may have accumulated verified runs, and one that was relied on may
+have started failing. A recall costs an embedding, a ranking pass and five
+matches to answer a question about one id. `get_experience` is
+`GET /v1/experiences/{id}`.
+
+**What was deliberately not added**, because every tool is schema an agent
+carries on every request:
+
+* `POST /v1/executions/{id}/verify` -- `run_experience` already returns the
+  verdict. Re-verifying with a different verifier is curation, not an agent
+  loop, and exposing it invites an agent to shop for a verifier that passes.
+* `GET /v1/executions/{id}/events` -- debugging telemetry. No decision an
+  agent makes hangs on it, and it is the highest token cost per unit of
+  usefulness on the API.
+* `POST /v1/keys` -- the server already mints in local mode, silently and
+  correctly. A tool for it would put a live credential in a context window.
+* `GET /v1/recall` -- the same question `recall_experience` asks.
+* `experience_id` on `record_experience`, which adds a version to an
+  Experience you already own. Real, but a different loop from the fork the
+  audit asked for, and it can go in when something needs it.
+
+Lineage was the third gap and needed no new tool. `LineageIn` has accepted six
+relations since the schema was written and `record_experience` exposed none of
+them, so an agent that recalled something, improved it and recorded the result
+produced an unrelated duplicate of the thing it beat -- the graph the domain
+model is built for could not be written to from the surface agents actually
+use. It is one `lineage` dict rather than six parameters: the API forbids
+unknown keys, so a typo returns a 422 naming it, and the seventh relation costs
+no change here.
+
+**Undo:** delete the two tools. Nothing depends on them; both are thin reads.
+
+---
+
+### 34. One budget for a whole execution result, and truncation is a field
+
+`run_experience` base64-decoded every output file and returned it as text with
+no cap of its own. The sandbox's ceiling is `SANDBOX_MAX_OUTPUT_BYTES`, a
+megabyte by default -- roughly a quarter of a million tokens, arriving in the
+caller's context window uninvited and charged to whoever asked. `neutralize`
+bounded any single string at 4000 characters, which meant a run that wrote
+forty files cost forty times what a run that wrote one cost.
+
+The whole result now shares `MAX_RESULT_CHARS`, spent outputs first, then
+stdout, then stderr -- outputs because they are what the artifact was run to
+produce, and a failed run has none, so stderr gets the whole allowance exactly
+when it is the thing worth reading.
+
+The cap is the easy half. The half that matters is that a model can tell a
+truncated file from a short one: `truncated` is `false` when the output is
+complete, and otherwise names every file that was cut, how much of it came
+back, and the URL where the uncut bytes still are. A file squeezed out
+entirely is still returned as an empty block and still named in `truncated`,
+because a file that vanishes silently is worse than a file that is empty.
+Absence of a marker is not a signal anything can read.
+
+**Undo:** raise the constant, or drop `_execution` back to unconditional
+fencing. There is no state and no migration.
+
+**Ceiling:** a flat budget spent in order. Keeping the head and tail of each
+file, or summarising, are both guesses about which half matters; a range read
+on `GET /v1/executions/{id}` would be the honest fix and belongs on the HTTP
+API, not here.
+
+---
+
+### 35. Every MCP failure says what to do next
+
+`_post` returned `{"error": 422, "detail": <the first 1000 bytes of the
+response>}`. That asks a language model to parse JSON it has never seen a
+schema for in order to guess whether the call is worth retrying, and the two
+answers it most needs are not in the body at all: a 404 from this API is also
+what tenancy returns, so "wrong id" and "not yours to see" are the same bytes,
+and a 403 is never worth a retry while a 429 always is.
+
+`MissingKey` was already the counterexample sitting in the same file -- its
+message says exactly which environment variable to set and which command
+returns a key. So every failure now carries a `fix`: one sentence, in the small
+set of things that actually go wrong against this API. FastAPI's validation
+errors are flattened from a list of dicts to `goal.statement: String should
+have at least 3 characters`, with the leading `body` dropped because it tells
+an agent posting a body nothing.
+
+`fix` is also load-bearing structurally. `"error" in result` was the old test
+for failure and it was wrong: every successful `ExecutionResponse` carries
+`error: null`, so the untrusted-data notice that decision 30 added to
+`run_experience` was attached to nothing. `fix` is a key no response model has.
+
+**Undo:** the envelope is `{"error", "detail", "fix"}` and callers read prose,
+so shrinking it back is a deletion.
