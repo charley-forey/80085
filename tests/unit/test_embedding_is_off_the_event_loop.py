@@ -53,13 +53,13 @@ async def test_recall_does_not_embed_on_the_event_loop(monkeypatch) -> None:  # 
     monkeypatch.setattr(pipeline, "_vector", nothing)
     model = ThreadRecordingEmbedder()
 
-    matches = await pipeline.recall(
+    outcome = await pipeline.recall(
         db=None,  # type: ignore[arg-type]
         principal=Principal(organization_id="org_test", agent_id="agt_test"),
         query=RecallQuery(task="convert a csv into json"),
         model=model,
     )
 
-    assert matches == []
+    assert outcome.matches == []
     assert model.thread is not None
     assert model.thread != threading.get_ident()

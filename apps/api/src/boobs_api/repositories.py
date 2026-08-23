@@ -21,7 +21,7 @@ from boobs_domain.enums import ExperienceStatus, VerificationLevel
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
 from boobs_retrieval.embedding import Embedder, embed_in_thread, embedder
 from boobs_retrieval.intent import normalize
-from boobs_retrieval.pipeline import recall, searchable_text
+from boobs_retrieval.pipeline import RecallOutcome, recall, searchable_text
 from boobs_schemas.api import RecordExperienceRequest
 from boobs_schemas.tables import (
     Artifact,
@@ -186,7 +186,7 @@ class ExperienceRepository:
             raise NotFound(f"experience {experience_id} has no version {wanted}")
         return row
 
-    async def search(self, principal: Principal, query: RecallQuery) -> list[Any]:
+    async def search(self, principal: Principal, query: RecallQuery) -> RecallOutcome:
         await self._policy.authorize(principal, "experience.recall")
         return await recall(self._db, principal, query, self._model)
 
