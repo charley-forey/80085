@@ -44,11 +44,10 @@ def _imported_modules(source: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             names.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            # `from . import x` has no module; a relative import cannot reach
-            # outside apps/api, so it is not a way to smuggle a runtime in.
-            if node.module and not node.level:
-                names.add(node.module)
+        # `from . import x` has no module; a relative import cannot reach
+        # outside apps/api, so it is not a way to smuggle a runtime in.
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.add(node.module)
     return names
 
 
@@ -65,9 +64,7 @@ def test_there_is_something_to_check() -> None:
 
 @pytest.mark.parametrize("source", SOURCES, ids=lambda p: p.name)
 def test_no_api_module_can_start_a_sandbox(source: Path) -> None:
-    offenders = {
-        name: prefix for name in _imported_modules(source) if (prefix := _forbidden(name))
-    }
+    offenders = {name: prefix for name in _imported_modules(source) if (prefix := _forbidden(name))}
     assert not offenders, (
         f"{source.relative_to(API)} imports {sorted(offenders)}, which puts artifact "
         "execution in the process that holds the database and object-store "
