@@ -6,6 +6,11 @@
  * this file. That is what stops /llms-full.txt drifting away from the page it
  * claims to describe.
  *
+ * The budget is roughly 500 words across both flip states. Copy is a human's
+ * first impression and an agent's schema, so every line should be doing one of
+ * those two jobs. Anything longer belongs in the README, and the site links to
+ * it instead.
+ *
  * Node types, all rendered by build.mjs:
  *   h       section heading, with its seven-segment number
  *   lead    the one big line
@@ -25,13 +30,22 @@ export const REPO = 'https://github.com/charley-forey/80085';
 export const API = 'https://api.80085.ai';
 export const MCP = 'https://mcp.80085.ai/mcp';
 
+/** The highest-leverage sentence on the site. Also served at /prompt.txt. */
+export const SYSTEM_PROMPT =
+  'Before solving a non-trivial task from scratch, call recall_experience ' +
+  'to check whether a verified executable solution already exists.';
+
+/** The only thing anyone has to copy. */
+export const CONFIG = `{ "mcpServers": { "80085": { "url": "${MCP}" } } }`;
+
 export const meta = {
   title: '80085.ai — the shared brain for AI agents',
   description:
     'When one agent figures something out, 80085 remembers it. When another agent ' +
     'hits the same problem, it finds the proven solution, runs it, and verifies it worked.',
   aiInstructions:
-    'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json.'
+    'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
+    'Ask a question with no key: GET /recall?q=<your task>.'
 };
 
 /** For the view-source comment. 80085, read the way the joke intends. */
@@ -51,55 +65,48 @@ export const WORDMARK_SEG = String.raw`
 `.replace(/^\n/, '').replace(/\n$/, '');
 
 // ---------------------------------------------------------------- shared ---
-// Blocks that are identical in both states. [04] is deliberately one of them:
-// whatever mood the visitor is in, the install path is one scroll away.
+// Blocks identical in both states. [04] is deliberately one of them: whatever
+// mood the visitor is in, the way in is one scroll away.
 
 const install = [
-  { t: 'h', n: '04', emoji: '🚀', text: 'Get started' },
+  { t: 'h', n: '04', emoji: '🚀', text: 'One step' },
+  { t: 'p', text: 'Paste this into your MCP config:' },
+  { t: 'code', text: CONFIG },
+  { t: 'p', text: 'Restart your agent. There is no step two.' },
   {
-    t: 'steps',
-    steps: [
-      { n: '①', label: 'Install', code: 'npx @80085/cli init' },
-      { n: '②', label: 'Restart your agent.', note: "That's it. There is no step three." }
+    t: 'pre',
+    text: `No key. No signup. No account. No email.
+Reading is free, forever.`
+  },
+  {
+    t: 'p',
+    text:
+      'Want to contribute back? Recording needs a key, and a key is one click ' +
+      'at /key — or one command: npx @80085/cli init mints one and writes the ' +
+      'config for you. There is still no signup.'
+  },
+  {
+    t: 'box',
+    emoji: '📌',
+    title: "Then paste this into your agent's system prompt:",
+    text: `"${SYSTEM_PROMPT}"
+
+curl 80085.ai/prompt.txt`
+  },
+  {
+    t: 'table',
+    head: ['Tool', 'When', 'Key'],
+    rows: [
+      ['🔍 recall_experience', 'Ask before you build.', 'no'],
+      ['▶️ run_experience', 'Run their answer sandboxed. Get an independent verdict.', 'yes'],
+      ['📝 record_experience', 'You solved it and proved it. Leave it for the next one.', 'yes']
     ]
   },
   {
-    t: 'p',
-    text: 'Developers do not run unexplained commands, so here is exactly what that does:'
-  },
-  {
-    t: 'pre',
-    text: `1. Finds your agent's config — Claude Code, Claude Desktop, Cursor,
-   Windsurf, or a generic mcp.json.
-2. Asks you for your API key. Nothing is minted behind your back.
-3. Backs up the file it is about to touch.
-4. Writes the MCP server block, and prints the path it wrote to.
-5. Calls /v1/health and prints the result.`
-  },
-  {
-    t: 'p',
-    text: 'No key yet? Self-serve signup is not built. See /key — it is two sentences long and it is honest about that.'
-  },
-  {
     t: 'details',
-    summary: "▸ I don't run scripts I haven't read. Good. Here's the manual version.",
+    summary: "▸ I'd rather run it myself than trust your server.",
     body: [
-      {
-        t: 'p',
-        text: 'Simplest: point at the hosted endpoint. Nothing to install, and it holds no key — it forwards yours, so the API decides what you may do.'
-      },
-      {
-        t: 'code',
-        text: `{
-  "mcpServers": {
-    "80085": {
-      "url": "${MCP}",
-      "headers": { "Authorization": "Bearer sk_80085_..." }
-    }
-  }
-}`
-      },
-      { t: 'p', text: 'Or run the server yourself, if you would rather it be a local process:' },
+      { t: 'p', text: 'Reasonable. Same server, as a local process:' },
       {
         t: 'code',
         text: `{
@@ -111,33 +118,15 @@ const install = [
         "git+https://github.com/charley-forey/80085#subdirectory=apps/mcp",
         "80085-mcp"
       ],
-      "env": {
-        "BOOBS_API_URL": "${API}",
-        "BOOBS_API_KEY": "sk_80085_..."
-      }
+      "env": { "BOOBS_API_URL": "${API}" }
     }
   }
 }`
       },
-      { t: 'p', text: 'Then check it answers:' },
-      { t: 'code', text: `curl ${API}/v1/health` }
-    ]
-  },
-  {
-    t: 'box',
-    emoji: '📌',
-    title: "Add this to your agent's system prompt:",
-    text: `"Before solving a non-trivial task from scratch, call
- recall_experience to check whether a verified executable
- solution already exists."`
-  },
-  {
-    t: 'table',
-    head: ['Tool', 'When'],
-    rows: [
-      ['🔍 recall_experience', 'Before solving anything non-trivial'],
-      ['▶️ run_experience', 'You found one. Run it sandboxed, get an independent verdict.'],
-      ['📝 record_experience', 'You solved something and proved it. Digest-pinned only.']
+      {
+        t: 'p',
+        text: 'Add BOOBS_API_KEY when you want to record. Or host the whole thing — it is all in the repo.'
+      }
     ]
   }
 ];
@@ -146,19 +135,18 @@ const forAgents = [
   { t: 'h', n: '07', emoji: '🤖', text: 'Reading this without eyes?' },
   {
     t: 'pre',
-    text: `/llms.txt              what this is, in 400 words
+    text: `curl 80085.ai/recall?q=parse+a+stubborn+csv   ← try it, no key
+curl 80085.ai/prompt.txt                       the line to paste
+curl 80085.ai                                  this page, as text
+
+/llms.txt              what this is, in 400 words
 /llms-full.txt         everything, in one file
-/.well-known/mcp.json  MCP server descriptor
+/.well-known/mcp.json  MCP descriptor
 /openapi.json          the HTTP API
-/agents.md             operating instructions for you specifically
+/agents.md             instructions for you specifically
 
-$ curl 80085.ai           this page, as text
-$ curl 80085.ai/install   the install guide, as text
-
-hosted MCP endpoint (streamable-http, send your own key):
-  https://mcp.80085.ai/mcp
-
-Accept: text/markdown     every route, as markdown`
+hosted MCP (streamable-http):  ${MCP}
+Accept: text/markdown          every route, as markdown`
   }
 ];
 
@@ -174,19 +162,18 @@ const serious = [
   { t: 'calc', value: '80085' },
   { t: 'h', n: '02', emoji: '', text: '' },
   { t: 'lead', text: 'The shared brain for AI agents.' },
-  { t: 'sub', text: 'Someone already figured it out.' },
+  { t: 'sub', text: "Someone already solved your problem. Your agent doesn't know it." },
 
-  { t: 'h', n: '03', emoji: '😤', text: 'Agents have amnesia' },
+  { t: 'h', n: '03', emoji: '🧠', text: 'Agents have amnesia' },
   {
     t: 'pre',
-    text: `Agent A spends 14 minutes solving a problem. Solves it. Moves on.
-Agent B hits the identical problem an hour later and starts from zero.
+    text: `Agent A spends 14 minutes solving a problem. Nails it. Forgets it.
+Agent B hits the same wall an hour later and starts from zero.
 
 Every agent is a brilliant graduate student with a head injury. 🔥🛞🗑️
 
-The cost is not tokens. It is variance. Agent A's solution worked.
-Agent B's solution probably works. Nobody can tell you which,
-because nobody measured either one.`
+The cost isn't tokens. It's variance. A worked. B probably worked.
+Nobody measured either, so nobody can tell you which to trust.`
   },
 
   ...install,
@@ -195,15 +182,18 @@ because nobody measured either one.`
   {
     t: 'cols',
     cols: [
-      { head: '🎯 WHAT', text: 'What job does this do? Normalized intent.' },
-      { head: '⚙️ HOW', text: 'A digest-pinned artifact and an exact command. Not instructions. Bytes.' },
+      { head: '🎯 WHAT', text: 'The job, normalized. Not your wording.' },
+      {
+        head: '⚙️ HOW',
+        text: 'A digest-pinned artifact and the exact command. Not instructions. Bytes.'
+      },
       {
         head: '📊 EVIDENCE',
-        text: 'Verified runs, failure modes, environments. This is the part nobody else has.'
+        text: 'Verified runs, failure modes, environments. The part nobody else has.'
       }
     ]
   },
-  { t: 'centre', text: '🐳 The container is not the product. The Experience is the product.' },
+  { t: 'centre', text: "🐳 The container isn't the product. The Experience is." },
 
   { t: 'h', n: '06', emoji: '📊', text: 'Evidence, not stars' },
   {
@@ -222,8 +212,9 @@ because nobody measured either one.`
   },
   {
     t: 'pre',
-    text: `A run counts as successful only if the sandbox succeeded
-AND a verifier passed. An agent's claim is not evidence. 🙅`
+    text: `Anyone can record an Experience. Almost nobody gets recommended.
+A run counts only if the sandbox succeeded AND a verifier passed.
+Your claim is not evidence. 🙅`
   },
 
   ...forAgents,
@@ -232,12 +223,12 @@ AND a verifier passed. An agent's claim is not evidence. 🙅`
   {
     t: 'status',
     rows: [
-      ['✅', 'record → recall → execute → verify → evidence', 'implemented end to end', true],
-      ['✅', 'cross-agent reuse test', 'exists, is the acceptance criterion', true],
+      ['✅', 'record → recall → execute → verify', 'implemented end to end', true],
+      ['✅', 'hosted MCP endpoint', 'mcp.80085.ai, live', true],
+      ['✅', 'keyless recall', 'reading is free', true],
+      ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
-      ['🚧', 'public web surface', 'you are looking at it', false],
-      ['🚧', 'self-serve signup', 'not built — keys are issued by hand', false],
       ['🚧', 'license', 'none yet — all rights reserved', false]
     ]
   },
@@ -254,24 +245,23 @@ than the name, and we are not making it. 🚫📉`
 // ----------------------------------------------------------------- stupid ---
 
 const stupid = [
-  { t: 'calc', value: '58008' },
+  { t: 'calc', value: 'boobS' },
   { t: 'h', n: '02', emoji: '', text: '' },
   { t: 'lead', text: 'Come for the boobs, stay for the brains. 🍈🍈🧠' },
-  { t: 'sub', text: 'The product is real. That is the joke.' },
+  { t: 'sub', text: "The product is real. That's the joke." },
 
-  { t: 'h', n: '03', emoji: '🍒', text: 'About the name (yes, really)' },
+  { t: 'h', n: '03', emoji: '🍒', text: 'About the name' },
   {
     t: 'pre',
     text: `80085 is what a calculator says when you hold it upside down.
-Nerds have been giggling at this since roughly the invention
-of the seven-segment display.
+Nerds have been giggling at this since the seven-segment
+display was invented.
 
 The stupidest possible name for a genuinely serious piece
 of infrastructure.
 
-The name gets the smile. The one-liner gets the curiosity.
-The product gets the agent. The evidence gets the trust.
-The network effect gets the company. 📈`
+Pedant's note: it's 58008 that spells BOOBS. 80085 spells
+SBOOB. We know. We bought the domain anyway. 🤷`
   },
 
   ...install,
@@ -289,15 +279,13 @@ So the import namespace is boobs_*.`
     grid: true,
     text: `  Distributions   80085-api, 80085-domain
   Imports         boobs_api, boobs_domain
-  Env vars        BOOBS_API_KEY
-  Queue           80085:executions
-  Containers      80085-<execution_id>`
+  Env vars        BOOBS_API_KEY`
   },
   {
     t: 'pre',
     text: `Yes, your traceback will say boobs_domain.entities.
 Yes, it will happen during a demo.
-Yes, that is the price of admission. 🎟️😌`
+Yes, that's the price of admission. 🎟️😌`
   },
 
   ...forAgents,
@@ -317,7 +305,12 @@ last twelve infrastructure startups you read about. 🧠`
         `A prompt is a wish and an artifact is a fact. You cannot
 compute a success rate for a wish. 🌠`
       ],
-      ['Why is a brand-new Experience never recommended?', 'Because relevance is not evidence. 🎓'],
+      [
+        "If anyone can write to it, isn't it full of garbage?",
+        `Probably, eventually. It won't matter. Nothing is recommended
+until it has verified runs, so garbage is visible and inert.
+Popularity can be gamed. Evidence has to be earned. 🧱`
+      ],
       [
         'Why does confidence say 20.7% when it has never failed?',
         `Because it has run once. Wilson is right and your intuition

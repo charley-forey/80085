@@ -44,6 +44,10 @@ export const SEG = {
   '8': 0b1111111, '9': 0b1111011,
   '-': 0b0000001, ' ': 0b0000000,
   'E': 0b1001111, 'r': 0b0000101, 'o': 0b0011101, 'n': 0b0010101,
+  // S and 5 are the same seven segments. Both spellings exist so the flipped
+  // readout can be written as the word it is, rather than as a number that
+  // happens to look like one.
+  'S': 0b1011011, 's': 0b1011011,
   'A': 0b1110111, 'C': 0b1001110, 'F': 0b1000111, 'H': 0b0110111,
   'I': 0b0110000, 'L': 0b0001110, 'P': 0b1100111, 'U': 0b0111110,
   'b': 0b0011111, 'c': 0b0001101, 'd': 0b0111101, 'h': 0b0010111,

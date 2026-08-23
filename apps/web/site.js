@@ -217,7 +217,10 @@ function swap() {
   states[off].dataset.state = 'hidden';
   states[off].setAttribute('aria-hidden', 'true');
 
-  state = { ...initial(), display: flipped ? '58008' : BRAND };
+  // Upright it shows the domain; flipped it shows what the domain is for.
+  // Typing 58008 triggers the flip, so the machine answers you in the word you
+  // were reaching for — which is the entire joke, finally completed.
+  state = { ...initial(), display: flipped ? 'boobS' : BRAND };
   paint();
   say('');
 
@@ -257,6 +260,11 @@ async function flip() {
   stage.style.transition = '';
   flipping = false;
 }
+
+$('#tryit')?.addEventListener('click', () => {
+  openTerm();
+  termIn.value = 'recall parse a stubborn csv';
+});
 
 for (const btn of document.querySelectorAll('.flip')) {
   btn.addEventListener('click', () => flip());
