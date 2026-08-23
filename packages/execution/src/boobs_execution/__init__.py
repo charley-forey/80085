@@ -29,9 +29,10 @@ def runtime() -> ExecutionRuntime:
     """BOOBS_RUNTIME=docker|e2b, BOOBS_EXEC_CACHE=0|1.
 
     Defaults to Docker with the cache off, so an existing worker behaves
-    exactly as it did before either of these existed. Read
-    `boobs_execution.cache` before turning the cache on: a replayed result must
-    not be recorded as a fresh verification run.
+    exactly as it did before either of these existed. A replay is now safe to
+    report -- the API records it and counts it as neither a success nor a
+    failure -- but it is still not free: what it costs is the evidence that run
+    would have produced (DECISIONS 51).
     """
     choice = os.environ.get("BOOBS_RUNTIME", "docker").strip().lower()
     if choice not in RUNTIMES:
@@ -40,14 +41,16 @@ def runtime() -> ExecutionRuntime:
         )
     selected: ExecutionRuntime = RUNTIMES[choice]()
     if os.environ.get("BOOBS_EXEC_CACHE", "0").strip() == "1":
-        # Loud, like the embedder fallback: a caller that reports results as
-        # evidence and does not honour `SandboxResult.cached` will record runs
-        # that never happened, and silent evidence inflation is the failure
-        # mode that would be hardest to notice from outside.
+        # Still loud, for the opposite reason to before: replays no longer
+        # inflate evidence, they withhold it. A run served from this cache
+        # produces no verification, no duration sample and no corroborating
+        # organization, so an artifact nobody executes twice on this worker is
+        # an artifact that stops accumulating proof.
         logging.getLogger(__name__).warning(
             "BOOBS_EXEC_CACHE=1: identical reruns are replayed from a local cache. "
-            "Results carry SandboxResult.cached=True; anything that turns results "
-            "into evidence must exclude them or evidence counts will be inflated."
+            "Replays are reported with cached=true and count as neither a success "
+            "nor a failure, so they generate no evidence at all -- including the "
+            "second organization a candidate needs to be promoted."
         )
         selected = CachingRuntime(selected)
     return selected
