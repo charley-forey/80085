@@ -19,6 +19,7 @@ EXECUTION: Final = "exec"
 EVENT: Final = "evt"
 VERIFICATION: Final = "vrf"
 POLICY: Final = "pol"
+RECALL_MISS: Final = "miss"
 
 
 def new_id(prefix: str) -> str:

@@ -277,3 +277,45 @@ class ExecutionStat(Base):
     failure_modes: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RecallMiss(Base):
+    """What agents asked for and did not find.
+
+    The one dataset this system cannot backfill. A recall that returned nothing
+    used to leave no trace, so every day without this row was a day of demand
+    data thrown away -- and demand for a capability nobody has recorded is the
+    most direct signal available about what should exist next.
+
+    Not tenant-scoped the way every other table is: recall needs no credential,
+    so `organization_id` is null for most rows and that is fine. It is
+    attribution where attribution happens to exist, never a requirement, and
+    there is deliberately no foreign key -- the anonymous principal owns no
+    organizations row to point at.
+
+    A row is written only when nothing cleared MIN_SCORE. `candidates` and
+    `best_score` are what separate "nothing remotely close" from "one hair
+    under the threshold".
+    """
+
+    __tablename__ = "recall_misses"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # Deduplication key over (canonical intent, normalized keywords, filters).
+    # Recall is keyless and public, so without this one script could write a
+    # row per request forever; with it, a thousand rephrasings of the same
+    # unmet need collapse to one row and a counter.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    organization_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    task: Mapped[str] = mapped_column(Text, nullable=False)
+    intent: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    environment: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    constraints: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
+    candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cleared: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    best_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    occurrences: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )

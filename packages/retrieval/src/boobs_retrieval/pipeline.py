@@ -21,7 +21,7 @@ from boobs_domain.protocols import Principal, RecallQuery
 from boobs_observability import counter, tracer
 from boobs_retrieval import ranking
 from boobs_retrieval.embedding import Embedder, embed_in_thread, embedder
-from boobs_retrieval.intent import normalize
+from boobs_retrieval.intent import Intent, normalize
 from boobs_schemas.tables import ExecutionStat, Experience, ExperienceVersion
 
 CANDIDATE_POOL = 50
@@ -32,6 +32,25 @@ CANDIDATE_POOL = 50
 # tracer is the API's no-op and none of this allocates a span.
 _tracer = tracer(__name__)
 _recalls = counter("recall_requests", "recall queries, attributed by whether anything matched")
+
+
+@dataclass(frozen=True)
+class RecallOutcome:
+    """What recall returned, and what it had to work with to get there.
+
+    `matches` alone cannot tell a question nobody has answered from one that
+    was nearly answered, and that difference is the whole value of a recorded
+    miss: `considered` 0 means nothing remotely close exists, while
+    `considered` 40 with `best_score` 0.29 means the corpus is one hair under
+    the threshold. Carried out of the pipeline rather than logged here because
+    retrieval reads the database; it does not write to it.
+    """
+
+    matches: list[RecallCandidate]
+    parsed: Intent
+    considered: int  # survived hard filters and both retrieval halves
+    cleared: int  # of those, how many scored at or above MIN_SCORE
+    best_score: float  # best final score seen, threshold or not
 
 
 @dataclass(frozen=True)
@@ -170,7 +189,7 @@ async def recall(
     principal: Principal,
     query: RecallQuery,
     model: Embedder | None = None,
-) -> list[RecallCandidate]:
+) -> RecallOutcome:
     model = model or embedder()
     parsed = normalize(query.task)
     task_text = f"{query.task} {parsed.canonical.replace('_', ' ')}"
@@ -193,34 +212,35 @@ async def recall(
             stage.set_attribute("recall.candidates", len(vector))
 
         with _tracer.start_as_current_span("recall.rank"):
-            matches = await _merge_and_rank(db, query, parsed.canonical, lexical, vector)
+            outcome = await _merge_and_rank(db, query, parsed, lexical, vector)
 
-        span.set_attribute("recall.matches", len(matches))
+        span.set_attribute("recall.matches", len(outcome.matches))
 
     # recall_match_rate (spec section 33) is matched / total over this counter.
-    _recalls.add(1, {"matched": bool(matches)})
-    return matches
+    _recalls.add(1, {"matched": bool(outcome.matches)})
+    return outcome
 
 
 async def _merge_and_rank(
     db: AsyncSession,
     query: RecallQuery,
-    intent: str,
+    parsed: Intent,
     lexical: dict[str, float],
     vector: dict[str, float],
-) -> list[RecallCandidate]:
+) -> RecallOutcome:
     """Fuse the two candidate lists, score the survivors, return the best.
 
     Split out of `recall` so each retrieval stage sits in its own span; the
-    logic is unchanged.
+    ranking logic is unchanged.
     """
+    intent = parsed.canonical
     # RRF decides which candidates to consider; it deliberately does not decide
     # how relevant they are. RRF scores are positional, so the top candidate
     # always looks perfect -- which is how a popular Experience could win a
     # query it does not answer.
     fused = ranking.reciprocal_rank_fusion([ranking.order(lexical), ranking.order(vector)])
     if not fused:
-        return []
+        return RecallOutcome(matches=[], parsed=parsed, considered=0, cleared=0, best_score=0.0)
 
     candidate_ids = sorted(fused, key=lambda key: fused[key], reverse=True)[:CANDIDATE_POOL]
 
@@ -237,6 +257,7 @@ async def _merge_and_rank(
     ).all()
 
     candidates: list[tuple[float, RecallCandidate]] = []
+    best_score = 0.0
     for version, experience, stat in rows:
         compat = compatibility(version, query)
         relevance = ranking.relevance_of(lexical.get(version.id), vector.get(version.id))
@@ -257,6 +278,9 @@ async def _merge_and_rank(
             required_capabilities=tuple(version.required_capabilities or ()),
         )
         final, confidence = ranking.score(signals)
+        # Recorded before the threshold is applied: a miss that scored 0.29 is
+        # a different fact about the corpus than one that scored nothing.
+        best_score = max(best_score, final)
         if final < ranking.MIN_SCORE:
             # Better to return nothing and let the agent solve it normally
             # than to hand back a confident wrong capability.
@@ -282,7 +306,13 @@ async def _merge_and_rank(
         )
 
     candidates.sort(key=lambda pair: pair[0], reverse=True)
-    return [candidate for _, candidate in candidates[: query.limit]]
+    return RecallOutcome(
+        matches=[candidate for _, candidate in candidates[: query.limit]],
+        parsed=parsed,
+        considered=len(rows),
+        cleared=len(candidates),
+        best_score=round(best_score, 4),
+    )
 
 
 def _evidence(stat: ExecutionStat | None) -> Evidence:

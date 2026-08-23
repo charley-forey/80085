@@ -11,13 +11,13 @@ import base64
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from boobs_api import leases, limits
-from boobs_api.deps import CurrentPrincipal, DbSession, MaybePrincipal, release
+from boobs_api import leases, limits, misses
+from boobs_api.deps import ANONYMOUS, CurrentPrincipal, DbSession, MaybePrincipal, release
 from boobs_api.repositories import (
     ArtifactRepository,
     ExecutionRepository,
@@ -37,6 +37,7 @@ from boobs_domain.enums import (
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
 from boobs_reputation.evidence import recompute
 from boobs_retrieval.embedding import active_embedder
+from boobs_retrieval.pipeline import RecallOutcome
 from boobs_schemas import db as database
 from boobs_schemas.api import (
     BootstrapRequest,
@@ -62,6 +63,7 @@ from boobs_schemas.tables import (
     Organization,
     Verification,
 )
+from boobs_security import untrusted
 from boobs_security.keys import Scope, generate
 from boobs_security.policy import ScopePolicyEngine
 from boobs_verification.verifiers import RegistryVerifier
@@ -277,9 +279,66 @@ async def get_experience(
     )
 
 
+def _matches(outcome: RecallOutcome) -> list[RecallMatch]:
+    """Recalled free text, returned as data.
+
+    `goal` is written by whoever recorded the Experience, and a key mints with
+    no identity check -- so it is a stranger's bytes on their way into another
+    agent's context window. Neutralised here, at the point of return, so both
+    representations get the same treatment and neither can grow a second
+    opinion about it. Ordinary prose is unchanged.
+    """
+    out: list[RecallMatch] = []
+    for candidate in outcome.matches:
+        data = candidate.model_dump()
+        data["goal"] = untrusted.neutralize(data["goal"])
+        out.append(RecallMatch(**data))
+    return out
+
+
+def _remember_miss(
+    background: BackgroundTasks,
+    outcome: RecallOutcome,
+    task: str,
+    principal: Principal,
+    query: RecallQuery,
+) -> None:
+    """Queue the miss row, if this was a miss.
+
+    After the response, never during it: this is the demand signal, not the
+    product, and a recall that fails because its telemetry failed would be the
+    worst trade in the codebase.
+    """
+    if outcome.matches:
+        return
+    background.add_task(
+        misses.record,
+        task=task,
+        parsed=outcome.parsed,
+        environment=query.environment.model_dump(mode="json"),
+        constraints=query.constraints.model_dump(mode="json"),
+        candidates=outcome.considered,
+        cleared=outcome.cleared,
+        best_score=outcome.best_score,
+        # Recall is keyless, so most misses are anonymous. That is fine and
+        # deliberately not required -- but the anonymous principal names an
+        # organization that does not exist, and storing that id would be a
+        # lie dressed as attribution.
+        organization_id=(
+            None
+            if principal.organization_id == ANONYMOUS.organization_id
+            else principal.organization_id
+        ),
+    )
+
+
 @router.post("/experiences/recall")
 async def recall_experiences(
-    request: RecallRequest, http: Request, db: DbSession, principal: MaybePrincipal
+    request: RecallRequest,
+    http: Request,
+    db: DbSession,
+    principal: MaybePrincipal,
+    background: BackgroundTasks,
 ) -> RecallResponse:
     """RECALL: the question that has to be cheaper to ask than to reinvent.
 
@@ -305,9 +364,10 @@ async def recall_experiences(
         ),
         limit=request.limit,
     )
-    candidates = await ExperienceRepository(db).search(principal, query)
+    outcome = await ExperienceRepository(db).search(principal, query)
+    _remember_miss(background, outcome, request.task, principal, query)
     return RecallResponse(
-        matches=[RecallMatch(**candidate.model_dump()) for candidate in candidates],
+        matches=_matches(outcome),
         query_id=ids.new_id("qry"),
         took_ms=int((time.monotonic() - started) * 1000),
     )
@@ -318,6 +378,7 @@ async def recall_via_url(
     http: Request,
     db: DbSession,
     principal: MaybePrincipal,
+    background: BackgroundTasks,
     q: str = Query(min_length=3, max_length=2000, description="The task, in your own words."),
     limit: int = Query(default=5, ge=1, le=20),
 ) -> Response:
@@ -327,17 +388,26 @@ async def recall_via_url(
     agents have only a fetch tool, and a product that cannot be tried with one
     GET is a product most of them will never try. Returns markdown by default
     because that is what a language model reads best; JSON on request.
+
+    Which is precisely what makes this the sharp end of the prompt-injection
+    problem: the document below is built to be read by a model, and the text in
+    it came from strangers. So the document's *structure* is ours -- every
+    heading, label and instruction on this page is written here, in source --
+    and recalled text appears only inside a delimited untrusted block. See
+    `boobs_security.untrusted` and docs/security.md.
     """
     limits.RECALL.check(limits.client_ip(http))
-    candidates = await ExperienceRepository(db).search(principal, RecallQuery(task=q, limit=limit))
-    matches = [RecallMatch(**candidate.model_dump()) for candidate in candidates]
+    query = RecallQuery(task=q, limit=limit)
+    outcome = await ExperienceRepository(db).search(principal, query)
+    _remember_miss(background, outcome, q, principal, query)
+    matches = _matches(outcome)
 
     if "application/json" in http.headers.get("accept", ""):
         return JSONResponse(
             content={"query": q, "matches": [m.model_dump(mode="json") for m in matches]}
         )
 
-    lines = [f"# recall: {q}", ""]
+    lines = ["# recall", "", untrusted.NOTICE, "", untrusted.fenced(q, "query"), ""]
     if not matches:
         lines += [
             "No verified Experience matches that yet.",
@@ -348,15 +418,18 @@ async def recall_via_url(
             "If you solve it yourself, record it and the next agent will find it.",
             "Get a key with: curl -X POST https://api.80085.ai/v1/keys",
         ]
-    for m in matches:
+    for position, m in enumerate(matches, start=1):
         lines += [
-            f"## {m.goal}",
+            # The heading used to be the goal statement, which handed an
+            # attacker the document outline. It is a number now.
+            f"## match {position}: `{m.experience_id}` (version {m.version})",
+            "",
+            untrusted.fenced(m.goal, "goal"),
             "",
             f"- recommendation: **{m.recommendation}**",
             f"- confidence: {m.confidence:.1%} (Wilson lower bound on verified runs)",
             f"- verified runs: {m.successful_runs}",
             f"- compatibility: {m.compatibility}",
-            f"- experience_id: `{m.experience_id}` (version {m.version})",
             "",
             f'Run it: `run_experience(experience_id="{m.experience_id}")`',
             "",
