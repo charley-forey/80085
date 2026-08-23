@@ -1,0 +1,32 @@
+{
+  "columns": [
+    {
+      "name": "track",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "name": "bpm",
+      "nullable": false,
+      "type": "integer"
+    },
+    {
+      "name": "rating",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "name": "licensed",
+      "nullable": false,
+      "type": "boolean"
+    },
+    {
+      "name": "notes",
+      "nullable": true,
+      "type": "string"
+    }
+  ],
+  "output": "schema.json",
+  "rows": 3,
+  "sha256": "c609c363e6f92b2ec7149d90aec2ab08aa3ce6501debff79d4d65d2b4ac24006"
+}

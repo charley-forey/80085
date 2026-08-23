@@ -801,10 +801,14 @@ and a `verification` block that is *the system's* verdict, not the artifact's.
 # 1. write it
 mkdir -p capabilities/examples/pdf_to_json   # + a Dockerfile meeting the contract
 
-# 2. build, push, capture the digest
+# 2. describe it in capabilities/manifest.json, and drop an input and its
+#    expected output in capabilities/fixtures/pdf_to_json/
+uv run pytest tests/unit/test_capabilities.py   # runs it, no Docker needed
+
+# 3. build, push, capture the digest
 uv run python scripts/build_capabilities.py
 
-# 3. record it (HTTP, or the record_experience MCP tool)
+# 4. record it: scripts/seed.py reads the manifest, or POST it yourself
 ```
 
 ```jsonc
@@ -826,6 +830,13 @@ POST /v1/experiences
 Declaring a `verification` block is what turns future runs into **evidence**
 rather than **anecdotes**. Skip it and your Experience stays permanently stuck
 at `consider`, wondering why nobody calls. 📞
+
+Declare `json_schema` or `sha256`, never bare `exit_code`: an exit-code verifier
+is satisfied by any container that returns 0, so a capability that does nothing
+accumulates the same evidence as one that works. Every capability in
+`capabilities/manifest.json` therefore writes a `result.json` describing what it
+produced — including the digest of its own output — and that is what the
+verifier reads. 🔎
 
 ### 🔁 Adding an artifact runtime
 
@@ -989,7 +1000,8 @@ Record → recall → execute → verify → evidence, proven by the cross-agent
 **Phase 1 — Reach**
 - 🌍 `apps/web`: public discovery surface, `llms.txt`, integration docs
 - 🤖 Agent SDK, so `recall` is one line in any harness
-- 📚 A real corpus of public Experiences beyond three CSV toys
+- 📚 Publishing the 21-capability corpus in `capabilities/manifest.json` — built
+  and tested, not yet pushed or recorded anywhere
 
 **Phase 2 — Depth**
 - 🧬 **Experience Graph** — the `lineage` fields already exist and are unused

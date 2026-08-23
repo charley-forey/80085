@@ -1,0 +1,4 @@
+{
+  "select": ["track", "bpm"],
+  "rename": {"bpm": "tempo"}
+}

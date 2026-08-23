@@ -1,0 +1,28 @@
+{
+  "attributes": {
+    "name": "acid",
+    "year": "1987"
+  },
+  "children": [
+    {
+      "attributes": {
+        "bpm": "128",
+        "key": "Am"
+      },
+      "children": [],
+      "tag": "track",
+      "text": "Acid Trax"
+    },
+    {
+      "attributes": {
+        "bpm": "122",
+        "key": "Fm"
+      },
+      "children": [],
+      "tag": "track",
+      "text": "Strings of Life"
+    }
+  ],
+  "tag": "crate",
+  "text": ""
+}

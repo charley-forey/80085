@@ -1,0 +1,4 @@
+# Capability fixtures are compared byte for byte by tests/unit/test_capabilities.py.
+# A checkout that rewrote LF to CRLF would change every expected digest, so no
+# end-of-line translation happens here.
+capabilities/fixtures/** -text

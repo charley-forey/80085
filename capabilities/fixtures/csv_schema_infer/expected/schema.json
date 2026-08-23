@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "bpm": {
+      "type": "integer"
+    },
+    "licensed": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rating": {
+      "type": "number"
+    },
+    "track": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "track",
+    "bpm",
+    "rating",
+    "licensed"
+  ],
+  "type": "object"
+}

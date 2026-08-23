@@ -1,0 +1,8 @@
+{
+  "columns": 2,
+  "output": "output.tsv",
+  "rows": 3,
+  "sha256": "65ed484c651e67299a563e802b6caa096702c2017e02acd733f7ff9409634099",
+  "source_format": "csv",
+  "target_format": "tsv"
+}

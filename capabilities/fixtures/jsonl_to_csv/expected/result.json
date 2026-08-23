@@ -1,0 +1,10 @@
+{
+  "columns": [
+    "track",
+    "bpm",
+    "key"
+  ],
+  "output": "output.csv",
+  "rows": 3,
+  "sha256": "3c359f6e7470501d33dd0fcfae8981b721cadf2137d222818c875fc27b85bbe6"
+}

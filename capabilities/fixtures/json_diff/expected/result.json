@@ -1,0 +1,28 @@
+{
+  "change_count": 4,
+  "changes": [
+    {
+      "from": 128,
+      "op": "changed",
+      "path": "$.bpm",
+      "to": 130
+    },
+    {
+      "op": "added",
+      "path": "$.key",
+      "to": "Am"
+    },
+    {
+      "from": 1,
+      "op": "changed",
+      "path": "$.licensed",
+      "to": true
+    },
+    {
+      "from": "chicago",
+      "op": "removed",
+      "path": "$.tags[1]"
+    }
+  ],
+  "equal": false
+}

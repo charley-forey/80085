@@ -1,0 +1,560 @@
+{
+  "$comment": "The corpus. scripts/seed.py records these against a running API; tests/unit/test_capabilities.py runs each one against capabilities/fixtures/<name>/ with no Docker. Every entry declares a strong verifier: an exit_code verifier is satisfied by any container that exits 0, which makes evidence forgeable.",
+  "defaults": {
+    "environment": {
+      "os": "linux",
+      "architecture": "amd64",
+      "runtime": "python",
+      "runtime_version": "3.13"
+    },
+    "constraints": {"network": false},
+    "visibility": "public"
+  },
+  "capabilities": {
+    "csv_to_json": {
+      "goal": {
+        "statement": "Convert a CSV file into a normalized JSON array of objects",
+        "intent": "csv_to_json",
+        "tags": ["csv", "json", "conversion", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "output.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "output.json",
+          "schema": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    },
+    "json_to_csv": {
+      "goal": {
+        "statement": "Convert a JSON array of objects into a CSV file",
+        "intent": "json_to_csv",
+        "tags": ["json", "csv", "conversion", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.json", "output.csv"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "array", "items": {"type": "string"}},
+              "output": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "json_validate": {
+      "goal": {
+        "statement": "Validate a JSON document against a JSON Schema and report errors",
+        "intent": "validate_json",
+        "tags": ["json", "schema", "validation"]
+      },
+      "command": ["python", "/app/main.py", "input.json", "schema.json", "result.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["valid", "errors"],
+            "properties": {
+              "valid": {"type": "boolean"},
+              "errors": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "csv_to_jsonl": {
+      "goal": {
+        "statement": "Convert a CSV file into newline-delimited JSON, one object per line",
+        "intent": "csv_to_jsonl",
+        "tags": ["csv", "jsonl", "ndjson", "conversion", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "output.jsonl"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "array", "items": {"type": "string"}},
+              "output": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "jsonl_to_csv": {
+      "goal": {
+        "statement": "Convert newline-delimited JSON records into a CSV file",
+        "intent": "jsonl_to_csv",
+        "tags": ["jsonl", "ndjson", "csv", "conversion", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.jsonl", "output.csv"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "array", "items": {"type": "string"}},
+              "output": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "delimiter_convert": {
+      "goal": {
+        "statement": "Convert a delimited text file between CSV, TSV, pipe and semicolon without corrupting quoted fields",
+        "intent": "delimiter_convert",
+        "tags": ["csv", "tsv", "delimiter", "conversion", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "output.tsv", "csv", "tsv"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "source_format", "target_format", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "integer", "minimum": 0},
+              "source_format": {"enum": ["csv", "tsv", "pipe", "semicolon"]},
+              "target_format": {"enum": ["csv", "tsv", "pipe", "semicolon"]},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "csv_dedupe": {
+      "goal": {
+        "statement": "Remove duplicate rows from a CSV file, keyed on all columns or a chosen subset",
+        "intent": "csv_dedupe",
+        "tags": ["csv", "dedupe", "duplicates", "cleaning", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "deduped.csv", "email"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows_in", "rows_out", "duplicates_removed", "key", "output", "sha256"],
+            "properties": {
+              "rows_in": {"type": "integer", "minimum": 0},
+              "rows_out": {"type": "integer", "minimum": 0},
+              "duplicates_removed": {"type": "integer", "minimum": 0},
+              "key": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "csv_select": {
+      "goal": {
+        "statement": "Select and rename CSV columns from a declarative spec",
+        "intent": "csv_select",
+        "tags": ["csv", "columns", "projection", "rename", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "output.csv", "spec.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "array", "items": {"type": "string"}},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "csv_schema_infer": {
+      "goal": {
+        "statement": "Infer a JSON Schema describing the rows of a CSV file",
+        "intent": "csv_schema_infer",
+        "tags": ["csv", "schema", "inference", "types", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv", "schema.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["rows", "columns", "output", "sha256"],
+            "properties": {
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type", "nullable"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "type": {"enum": ["string", "integer", "number", "boolean"]},
+                    "nullable": {"type": "boolean"}
+                  }
+                }
+              },
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "csv_validate": {
+      "goal": {
+        "statement": "Validate the structure of a CSV file and report ragged rows, duplicate headers and invalid UTF-8",
+        "intent": "csv_validate",
+        "tags": ["csv", "validation", "structure", "tabular"]
+      },
+      "command": ["python", "/app/main.py", "input.csv"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["valid", "errors", "rows", "columns"],
+            "properties": {
+              "valid": {"type": "boolean"},
+              "errors": {"type": "array", "items": {"type": "string"}},
+              "rows": {"type": "integer", "minimum": 0},
+              "columns": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "base64_codec": {
+      "goal": {
+        "statement": "Base64 encode or decode a file, standard or URL-safe alphabet",
+        "intent": "base64_codec",
+        "tags": ["base64", "encoding", "decoding", "text"]
+      },
+      "command": ["python", "/app/main.py", "input.txt", "output.b64", "encode"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["mode", "alphabet", "bytes_in", "bytes_out", "output", "sha256"],
+            "properties": {
+              "mode": {"enum": ["encode", "decode"]},
+              "alphabet": {"enum": ["standard", "urlsafe"]},
+              "bytes_in": {"type": "integer", "minimum": 0},
+              "bytes_out": {"type": "integer", "minimum": 0},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "line_endings": {
+      "goal": {
+        "statement": "Normalise line endings to LF, CRLF or CR and strip a UTF-8 byte order mark",
+        "intent": "line_endings",
+        "tags": ["text", "newline", "crlf", "bom", "encoding"]
+      },
+      "command": ["python", "/app/main.py", "input.txt", "output.txt", "lf"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["style", "lines", "bom_removed", "output", "sha256"],
+            "properties": {
+              "style": {"enum": ["lf", "crlf", "cr"]},
+              "lines": {"type": "integer", "minimum": 0},
+              "bom_removed": {"type": "boolean"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "toml_to_json": {
+      "goal": {
+        "statement": "Convert a TOML document into JSON",
+        "intent": "toml_to_json",
+        "tags": ["toml", "json", "conversion", "config"]
+      },
+      "command": ["python", "/app/main.py", "input.toml", "output.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["keys", "output", "sha256"],
+            "properties": {
+              "keys": {"type": "array", "items": {"type": "string"}},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "xml_to_json": {
+      "goal": {
+        "statement": "Convert an XML document into a structured JSON tree of tags, attributes and text",
+        "intent": "xml_to_json",
+        "tags": ["xml", "json", "conversion", "parsing"]
+      },
+      "command": ["python", "/app/main.py", "input.xml", "output.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["root", "bytes_in", "output", "sha256"],
+            "properties": {
+              "root": {"type": "string", "minLength": 1},
+              "bytes_in": {"type": "integer", "minimum": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "json_reformat": {
+      "goal": {
+        "statement": "Pretty-print or minify a JSON document with sorted keys",
+        "intent": "json_reformat",
+        "tags": ["json", "format", "minify", "pretty-print"]
+      },
+      "command": ["python", "/app/main.py", "input.json", "output.json", "pretty"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["mode", "output", "sha256"],
+            "properties": {
+              "mode": {"enum": ["pretty", "minify"]},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "json_merge_patch": {
+      "goal": {
+        "statement": "Apply an RFC 7386 JSON Merge Patch to a JSON document",
+        "intent": "json_merge_patch",
+        "tags": ["json", "patch", "merge", "rfc7386"]
+      },
+      "command": ["python", "/app/main.py", "target.json", "patch.json", "output.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["output", "sha256"],
+            "properties": {
+              "output": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "json_diff": {
+      "goal": {
+        "statement": "Structurally diff two JSON documents and report added, removed and changed paths",
+        "intent": "json_diff",
+        "tags": ["json", "diff", "compare", "structural"]
+      },
+      "command": ["python", "/app/main.py", "left.json", "right.json"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["equal", "changes", "change_count"],
+            "properties": {
+              "equal": {"type": "boolean"},
+              "change_count": {"type": "integer", "minimum": 0},
+              "changes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "op"],
+                  "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "op": {"enum": ["added", "removed", "changed"]}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "text_diff": {
+      "goal": {
+        "statement": "Produce a unified diff between two text files",
+        "intent": "text_diff",
+        "tags": ["diff", "text", "unified", "patch"]
+      },
+      "command": ["python", "/app/main.py", "left.txt", "right.txt", "output.patch"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["equal", "added", "removed", "output", "sha256"],
+            "properties": {
+              "equal": {"type": "boolean"},
+              "added": {"type": "integer", "minimum": 0},
+              "removed": {"type": "integer", "minimum": 0},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "checksum_manifest": {
+      "goal": {
+        "statement": "Generate a checksum manifest of every input file using sha256, sha1, sha512 or md5",
+        "intent": "checksum_manifest",
+        "tags": ["hash", "sha256", "checksum", "manifest", "integrity"]
+      },
+      "command": ["python", "/app/main.py", "sha256", "SHA256SUMS"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["algorithm", "files", "output"],
+            "properties": {
+              "algorithm": {"enum": ["sha256", "sha1", "sha512", "md5"]},
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "digest", "bytes"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{32,128}$"},
+                    "bytes": {"type": "integer", "minimum": 0}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "archive_extract": {
+      "goal": {
+        "statement": "Safely extract a zip or tar archive, refusing path traversal, absolute paths and link entries",
+        "intent": "archive_extract",
+        "tags": ["archive", "zip", "tar", "extract", "security"]
+      },
+      "command": ["python", "/app/main.py", "archive.tar", "extracted"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["format", "destination", "extracted", "refused", "total_bytes"],
+            "properties": {
+              "format": {"enum": ["zip", "tar"]},
+              "total_bytes": {"type": "integer", "minimum": 0},
+              "extracted": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "bytes"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "bytes": {"type": "integer", "minimum": 0}
+                  }
+                }
+              },
+              "refused": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "reason"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "reason": {"type": "string", "minLength": 1}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "archive_create": {
+      "goal": {
+        "statement": "Create a reproducible tar, tar.gz or zip archive with zeroed timestamps and ownership",
+        "intent": "archive_create",
+        "tags": ["archive", "tar", "zip", "reproducible", "packaging"]
+      },
+      "command": ["python", "/app/main.py", "output.tar", "tar"],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": ["format", "entries", "output", "sha256"],
+            "properties": {
+              "format": {"enum": ["tar", "targz", "zip"]},
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "bytes"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "bytes": {"type": "integer", "minimum": 0}
+                  }
+                }
+              },
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

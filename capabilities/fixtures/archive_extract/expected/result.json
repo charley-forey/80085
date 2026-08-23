@@ -1,0 +1,30 @@
+{
+  "destination": "extracted",
+  "directories": 0,
+  "extracted": [
+    {
+      "bytes": 16,
+      "name": "nested/deep.txt"
+    },
+    {
+      "bytes": 10,
+      "name": "safe.txt"
+    }
+  ],
+  "format": "tar",
+  "refused": [
+    {
+      "name": "../escape.txt",
+      "reason": "parent traversal"
+    },
+    {
+      "name": "/etc/passwd",
+      "reason": "absolute path"
+    },
+    {
+      "name": "link.txt",
+      "reason": "unsupported entry type: link"
+    }
+  ],
+  "total_bytes": 26
+}

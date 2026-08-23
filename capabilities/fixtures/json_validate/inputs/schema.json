@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["track", "bpm"],
+  "properties": {
+    "track": {"type": "string"},
+    "bpm": {"type": "integer"}
+  }
+}

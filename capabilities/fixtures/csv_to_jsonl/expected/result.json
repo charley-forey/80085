@@ -1,0 +1,10 @@
+{
+  "columns": [
+    "track",
+    "bpm",
+    "key"
+  ],
+  "output": "output.jsonl",
+  "rows": 3,
+  "sha256": "a91bfd4b007ecac6b8134b5cf22760ae6befece0b5ae332987a2626d0d2a22c1"
+}
