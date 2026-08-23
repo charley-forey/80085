@@ -18,7 +18,8 @@ networked run does not get the default bridge: it gets a dedicated network
 whose traffic is filtered by the host firewall, and the destinations that
 matter -- link-local, metadata, loopback, RFC1918 -- are refused whatever the
 flag says. If the filter cannot be installed, the run is refused rather than
-run unfiltered.
+run unfiltered -- and it is re-verified before every networked run, because
+the rules live on the host where anything can flush them.
 """
 
 from __future__ import annotations
@@ -145,9 +146,6 @@ class DockerOciRuntime:
 
     def __init__(self, docker: str = DOCKER) -> None:
         self._docker = docker
-        # The filter is installed once per process. The rules themselves are
-        # idempotent on the host, so a restarting worker does not stack them.
-        self._egress_ready = False
 
     async def execute(self, request: SandboxRequest) -> SandboxResult:
         if not OCI_PINNED_RE.match(request.image):
@@ -261,10 +259,26 @@ class DockerOciRuntime:
     # ------------------------------------------------------------------ egress
 
     async def _egress_network(self) -> str:
-        if not self._egress_ready:
-            await self._ensure_egress_network()
-            await self._ensure_egress_filter()
-            self._egress_ready = True
+        """Verified before every networked run, never remembered.
+
+        Remembering it was the bug. The rules live on the host, not in this
+        process, and anything on the host can remove them -- `iptables -F`, a
+        package upgrade, a firewall tool, a daemon restart that drops custom
+        chains. A worker that latched "installed" at the first run would then
+        keep serving networked containers completely unfiltered for the rest of
+        its life, with no error and nothing in the logs to notice.
+
+        So the check is the state. `iptables -C` is idempotent and already how
+        this decides whether to install anything, so re-checking costs a sweep
+        of it: **58 ms median** for the twenty rules (2.9 ms each, n=20 sweeps,
+        measured in a privileged Linux netns), plus one `docker network
+        inspect` at roughly 75 ms. Call it 135 ms against a run that pulls,
+        creates, copies a tar in, and then executes for up to an hour. Nothing
+        here is worth a TTL: a cache with a window is a window in which the
+        filter is gone and we are still saying it is there.
+        """
+        await self._ensure_egress_network()
+        await self._ensure_egress_filter()
         return EGRESS_NETWORK
 
     async def _ensure_egress_network(self) -> None:

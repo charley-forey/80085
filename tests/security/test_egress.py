@@ -25,7 +25,7 @@ from boobs_common.errors import ExecutionFailed
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
 from boobs_execution import DockerOciRuntime
-from boobs_execution.docker_oci import EGRESS_NETWORK
+from boobs_execution.docker_oci import EGRESS_NETWORK, egress_rule
 
 pytestmark = [pytest.mark.security, pytest.mark.usefixtures("docker")]
 
@@ -59,6 +59,14 @@ async def docker_cli(*args: str, check: bool = True) -> str:
     if check:
         assert process.returncode == 0, stderr.decode()
     return stdout.decode().strip()
+
+
+async def iptables(*args: str) -> int:
+    """The host's firewall, reached without going through the code under test."""
+    process = await asyncio.create_subprocess_exec(
+        "iptables", *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    return await process.wait()
 
 
 async def attempt(image: str, code: str) -> SandboxResult | str:
@@ -167,6 +175,33 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
         assert_unreachable(outcome)
     finally:
         await docker_cli("rm", "-f", listener, check=False)
+
+
+async def test_a_rule_removed_behind_the_runtimes_back_is_reinstalled() -> None:
+    """The rules are on the host, and `iptables -F` is one command away.
+
+    A worker that remembered "installed" from its first run would keep putting
+    containers on the bridge unfiltered for the rest of its life, silently. So
+    the state is the check: delete the metadata DROP rule behind the runtime's
+    back, and the next networked run has to notice and put it back before
+    anything starts.
+    """
+    runtime = DockerOciRuntime()
+    try:
+        await runtime._egress_network()  # noqa: SLF001 - installing what we then break
+    except ExecutionFailed as refusal:
+        pytest.skip(f"egress filter cannot be installed on this host: {refusal}")
+
+    rule = egress_rule("DOCKER-USER", "169.254.0.0/16")
+    assert await iptables("-w", "5", "-D", *rule) == 0, "the rule was not there to remove"
+    assert await iptables("-w", "5", "-C", *rule) != 0, "the rule survived being removed"
+
+    await runtime._egress_network()  # noqa: SLF001 - the second run
+
+    assert await iptables("-w", "5", "-C", *rule) == 0, (
+        "the metadata DROP rule was not reinstalled -- the filter is being "
+        "remembered rather than verified, so a flushed host runs unfiltered"
+    )
 
 
 async def test_a_networked_run_is_refused_when_the_filter_cannot_be_installed(
