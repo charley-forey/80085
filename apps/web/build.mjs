@@ -550,6 +550,11 @@ already exists."
 ## Status
 
 The API is live. Keys are self-serve: one POST, no signup, no human in the loop.
+
+The corpus holds 24 Experiences and recommends none of them. Each has evidence
+from exactly one organization, and \`use\` needs two — so expect \`consider\` and
+read the evidence yourself for now.
+
 No success-rate claim is made until both benchmark arms show verified runs.
 
 ## Source

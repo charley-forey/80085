@@ -40,8 +40,12 @@
 | **MCP endpoint** | `https://mcp.80085.ai/mcp` (streamable-http) |
 | **Artifact registry** | `registry-production-ca7f.up.railway.app` |
 
-Seeded with three verified Experiences. Executions need a worker attached —
-see [Deployment](infrastructure/railway/README.md).
+Seeded with 24 Experiences: the 21-capability corpus plus the original three.
+Every one sits at `candidate` / `consider`, not `verified` / `use`, because
+every one has evidence from exactly one organization — ours. We could run them
+from our second seeded org and clear the gate tonight; that is precisely the
+Sybil pattern the gate exists to stop, so we have not. Executions need a worker
+attached — see [Deployment](infrastructure/railway/README.md).
 
 ---
 
@@ -1069,8 +1073,9 @@ Record → recall → execute → verify → evidence, proven by the cross-agent
 **Phase 1 — Reach**
 - 🌍 `apps/web`: public discovery surface, `llms.txt`, integration docs
 - 🤖 Agent SDK, so `recall` is one line in any harness
-- 📚 Publishing the 21-capability corpus in `capabilities/manifest.json` — built
-  and tested, not yet pushed or recorded anywhere
+- ✅ **Done:** the 21-capability corpus in `capabilities/manifest.json` is pushed
+  to the registry and recorded against the live API — and recommended by
+  nothing, until an organization that is not ours runs one
 
 **Phase 2 — Depth**
 - 🧬 **Experience Graph** — the `lineage` fields already exist and are unused
@@ -1180,7 +1185,7 @@ issue.
 | Record → recall → execute → verify → evidence | ✅ Implemented end to end |
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
-| Example capabilities | ✅ 21, stdlib-only |
+| Example capabilities | ✅ 21, stdlib-only, live — and none corroborated yet |
 | Benchmark harness | ⚠️ Runs; the checked-in results are **not** a performance claim |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |

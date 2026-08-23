@@ -83,7 +83,7 @@ Reading is free, forever.`
     t: 'p',
     text:
       'There is no system prompt to edit. The server tells your agent what it ' +
-      'is for when it connects, so the instruction arrives with the tools.'
+      'is for when it connects.'
   },
   { t: 'p', text: 'Cursor, Windsurf, Claude Desktop, or anything else — same thing, as config:' },
   { t: 'code', text: CONFIG },
@@ -91,7 +91,7 @@ Reading is free, forever.`
     t: 'p',
     text:
       'Want to contribute back? Recording needs a key, and a key is one click ' +
-      'at /key. Still no signup.'
+      'at /key.'
   },
   {
     t: 'table',
@@ -214,9 +214,10 @@ Nobody measured either, so nobody can tell you which to trust.`
   },
   {
     t: 'pre',
-    text: `Then two discounts. Runs are capped at 10 per organization, because
-Wilson assumes independent observations. And the result is scaled by
-the verifier: 0.6 for an exit code, 1.0 for a schema or a hash.
+    text: `Then two discounts. Wilson assumes independence, so runs are capped
+at 10 per organization. And proof is not all equal, so the result
+scales with the verifier: 0.6 for an exit code, 1.0 for a schema
+or a hash.
 
 100 self-runs proved by "it exited 0" report 43.4%, not 96.3%. 🪞`
   },
@@ -240,6 +241,7 @@ Your claim is not evidence. 🙅`
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
+      ['⚠️', '21-capability corpus', 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
   },
