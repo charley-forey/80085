@@ -10,6 +10,20 @@ product stops when the lid closes.
 
 This is how to put one somewhere it will not.
 
+## The short way
+
+`cloud-init.yaml` in this directory provisions the whole thing on first boot:
+Docker from Docker's own repository, an unprivileged `boobs` user in the
+docker group, the code, the virtualenv, the unit, enabled and started.
+
+Replace the three `REPLACE_ME` values, paste it into the *user data* box of any
+provider that takes one — Hetzner, DigitalOcean, Vultr, Linode, EC2, GCP — pick
+an Ubuntu 24.04 image and 2 vCPU / 4 GB, and the worker is leasing by the time
+the box finishes booting.
+
+The rest of this file is what that script does and why, for when it does not
+work or the host is not fresh.
+
 ## What the host needs
 
 | Requirement | Why |
@@ -117,6 +131,48 @@ means "add a worker"; everything else about the read path scales separately.
 Two workers on two hosts need no coordination and no shared state. Two workers
 on the *same* host will both lease and both run, which works but halves the
 memory each sandbox can safely use — prefer separate hosts.
+
+## Scaling this, in the order it actually matters
+
+Execution is the expensive half of the system and the only part that needs
+machines added to it. Four things, cheapest first — and the order is the point,
+because three of them are free and the fourth is the one people reach for.
+
+**1. Most executions should never happen.** Artifacts are pinned by digest, so
+the same artifact and the same inputs deterministically produce the same
+output. `CachingRuntime` already exists behind the `ExecutionRuntime` protocol
+(`BOOBS_EXEC_CACHE=1`, off by default). It is off because a replayed result
+must not be recorded as a fresh independent verification — that would inflate
+the one number this product sells. Finishing that (decision 20 names exactly
+what is missing) removes more load than any number of hosts.
+
+**2. Recall volume is not execution volume.** An agent recalls, reads the
+evidence, and runs the artifact in its own environment. The platform executes
+to *generate evidence*, and evidence saturates: `usage_score` is log-scaled and
+runs are capped per organization before they reach Wilson, so the fiftieth
+verified run of a capability is worth almost nothing and the five-thousandth is
+worth literally nothing. Execution is a sampling problem with a ceiling. Recall
+is the surface that scales with the world, and it is a read served by two
+indexes.
+
+**3. Add hosts, not size.** A worker runs one sandbox at a time, and leases are
+claimed with `SELECT ... FOR UPDATE SKIP LOCKED`. That means N workers need no
+leader, no sharding, no partitioning and no coordination whatsoever — a second
+host is capacity with no design change. Autoscale on `queued_executions` from
+`/v1/ready`, never on CPU: a worker waiting on a container looks idle.
+
+**4. Only then, a different runtime.** The `ExecutionRuntime` protocol is one
+swappable class, so this is a routing decision rather than a rewrite. Note what
+the choice is actually between: E2B was tried and refuses `network: false`
+artifacts because it does not enforce an isolated network (decision 27), so the
+useful direction is not "hosted" but *stronger local isolation* —
+gVisor (`runsc`) as Docker's runtime is a `daemon.json` change and retires the
+"Docker is not a boundary against a kernel exploit" gap in `docs/security.md`.
+
+**What does not need solving yet.** Multi-region, sharding and read replicas
+are all still deferred and should stay that way: one Postgres is nowhere near
+saturated, and each of those adds a failure mode someone then has to debug at
+3am. `docs/scaling.md` is the honest account of what breaks first.
 
 ## The failure that is easy to cause
 
