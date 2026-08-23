@@ -97,6 +97,31 @@ writable mounts, wall clock, fork bomb, memory hog, output flood, output size.
 
 **If one of these fails, fix the sandbox. Never relax the test.**
 
+## Isolation is per-runtime, and E2B does not enforce the network
+
+The table above describes `DockerOciRuntime`, which is what `BOOBS_RUNTIME`
+selects by default. It is not a description of every runtime.
+
+**E2B does not enforce an isolated network.** Measured against the live
+service: with `allow_internet_access=False`, and again with
+`network={"deny_out": ["0.0.0.0/0"]}`, a sandbox still opened a TCP connection
+to `1.1.1.1:53`. Only DNS is refused, which is what let this go unnoticed -- a
+resolver failure reads as "no network" until something dials an address
+directly, which is what exfiltrating code does.
+
+So `E2BRuntime` **refuses** any execution with `network: false` rather than
+serving it unsafely, and says to use the Docker runtime instead. E2B is still
+appropriate for artifacts that declare network access, where no isolation was
+promised in the first place.
+
+Four Docker limits also have no E2B equivalent and are not enforced there:
+`cpu`, `memory_mb`, `tmpfs_mb` and `pids`. The wall clock is enforced on both.
+
+The lesson generalises: isolation is not one property. A Firecracker microVM is
+a stronger boundary than a shared kernel against a kernel exploit, and a weaker
+one here. Check the specific control you depend on, on the specific runtime you
+run.
+
 ## Known gaps
 
 * **Docker is not a security boundary against a kernel exploit.** It is
