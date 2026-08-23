@@ -44,9 +44,7 @@ def test_anonymous_sees_public_experiences_and_nothing_else() -> None:
     and someone else's private work, so it is asserted directly rather than
     through a route.
     """
-    sql = str(
-        visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True})
-    )
+    sql = str(visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True}))
     # Public is allowed outright.
     assert f"visibility = '{Visibility.PUBLIC.value}'" in sql.replace('"', "")
     # Everything else is gated on owning the row, and nobody owns org_anonymous.
@@ -117,9 +115,7 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
     """The other half of public-by-default: opting out must actually work."""
     owner = Principal(organization_id="org_real", agent_id="agt_real")
     mine = str(visibility_clause(owner).compile(compile_kwargs={"literal_binds": True}))
-    theirs = str(
-        visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True})
-    )
+    theirs = str(visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True}))
     assert "org_real" in mine
     assert "org_real" not in theirs
 

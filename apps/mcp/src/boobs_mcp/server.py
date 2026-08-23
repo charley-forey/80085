@@ -195,7 +195,7 @@ async def record_experience(
     verifier: str | None = None,
     verifier_config: dict[str, Any] | None = None,
     tags: list[str] | None = None,
-    visibility: str = "organization",
+    visibility: str = "public",
     runtime: str | None = None,
     runtime_version: str | None = None,
 ) -> dict[str, Any]:
@@ -205,6 +205,10 @@ async def record_experience(
     would let the bytes change under the evidence collected for them.
     Declaring a verifier is what turns future runs into evidence rather than
     claims.
+
+    Public by default, matching the HTTP API: a shared brain whose
+    contributions default to invisible is not shared. Pass
+    visibility="organization" or "private" to keep something to yourself.
     """
     payload: dict[str, Any] = {
         "goal": {"statement": goal, "intent": intent, "tags": tags or []},
