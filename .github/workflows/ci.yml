@@ -94,9 +94,24 @@ jobs:
       - name: Integration tests
         run: uv run pytest tests/integration -q
 
+      # Bridged traffic does not reach iptables without this, so the egress
+      # DROP rules would only ever see routed packets -- which is exactly the
+      # gap that let a sandbox reach a listener on its own bridge in
+      # production. The runner needs it for the same reason a worker host does.
+      - name: Let bridged traffic reach iptables
+        run: |
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
       - name: Sandbox isolation tests
         # If one of these fails, fix the sandbox. Never relax the test.
-        run: uv run pytest tests/security -v
+        #
+        # Privileged, and that is the point. Installing an iptables rule needs
+        # CAP_NET_ADMIN, and without it the egress tests cannot prove anything:
+        # for weeks they passed here by catching the runtime's fail-closed
+        # refusal and calling that a drop. An unprivileged run of this suite is
+        # not a weaker check, it is a check that cannot fail.
+        run: sudo -E env "PATH=$PATH" uv run pytest tests/security -v
 
       - name: Cross-agent reuse (the acceptance criterion)
         run: uv run pytest tests/e2e -v
