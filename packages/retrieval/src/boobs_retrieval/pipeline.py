@@ -311,7 +311,7 @@ async def _merge_and_rank(
             )
         )
 
-    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    candidates.sort(key=_ranked)
     return RecallOutcome(
         matches=[candidate for _, candidate in candidates[: query.limit]],
         parsed=parsed,
@@ -319,6 +319,24 @@ async def _merge_and_rank(
         cleared=len(candidates),
         best_score=round(best_score, 4),
     )
+
+
+def _ranked(pair: tuple[float, RecallCandidate]) -> tuple[float, int, str]:
+    """Best score first, and the same answer every time it is asked.
+
+    Score alone is not a total order. The candidates are fetched with an
+    unordered `WHERE id IN (...)`, so equal scores used to come back in
+    whatever order the planner and the cache happened to produce that day --
+    and a product whose pitch is that the same question gets the same
+    recommendation cannot resolve ties by coincidence.
+
+    Successful runs break the tie first, because between two Experiences that
+    match a task equally well the better attested one is the better answer.
+    The version id settles the rest: arbitrary, but unique and stable, which is
+    all a tiebreaker has to be.
+    """
+    score, candidate = pair
+    return (-score, -candidate.successful_runs, candidate.experience_version_id)
 
 
 def _evidence(stat: ExecutionStat | None) -> Evidence:

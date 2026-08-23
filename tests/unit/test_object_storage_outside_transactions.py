@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from fastapi import Response
+from sqlalchemy import Update
 from starlette.requests import Request
 
 from boobs_api import routes, worker_routes
@@ -61,10 +62,12 @@ class RecordingSession:
         self._results = list(results)
         self.open = False
         self.log: list[str] = []
+        self.statements: list[Any] = []
 
-    async def execute(self, *_: Any, **__: Any) -> Rows:
+    async def execute(self, statement: Any = None, *_: Any, **__: Any) -> Rows:
         self.open = True
         self.log.append("query")
+        self.statements.append(statement)
         return Rows(self._results.pop(0) if self._results else None)
 
     def add(self, _: Any) -> None:
@@ -322,7 +325,9 @@ async def test_result_uploads_before_it_records(monkeypatch: pytest.MonkeyPatch)
         status=ExecutionStatus.RUNNING,
         leased_by="worker-1",
     )
-    db = RecordingSession(running, a_version())
+    # The third statement is the guarded UPDATE that records the run; it comes
+    # back with the row id, meaning this worker still held the lease.
+    db = RecordingSession(running, a_version(), running.id)
     use_bucket(monkeypatch, Bucket(db))
 
     async def no_recompute(*_: Any, **__: Any) -> None: ...
@@ -348,4 +353,10 @@ async def test_result_uploads_before_it_records(monkeypatch: pytest.MonkeyPatch)
     assert_never_in_transaction(db.log)
     uploaded = db.log.index("storage:released")
     assert "write" not in db.log[:uploaded], f"the row was written before the outputs: {db.log}"
-    assert running.output_key == storage.output_key("exe_boundaries")
+
+    # And the key the row records is the one the bucket was just handed. The
+    # write is a conditional UPDATE rather than an attribute assignment (see
+    # DECISIONS.md 43), so the statement is where that shows.
+    recorded = [statement for statement in db.statements if isinstance(statement, Update)]
+    assert len(recorded) == 1, f"the run was recorded {len(recorded)} times: {db.log}"
+    assert recorded[0].compile().params["output_key"] == storage.output_key("exe_boundaries")
