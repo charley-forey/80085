@@ -37,6 +37,19 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
+# The egress filter installs iptables rules into DOCKER-USER and INPUT before
+# any networked artifact runs, and that needs CAP_NET_ADMIN. Without it the
+# runtime fails closed and every `network: true` run is refused -- safe, but
+# the filter never protects anything. That was the shipped state until it was
+# measured on a live host.
+#
+# AmbientCapabilities alone is not enough: the bounding set is what a process
+# may ever hold, and systemd clears it. Both are needed, and both are narrow --
+# CAP_NET_ADMIN and nothing else, on a process that already had the docker
+# group, which is a strictly larger privilege than this.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
 # Hardening. Note what is NOT here: NoNewPrivileges and PrivateDevices would
 # be the obvious additions, and they break `docker run`. The isolation that
 # matters is applied to the sandbox container by the runtime, not to this

@@ -43,6 +43,11 @@ write_files:
       ExecStart=/opt/80085/.venv/bin/80085-worker
       Restart=always
       RestartSec=5
+      # The egress filter needs this to install its DROP rules; without it the
+      # runtime fails closed and never filters anything. Bounding set too --
+      # systemd clears what is not in it.
+      AmbientCapabilities=CAP_NET_ADMIN
+      CapabilityBoundingSet=CAP_NET_ADMIN
       StandardOutput=journal
       StandardError=journal
       ProtectSystem=strict

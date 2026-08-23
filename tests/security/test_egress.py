@@ -6,9 +6,16 @@ network, and then go for the two things worth stealing -- the cloud metadata
 service that hands out IAM credentials, and whatever is listening on the
 worker's own private network.
 
-Both must be refused. "Refused" has two shapes and both count: the packet is
-dropped by the filter, or the run never starts because the filter could not be
-installed. What must never happen is a container that reaches either one.
+Both must be refused, and these tests insist on the *strong* shape: the packet
+is dropped by an installed rule. The weak shape -- the run never starts because
+the filter could not be installed -- is also safe, and it has its own test at
+the bottom, but it is not evidence that filtering works.
+
+Conflating the two is exactly how this suite lied for weeks. A refusal counted
+as a pass, so on any host without CAP_NET_ADMIN three of these went green
+without a rule ever existing, and the two that would have noticed skipped
+instead. Every environment this had ever run in -- Windows, CI, production --
+was such a host.
 
 If one of these fails, fix the sandbox -- never relax the test.
 """
@@ -17,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -49,6 +57,41 @@ def image() -> str:
     if not DIGESTS.is_file():
         pytest.skip("run scripts/build_capabilities.py first")
     return str(json.loads(DIGESTS.read_text())["csv_to_json"])
+
+
+@pytest.fixture(scope="module")
+async def filtering() -> str:
+    """The sandbox network, with the DROP rules actually installed.
+
+    Every test that claims a packet was *dropped* depends on this. It is a
+    fixture rather than a try/except at each call site because of how this
+    suite was wrong before: a refusal was accepted as proof of filtering, so
+    three tests went green on an unprivileged runner without a rule ever
+    existing, and the two that would have noticed skipped. A skip is not a
+    failure, so nothing was ever red.
+
+    The distinction that matters is between a host that *cannot* filter and a
+    host that *should* and does not:
+
+    * not Linux -- there is no iptables to install into, so the claim is
+      untestable here and skipping is honest.
+    * Linux, and the filter will not install -- that is production's exact
+      failure mode (a worker running as a user without CAP_NET_ADMIN), and it
+      is the thing this suite exists to catch. Fail, loudly.
+
+    The fail-closed refusal has its own test below. It does not need this one.
+    """
+    try:
+        return await DockerOciRuntime()._egress_network()  # noqa: SLF001
+    except ExecutionFailed as refusal:
+        if sys.platform != "linux":
+            pytest.skip(f"no iptables on {sys.platform}; egress filtering is untestable here")
+        pytest.fail(
+            "this is a Linux host and the egress filter would not install, which is "
+            "the condition that leaves networked artifacts unfiltered in production. "
+            "Run privileged (CAP_NET_ADMIN), do not skip past it.\n"
+            f"{refusal}"
+        )
 
 
 async def docker_cli(*args: str, check: bool = True) -> str:
@@ -90,15 +133,21 @@ async def attempt(image: str, code: str) -> SandboxResult | str:
 
 
 def assert_unreachable(outcome: SandboxResult | str) -> None:
-    if isinstance(outcome, str):
-        assert "refusing to run a networked artifact" in outcome
-        return
+    """The packet was dropped. Not "the run was refused" -- dropped.
+
+    These two used to be interchangeable here, which is how a filter that had
+    never installed anywhere passed its own tests for weeks.
+    """
+    assert not isinstance(outcome, str), (
+        "the run was refused rather than filtered, so this proves nothing about "
+        f"the DROP rules: {outcome}"
+    )
     assert outcome.exit_code != 0, outcome.stdout
     assert outcome.status is not ExecutionStatus.SUCCEEDED
     assert b"reachable" not in outcome.stdout
 
 
-async def test_cloud_metadata_is_unreachable_with_network_true(image: str) -> None:
+async def test_cloud_metadata_is_unreachable_with_network_true(image: str, filtering: str) -> None:
     """169.254.169.254 is one HTTP GET away from the worker's IAM credentials."""
     outcome = await attempt(
         image,
@@ -110,7 +159,7 @@ async def test_cloud_metadata_is_unreachable_with_network_true(image: str) -> No
     assert_unreachable(outcome)
 
 
-async def test_link_local_is_unreachable_with_network_true(image: str) -> None:
+async def test_link_local_is_unreachable_with_network_true(image: str, filtering: str) -> None:
     """The whole 169.254.0.0/16 range, not just the address everyone knows."""
     outcome = await attempt(
         image,
@@ -121,7 +170,9 @@ async def test_link_local_is_unreachable_with_network_true(image: str) -> None:
     assert_unreachable(outcome)
 
 
-async def test_the_hosts_own_gateway_is_unreachable_with_network_true(image: str) -> None:
+async def test_the_hosts_own_gateway_is_unreachable_with_network_true(
+    image: str, filtering: str
+) -> None:
     """The default route points at the host. Everything on it must be refused."""
     outcome = await attempt(
         image,
@@ -143,7 +194,7 @@ async def test_the_hosts_own_gateway_is_unreachable_with_network_true(image: str
     assert_unreachable(outcome)
 
 
-async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> None:
+async def test_a_private_peer_is_unreachable_with_network_true(image: str, filtering: str) -> None:
     """The strong one: a real listener, on a real RFC1918 address, refused.
 
     Everything else here can pass on a laptop for the wrong reason -- nothing
@@ -151,11 +202,7 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
     answer on the same network as the sandbox, so the filter has to be what
     stops it.
     """
-    runtime = DockerOciRuntime()
-    try:
-        network = await runtime._egress_network()  # noqa: SLF001 - setting up the attack
-    except ExecutionFailed as refusal:
-        pytest.skip(f"egress filter cannot be installed on this host: {refusal}")
+    network = filtering
 
     listener = await docker_cli(
         "run", "--rm", "--detach", f"--network={network}", image, "python", "-c", LISTENER
@@ -177,7 +224,9 @@ async def test_a_private_peer_is_unreachable_with_network_true(image: str) -> No
         await docker_cli("rm", "-f", listener, check=False)
 
 
-async def test_a_rule_removed_behind_the_runtimes_back_is_reinstalled() -> None:
+async def test_a_rule_removed_behind_the_runtimes_back_is_reinstalled(
+    filtering: str,
+) -> None:
     """The rules are on the host, and `iptables -F` is one command away.
 
     A worker that remembered "installed" from its first run would keep putting
@@ -187,11 +236,6 @@ async def test_a_rule_removed_behind_the_runtimes_back_is_reinstalled() -> None:
     anything starts.
     """
     runtime = DockerOciRuntime()
-    try:
-        await runtime._egress_network()  # noqa: SLF001 - installing what we then break
-    except ExecutionFailed as refusal:
-        pytest.skip(f"egress filter cannot be installed on this host: {refusal}")
-
     rule = egress_rule("DOCKER-USER", "169.254.0.0/16")
     assert await iptables("-w", "5", "-D", *rule) == 0, "the rule was not there to remove"
     assert await iptables("-w", "5", "-C", *rule) != 0, "the rule survived being removed"
