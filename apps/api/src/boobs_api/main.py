@@ -6,9 +6,11 @@ The API never executes an artifact. It reads, ranks, records, and enqueues
 
 from __future__ import annotations
 
+import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -38,6 +40,11 @@ STATUS_FOR = {
 
 log = logger(__name__)
 
+# The ANSI representation is text. Left unregistered it is served as
+# application/octet-stream, which invites a client to download `curl 80085.ai`
+# rather than print it.
+mimetypes.add_type("text/plain", ".ansi")
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -51,10 +58,50 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def _web_root() -> Path | None:
-    """Locate apps/web, whether running from a checkout or the container."""
+    """Locate the built site, whether running from a checkout or the container.
+
+    apps/web/public is build output, not source: `node build.mjs` renders it
+    from apps/web/content.js. If it is absent the surface is simply not
+    mounted, which is why this returns None rather than raising -- the API is
+    perfectly useful without a landing page attached to it.
+    """
     here = Path(__file__).resolve()
-    candidates = [Path.cwd() / "apps" / "web", *(p / "apps" / "web" for p in here.parents)]
+    rel = Path("apps") / "web" / "public"
+    candidates = [Path.cwd() / rel, *(p / rel for p in here.parents)]
     return next((path for path in candidates if (path / "index.html").is_file()), None)
+
+
+# Representations of the same URL, chosen by what the client says it wants.
+# These mirror the rewrite table in apps/web/vercel.json; both are generated
+# from the same content, so the two hosts answer identically.
+_AGENTS = (
+    "ClaudeBot", "Claude-User", "Claude-SearchBot", "GPTBot", "ChatGPT-User",
+    "OAI-SearchBot", "PerplexityBot", "Perplexity-User", "Google-Extended",
+    "Bytespider", "CCBot", "Applebot-Extended", "cohere-ai", "Meta-ExternalAgent",
+)
+_SHELLS = ("curl", "wget", "httpie", "libcurl")
+_NEGOTIABLE = {"/": "index", "/install": "install"}
+
+
+def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str | None:
+    """Which file answers this request, or None to fall through to the page."""
+    stem = _NEGOTIABLE.get(path.rstrip("/") or "/")
+    if stem is None:
+        return None
+    if fmt in {"md", "txt"}:
+        return f"/{stem}.{fmt}"
+    lowered = agent.lower()
+    if any(shell in lowered for shell in _SHELLS):
+        return f"/{stem}.ansi"
+    if any(bot.lower() in lowered for bot in _AGENTS):
+        return f"/{stem}.md"
+    if "text/html" in accept:
+        return None
+    if "text/markdown" in accept:
+        return f"/{stem}.md"
+    if "text/plain" in accept:
+        return f"/{stem}.txt"
+    return None
 
 
 def _mount_discovery_surface(app: FastAPI) -> None:
@@ -66,8 +113,32 @@ def _mount_discovery_surface(app: FastAPI) -> None:
     """
     root = _web_root()
     if root is None:
-        log.info("discovery_surface_not_found", searched="apps/web")
+        log.info("discovery_surface_not_found", searched="apps/web/public")
         return
+
+    @app.middleware("http")
+    async def negotiate(request: Request, call_next: Any) -> Any:
+        """Serve the representation the caller asked for, from the same URL.
+
+        A browser gets the page, `curl` gets ANSI, an agent gets markdown. The
+        product is infrastructure for agents, so a site only legible to humans
+        would undercut the pitch before anyone read a word.
+        """
+        if request.method in {"GET", "HEAD"}:
+            target = _representation(
+                request.url.path,
+                request.headers.get("accept", ""),
+                request.headers.get("user-agent", ""),
+                request.query_params.get("format"),
+            )
+            if target and (root / target.lstrip("/")).is_file():
+                request.scope["path"] = target
+        response = await call_next(request)
+        # Without this a CDN or proxy may hand one caller's representation to
+        # the next caller. It is the likeliest way this breaks in production.
+        response.headers["Vary"] = "Accept, User-Agent"
+        return response
+
     app.mount("/", StaticFiles(directory=str(root), html=True), name="web")
 
 

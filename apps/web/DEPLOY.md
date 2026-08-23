@@ -1,29 +1,50 @@
 # Deploying 80085.ai
 
-The site is `apps/web`. The API is the existing Railway `api` service. They are
-split by subdomain so a bad API deploy cannot take the homepage down.
+There are two ways to serve this site, and the repo supports both.
+
+**Railway (working today).** The API image builds `apps/web` in a Node stage
+and serves the result, with the same content negotiation the Vercel host does
+— `_representation()` in `apps/api/src/boobs_api/main.py` mirrors the rewrite
+table in `vercel.json`. Point the apex at Railway and the site is live. This
+is the shortest path and needs nothing that is not already provisioned.
+
+**Vercel (the better long-term home).** Preview deploys per PR, instant
+rollback, and the marketing page stops sharing a blast radius with the API.
+Blocked on connecting GitHub to Vercel — see §2.
+
+Either way `api.80085.ai` stays on Railway.
 
 ## 1. DNS — at the registrar
 
 `80085.ai` is registered but currently parked (it serves a 114-byte redirect to
 `/lander`). Replace the parking records with these.
 
-| Host  | Type  | Value                                     | For     |
-| ----- | ----- | ----------------------------------------- | ------- |
-| `api` | CNAME | `3b5l44ej.up.railway.app`                 | Railway |
-| `@`   | A     | `76.76.21.21`                             | Vercel  |
-| `www` | CNAME | `cname.vercel-dns.com`                    | Vercel  |
+| Host  | Type  | Value                     | For                        |
+| ----- | ----- | ------------------------- | -------------------------- |
+| `api` | CNAME | `3b5l44ej.up.railway.app` | Railway — the API          |
+| `@`   | ALIAS | see below                 | whichever host serves the site |
+| `www` | CNAME | same as `@`               | redirect to apex           |
 
-The `api` record is exact — Railway issued it when the custom domain was
-attached, and the certificate stays in `VALIDATING_OWNERSHIP` until it
-resolves. Confirm the Vercel values against what the dashboard shows when the
-domain is added; Vercel occasionally moves the apex IP.
+The `api` record is exact: Railway issued it when the custom domain was
+attached, and its certificate stays in `VALIDATING_OWNERSHIP` until DNS
+resolves.
+
+For the apex, pick one:
+
+- **Railway** — attach `80085.ai` to the `api` service and use the CNAME
+  target Railway returns. Apex CNAMEs need an ALIAS/ANAME record, which most
+  registrars support; if yours does not, use Railway's A record.
+- **Vercel** — `A @ 76.76.21.21` and `CNAME www cname.vercel-dns.com`. Confirm
+  against the dashboard when you add the domain; Vercel moves the apex IP
+  occasionally.
 
 Verify:
 
 ```bash
 curl -s https://api.80085.ai/v1/health      # {"status":"ok"}
+curl -s https://80085.ai | head -5          # the seven-segment wordmark
 ```
+
 
 ## 2. Vercel — connect GitHub first
 
