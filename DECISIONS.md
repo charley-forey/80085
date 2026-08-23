@@ -775,7 +775,7 @@ a test that asserts both implementations answer identically.
 
 ---
 
-### 27. The corpus is verified by `result.json`, not by a pinned digest
+### 28. The corpus is verified by `result.json`, not by a pinned digest
 
 Eighteen capabilities join the three examples, and the rule for all twenty-one
 is that a strong verifier is declared: `json_schema` or `sha256`, never bare
