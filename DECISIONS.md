@@ -1070,7 +1070,7 @@ Locked in by `tests/unit/test_open_access.py` and
 sessions -- which is all a second replica is, from Postgres's point of view --
 and spends a spoofed address's budget without touching the address it claimed
 to be.
-### 31. Evidence must come from more than one organization
+### 41. Evidence must come from more than one organization
 
 **Found by audit, not in production, which is the only reason this is not a
 post-mortem.** Every link in the evidence chain was under one actor's control:
@@ -1111,7 +1111,7 @@ Locked in by `tests/unit/test_ranking.py`, `tests/unit/test_trust.py` and
 
 ---
 
-### 32. Verifier strength is part of the maths, not just the marketing
+### 42. Verifier strength is part of the maths, not just the marketing
 
 Three tiers of verification were documented, modelled as `VerificationLevel`,
 and then ignored: a trivial `exit_code` pass produced exactly the same Wilson

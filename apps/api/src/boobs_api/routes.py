@@ -226,7 +226,7 @@ async def mint_key(
     recommendation. Successes are capped per organization before they reach
     Wilson, and "use" needs runs from EVIDENCE_MIN_PROMOTION_ORGANIZATIONS
     distinct organizations. Keys being free is exactly why that had to stop
-    being self-attestable -- see DECISIONS.md 31.
+    being self-attestable -- see DECISIONS.md 41.
     """
     await limits.MINT.check(db, limits.client_ip(http))
 
