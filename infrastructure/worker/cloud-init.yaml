@@ -1,0 +1,105 @@
+#cloud-config
+# A worker host, from nothing to leasing jobs, on first boot.
+#
+# Paste into the "user data" / "cloud-init" box of any provider that takes one
+# (Hetzner, DigitalOcean, Vultr, Linode, EC2, GCP) on an **Ubuntu 24.04** image.
+# Replace the three REPLACE_ME values first. Nothing else needs editing.
+#
+# Size: 2 vCPU / 4 GB is enough for the default sandbox limits (SANDBOX_CPU=2,
+# SANDBOX_MEMORY_MB=2048) with room for the daemon. One worker runs one sandbox
+# at a time, so capacity is added by adding hosts, not by growing this one.
+#
+# It must be Linux with a real kernel. The egress filter installs iptables
+# rules into DOCKER-USER and INPUT, which Docker Desktop's VM does not expose,
+# and it needs CAP_NET_ADMIN -- which root on your own VM has.
+
+write_files:
+  - path: /etc/80085/worker.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      BOOBS_API_URL=https://api.80085.ai
+      BOOBS_API_KEY=REPLACE_ME_worker_key
+      BOOBS_WORKER_ID=REPLACE_ME_worker_name
+      BOOBS_RUNTIME=docker
+      # Only if artifacts sit in an authenticated registry. Both or neither.
+      BOOBS_REGISTRY_USERNAME=
+      BOOBS_REGISTRY_PASSWORD=REPLACE_ME_or_delete_both
+
+  - path: /etc/systemd/system/80085-worker.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=80085 execution worker
+      Requires=docker.service
+      After=docker.service network-online.target
+
+      [Service]
+      Type=simple
+      User=boobs
+      Group=docker
+      EnvironmentFile=/etc/80085/worker.env
+      WorkingDirectory=/opt/80085
+      ExecStart=/opt/80085/.venv/bin/80085-worker
+      Restart=always
+      RestartSec=5
+      StandardOutput=journal
+      StandardError=journal
+      ProtectSystem=strict
+      ProtectHome=true
+      PrivateTmp=true
+      ReadWritePaths=/opt/80085
+
+      [Install]
+      WantedBy=multi-user.target
+
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - iptables
+
+runcmd:
+  # Docker from Docker's own repository. Ubuntu's docker.io lags, and the
+  # sandbox depends on flags that arrived in newer releases.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >-
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable"
+    > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+
+  # A user that can reach Docker and owns nothing else. Not root: the worker
+  # process has no reason to be, and the sandbox's isolation is applied to the
+  # container rather than to this process.
+  - useradd --system --create-home --home-dir /opt/80085 --shell /usr/sbin/nologin boobs
+  - usermod -aG docker boobs
+
+  - curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv.sh
+  - sh /tmp/uv.sh --no-modify-path
+  - install -m 0755 /root/.local/bin/uv /usr/local/bin/uv
+
+  - git clone --depth 1 https://github.com/charley-forey/80085.git /opt/80085
+  - chown -R boobs:boobs /opt/80085
+  - runuser -u boobs -- /usr/local/bin/uv sync --frozen --directory /opt/80085
+
+  - chown root:boobs /etc/80085/worker.env
+  - systemctl daemon-reload
+  - systemctl enable --now 80085-worker
+
+final_message: |
+  Worker host ready after $UPTIME seconds.
+
+  Confirm it is actually working, in this order -- a service that started is
+  not evidence:
+
+    systemctl status 80085-worker
+    journalctl -u 80085-worker -o cat -f       # expect worker_started, then quiet
+    curl -s https://api.80085.ai/v1/ready | grep queued_executions
+
+  The real check is that the queue drains with no other worker attached.
