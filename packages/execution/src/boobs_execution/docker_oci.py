@@ -33,7 +33,7 @@ import tarfile
 import time
 from collections.abc import Sequence
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import ExecutionFailed, RuntimeUnavailable
 from boobs_domain.entities import OCI_PINNED_RE
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
@@ -203,7 +203,10 @@ class DockerOciRuntime:
             raise
         if check and process.returncode != 0:
             detail = stderr.decode(errors="replace")[:500]
-            raise ExecutionFailed(f"docker {args[0]} failed ({process.returncode}): {detail}")
+            # Not ExecutionFailed: the container never ran, so this is the
+            # worker failing, not the artifact. Only the exit code read in
+            # _run_container is evidence about the Experience.
+            raise RuntimeUnavailable(f"docker {args[0]} failed ({process.returncode}): {detail}")
         return process.returncode or 0, stdout, stderr
 
     async def _pull(self, image: str) -> None:
@@ -295,7 +298,7 @@ class DockerOciRuntime:
             _, stdout, _ = await self._docker_run("network", "inspect", EGRESS_NETWORK)
         options = json.loads(stdout)[0].get("Options") or {}
         if options.get(BRIDGE_NAME_OPT) != EGRESS_BRIDGE:
-            raise ExecutionFailed(
+            raise RuntimeUnavailable(
                 _refusal(
                     f"the {EGRESS_NETWORK} network exists but is not on {EGRESS_BRIDGE}, "
                     "so the filter would not cover it"
@@ -311,13 +314,13 @@ class DockerOciRuntime:
         itself off under those conditions is not a control.
         """
         if shutil.which(IPTABLES) is None:
-            raise ExecutionFailed(_refusal(f"{IPTABLES} is not on PATH"))
+            raise RuntimeUnavailable(_refusal(f"{IPTABLES} is not on PATH"))
         for rule in egress_rules():
             if await _iptables("-w", "5", "-C", *rule) == 0:
                 continue
             if await _iptables("-w", "5", "-I", rule[0], "1", *rule[1:]) != 0:
                 joined = " ".join(rule)
-                raise ExecutionFailed(_refusal(f"could not install: {IPTABLES} -I {joined}"))
+                raise RuntimeUnavailable(_refusal(f"could not install: {IPTABLES} -I {joined}"))
 
     async def _copy_in(self, container: str, files: dict[str, bytes]) -> None:
         buffer = io.BytesIO()
@@ -360,7 +363,7 @@ class DockerOciRuntime:
     async def _copy_out(self, container: str, skip: set[str], limit: int) -> dict[str, bytes]:
         try:
             _, stream, _ = await self._docker_run("cp", f"{container}:{WORKDIR}/.", "-")
-        except ExecutionFailed:
+        except RuntimeUnavailable:
             return {}
 
         outputs: dict[str, bytes] = {}

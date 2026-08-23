@@ -41,7 +41,7 @@ import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import ExecutionFailed, RuntimeUnavailable
 from boobs_domain.entities import OCI_PINNED_RE
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
@@ -69,7 +69,7 @@ def api_key() -> str:
     """
     key = os.environ.get(API_KEY_ENV, "").strip()
     if not key:
-        raise ExecutionFailed(
+        raise RuntimeUnavailable(
             f"{API_KEY_ENV} is not set. The E2B runtime needs an E2B API key; "
             "export it, or run with BOOBS_RUNTIME=docker to use local Docker."
         )
@@ -87,7 +87,7 @@ def registry_credentials() -> tuple[str | None, str | None]:
     user = os.environ.get(REGISTRY_USER_ENV, "").strip()
     password = os.environ.get(REGISTRY_PASSWORD_ENV, "").strip()
     if bool(user) != bool(password):
-        raise ExecutionFailed(
+        raise RuntimeUnavailable(
             f"set both {REGISTRY_USER_ENV} and {REGISTRY_PASSWORD_ENV}, or neither: "
             "half a credential cannot authenticate to the artifact registry."
         )
@@ -152,7 +152,7 @@ class E2BRuntime:
         # So refuse. E2B stays usable for artifacts that legitimately declare
         # network access, where the guarantee was never claimed.
         if not request.network:
-            raise ExecutionFailed(
+            raise RuntimeUnavailable(
                 "the E2B runtime cannot enforce an isolated network: "
                 "allow_internet_access=False and deny_out=0.0.0.0/0 were both "
                 "observed to leave outbound TCP open, so a no-network artifact "

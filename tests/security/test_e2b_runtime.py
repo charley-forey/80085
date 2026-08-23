@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import ExecutionFailed, RuntimeUnavailable
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
 from boobs_execution import E2BRuntime
@@ -98,7 +98,7 @@ async def test_a_no_network_artifact_is_refused_rather_than_run(image: str) -> N
     stops exfiltration, C2 and mining. Refusing is the honest failure: a
     hostile artifact told it has no network must not be handed the internet.
     """
-    with pytest.raises(ExecutionFailed, match="cannot enforce an isolated network"):
+    with pytest.raises(RuntimeUnavailable, match="cannot enforce an isolated network"):
         await run(image, "print('should never run')", network=False)
 
 

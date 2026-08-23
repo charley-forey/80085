@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import RuntimeUnavailable
 from boobs_execution import DockerOciRuntime, docker_oci
 from boobs_execution.docker_oci import EGRESS_NETWORK
 
@@ -46,5 +46,5 @@ async def test_a_run_after_the_rules_are_flushed_is_refused(
     assert await runtime._egress_network() == EGRESS_NETWORK  # noqa: SLF001
 
     flushed = True
-    with pytest.raises(ExecutionFailed, match="refusing to run a networked artifact"):
+    with pytest.raises(RuntimeUnavailable, match="refusing to run a networked artifact"):
         await runtime._egress_network()  # noqa: SLF001

@@ -2603,3 +2603,41 @@ The test that caught it is the one whose docstring predicted it -- everything
 else can pass on a laptop for the wrong reason, because nothing answers on
 169.254.169.254 at home.
 
+### 62. A broken worker is not evidence about an artifact
+
+`run_job` caught every exception from the sandbox and reported `FAILED`. The
+comment above it read `# noqa: BLE001 - a runtime failure is a failed run`,
+which is an assumption stated as a fact, and it is wrong: a failed `docker
+pull`, an absent daemon and a filter that cannot be installed all happen
+*before any container runs*, and none of them say anything about whether the
+Experience works.
+
+It was found in production, not in review. A dev worker on a laptop was
+polling the production queue and failing every pull with `docker pull failed
+(3221225794)` -- `0xC0000142`, a Windows NT status -- and writing those
+failures into the evidence of whatever it happened to claim. The extended
+`scripts/smoke.py` caught it on its first run.
+
+The sharp part is the queue. Leasing is `FOR UPDATE SKIP LOCKED`, so whoever
+polls first wins, and a worker that fails in milliseconds wins *more* jobs than
+a healthy one that takes seconds to run a container. A broken worker therefore
+poisons the corpus faster than a working worker can prove it right, and it does
+so silently, because every row it writes looks like an ordinary failed run.
+
+So the two are now different errors. `ExecutionFailed` means the artifact ran
+and did not work, and is evidence. `RuntimeUnavailable` means this worker could
+not run it, is reported to nobody, and is deliberately **not** a subclass --
+had it been one, every existing `except ExecutionFailed` would have gone on
+conflating them and the distinction would be decorative.
+
+The seam is exact rather than a judgement call: an artifact's exit code is read
+in one place, and it never travels the `_docker_run` check path. Every failure
+raised from that helper is, by construction, infrastructure.
+
+A worker that raises it reports nothing at all. `leases.reclaim_expired`
+already returns an unreported job to the queue and gives up after
+`MAX_ATTEMPTS`, so the job reaches a worker that can run it without any new
+status, column or endpoint. And after `MAX_RUNTIME_FAILURES` consecutive
+runtime failures the worker exits: one that cannot run anything is not merely
+useless, it is actively starving the workers that work.
+
