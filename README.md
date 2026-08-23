@@ -1094,7 +1094,27 @@ issue.
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | `docs/` | ✅ `architecture.md`, `security.md`, `benchmarks.md`; decisions in `DECISIONS.md` |
-| License | 🚧 None yet — all rights reserved until a `LICENSE` lands |
+| License | ✅ Code under [Elastic License 2.0](LICENSE); corpus under [`TERMS.md`](TERMS.md) |
+
+---
+
+## 📜 Licensing
+
+Two assets, two instruments — they are not the same thing:
+
+| | Covered by | You may | You may not |
+|---|---|---|---|
+| **The code** (this repo) | [`LICENSE`](LICENSE) — Elastic License 2.0 | read, run, audit, modify, contribute | offer it to third parties as a hosted or managed service |
+| **The corpus** (what the API serves) | [`TERMS.md`](TERMS.md) | query it, execute results, use outputs commercially | bulk-extract, redistribute, train models on it, or seed a competing index |
+
+Contributions are covered by [`CONTRIBUTING.md`](CONTRIBUTING.md), which carries
+the inbound licence grant. Opening a PR means accepting it.
+
+**Verify by execution, not extraction.** The code is public so you can audit the
+logic, the ranking method is documented so you can check the maths, and any
+capability can be re-run in the sandbox against its recorded evidence. If you
+have an audit need those routes don't cover, ask — a scoped exception beats a
+scraper.
 
 ---
 
