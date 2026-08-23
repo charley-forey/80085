@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const { rewrites } = JSON.parse(
+const { rewrites, headers } = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'vercel.json'), 'utf8')
 );
 
@@ -171,4 +171,16 @@ test('no rewrite names a .html file, which cleanUrls would redirect', () => {
       `${rule.destination} will 308 to its extensionless form rather than serve`
     );
   }
+});
+
+test('a negotiated URL is never cacheable', () => {
+  // The response for "/" depends on Accept and User-Agent, and Vercel's edge
+  // cache keys on the URL rather than on those headers. Allowing it to be
+  // cached means the first representation stored is then served to everyone —
+  // which is exactly what happened in production: a browser was handed
+  // markdown out of the CDN. Anything negotiated must be no-store.
+  const rule = headers.find((h) => h.source === '/(|install|58008)');
+  assert.ok(rule, 'no cache rule covers the negotiated paths');
+  const cc = rule.headers.find((h) => h.key === 'Cache-Control');
+  assert.equal(cc?.value, 'no-store');
 });
