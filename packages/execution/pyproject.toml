@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "80085-domain",
     "80085-common",
+    "e2b>=2.4",
 ]
 
 [build-system]

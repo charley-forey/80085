@@ -307,3 +307,75 @@ Locked in by `tests/integration/test_readiness.py`.
 **Postgres image:** `ghcr.io/railwayapp-templates/postgres-ssl:18`, which ships
 pgvector. Plain `postgres:*` does not. Anything replacing it must carry
 pgvector or the registry loses semantic recall.
+
+---
+
+### 19. A second runtime: E2B, selected by `BOOBS_RUNTIME`
+
+Production execution depended on one laptop with Docker awake. That is not a
+security property, it is a single point of failure -- and because evidence only
+accrues when runs happen, a sleeping laptop stops the product accruing the one
+thing it sells.
+
+`BOOBS_RUNTIME=docker|e2b`, default `docker`, so nothing changes for anyone
+who does not set it. `E2BRuntime` runs each job in a Firecracker microVM,
+which needs no local daemon and is a stronger boundary than a shared kernel
+(decision 10 named E2B as exactly this undo path).
+
+Two honest differences, both recorded in `docs/security.md` rather than
+papered over:
+
+* **`cpu`, `memory_mb`, `tmpfs_mb` and `pids` are not enforced.** They are
+  Docker cgroup flags; E2B bounds a run by the microVM's own shape. Wall
+  clock, network reachability, output size and digest pinning are enforced in
+  both.
+* **E2B runs templates, not registry references.** The pinned image is turned
+  into a template once per digest, keyed by a hash of the reference, so a
+  different digest can never resolve to the same template. This means E2B's
+  builders must be able to pull the image -- a `localhost:5000` reference from
+  local development cannot work, and GHCR is the path for real artifacts
+  (decision 13).
+
+`tests/security/test_e2b_runtime.py` asserts the properties E2B actually
+exposes and skips loudly without `E2B_API_KEY`. The Docker suite is unchanged;
+`docker_oci.py` is unchanged.
+
+---
+
+### 20. Cached results are not evidence
+
+Artifacts are pinned by digest, so the same digest, command, inputs, env,
+network flag and limits produce the same bytes. `CachingRuntime(inner)` sits
+behind the `ExecutionRuntime` protocol and replays them, which works for both
+runtimes and changes nothing above the protocol.
+
+**The dangerous part is not the cache, it is what the cache is allowed to
+count as.** `boobs_reputation.evidence.recompute` treats one terminal
+`executions` row as one independent verification run, and it learns about that
+run from what the worker reports. A worker that served a replay and reported
+it like any other run would have the platform record a verification of
+something that never executed. Evidence is the entire product; inflating it
+silently is worse than having no cache.
+
+So:
+
+* a cache hit is stamped `SandboxResult.cached`, which is the signal a caller
+  needs to tell a replay from a run;
+* only successes are cached -- a timeout or an OOM kill is a fact about the
+  machine that day, not about the artifact, and replaying one would be a lie
+  in the other direction;
+* the worker leaves it **off** (`BOOBS_EXEC_CACHE=0`) and says loudly what
+  turning it on costs, because the API cannot yet be told a result was
+  replayed.
+
+**What is still needed before it can default to on:** `cached` on the worker
+result payload, a `cached` column on `executions`, and an
+`Execution.cached.is_(False)` filter in `recompute` so a replay lands in
+neither the successful nor the failed count. That is a change to evidence
+semantics -- the highest-stakes thing in this codebase -- so it wants its own
+review and its own integration test rather than riding along with a runtime.
+
+**`ponytail:` ceiling** -- the cache is an in-process LRU, so it dies with the
+worker and is not shared between workers. Upgrade path when the hit rate
+matters: key -> `SandboxResult` in Postgres (outputs already go to object
+storage), read through the API so every worker shares one cache.

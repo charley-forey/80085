@@ -15,7 +15,7 @@ from boobs_common.clock import now
 from boobs_common.errors import ExecutionFailed
 from boobs_domain.entities import Artifact
 from boobs_domain.protocols import SandboxRequest
-from boobs_execution import DockerOciRuntime
+from boobs_execution import DockerOciRuntime, E2BRuntime
 from boobs_schemas.api import ExecuteRequest
 
 DIGEST = "sha256:" + "ab" * 32
@@ -46,7 +46,10 @@ def test_reference_digest_must_match_artifact_digest() -> None:
         Artifact(id="art_1", reference=PINNED, digest=other, created_at=now())
 
 
-async def test_runtime_refuses_to_execute_an_unpinned_image() -> None:
+@pytest.mark.parametrize("runtime", [DockerOciRuntime(), E2BRuntime()])
+async def test_runtime_refuses_to_execute_an_unpinned_image(runtime: object) -> None:
+    """Every runtime, not just the first one: a tag refused in one place and
+    accepted in another is the same hole with extra steps."""
     request = SandboxRequest(
         execution_id="exec_1",
         image="python:3.13-slim",
@@ -58,7 +61,7 @@ async def test_runtime_refuses_to_execute_an_unpinned_image() -> None:
         max_output_bytes=1024,
     )
     with pytest.raises(ExecutionFailed, match="unpinned"):
-        await DockerOciRuntime().execute(request)
+        await runtime.execute(request)  # type: ignore[attr-defined]
 
 
 def test_execution_inputs_reject_path_traversal() -> None:
