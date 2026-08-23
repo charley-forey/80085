@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from boobs_api import leases
-from boobs_api.deps import CurrentPrincipal, DbSession
+from boobs_api.deps import CurrentPrincipal, DbSession, release
 from boobs_api.repositories import SqlEventStore
 from boobs_common import ids, storage
 from boobs_common.clock import now
@@ -124,17 +124,24 @@ async def lease(request: LeaseRequest, db: DbSession, principal: CurrentPrincipa
         await db.execute(select(Artifact).where(Artifact.id == version.artifact_id))
     ).scalar_one()
 
-    inputs: dict[str, str] = {}
-    try:
-        inputs = await storage.get_json(f"executions/{execution.id}/inputs.json")
-    except Exception:  # noqa: BLE001 - most executions have no inputs
-        inputs = {}
-
     await SqlEventStore(db).append(
         execution.id,
         EventType.EXECUTION_STARTED,
         {"image": artifact.reference, "digest": artifact.digest, "worker": request.worker_id},
     )
+    queue_depth = await leases.depth(db)
+
+    # The claim commits before the inputs are fetched. claim_next holds a row
+    # lock, so reading object storage first would hold both that lock and a
+    # pooled connection for the length of an S3 round trip -- with every other
+    # worker polling the same queue behind it.
+    await release(db)
+
+    inputs: dict[str, str] = {}
+    try:
+        inputs = await storage.get_json(f"executions/{execution.id}/inputs.json")
+    except Exception:  # noqa: BLE001 - most executions have no inputs
+        inputs = {}
 
     return LeaseResponse(
         job=LeasedJob(
@@ -147,7 +154,7 @@ async def lease(request: LeaseRequest, db: DbSession, principal: CurrentPrincipa
             network=version.requires_network,
             lease_expires_at=execution.lease_expires_at,
         ),
-        queue_depth=await leases.depth(db),
+        queue_depth=queue_depth,
     )
 
 
@@ -191,6 +198,16 @@ async def report_result(
         error=request.error,
     )
 
+    # The authorization checks above are the last thing that needs the database
+    # until the record is written. Everything between here and the next write
+    # is off-box I/O, so it runs with no transaction open and no connection held.
+    await release(db)
+
+    # Object storage is written before the row, never after. If the row landed
+    # first and the upload then failed, output_key would point at bytes that do
+    # not exist and every later read of this execution would fail. This way a
+    # failure after the upload leaves an unreferenced object in the bucket,
+    # which nothing reads and a lifecycle rule can sweep.
     output_key = None
     if outputs:
         output_key = await storage.put_json(storage.output_key(execution_id), request.outputs)
@@ -199,6 +216,21 @@ async def report_result(
         {"stdout": request.stdout, "stderr": request.stderr, "truncated": request.truncated},
     )
 
+    # Verifying is the platform's judgement, not the worker's, and it is pure
+    # computation over the result -- so it happens here rather than holding a
+    # connection. It is the seam an http or test_suite verifier would extend.
+    verifier_name: str | None = None
+    outcome = None
+    declared = version.verification or {}
+    if declared.get("verifier"):
+        verifier_name = str(declared["verifier"])
+        outcome = await verifier.verify(
+            result,
+            VerificationSpec(verifier=verifier_name, config=declared.get("config", {})),
+        )
+
+    # One transaction for the whole record: the events, the verdict and the
+    # terminal row commit together or not at all.
     events = SqlEventStore(db)
     await events.append(
         execution_id,
@@ -213,16 +245,9 @@ async def report_result(
     )
 
     verified: bool | None = None
-    verifier_name: str | None = None
-    declared = version.verification or {}
-    if declared.get("verifier"):
-        verifier_name = str(declared["verifier"])
+    if verifier_name and outcome is not None:
         await events.append(
             execution_id, EventType.VERIFICATION_STARTED, {"verifier": verifier_name}
-        )
-        outcome = await verifier.verify(
-            result,
-            VerificationSpec(verifier=verifier_name, config=declared.get("config", {})),
         )
         db.add(
             Verification(

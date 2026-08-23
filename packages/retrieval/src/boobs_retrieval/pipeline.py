@@ -20,7 +20,7 @@ from boobs_domain.enums import Compatibility, ExperienceStatus, Visibility
 from boobs_domain.protocols import Principal, RecallQuery
 from boobs_observability import counter, tracer
 from boobs_retrieval import ranking
-from boobs_retrieval.embedding import Embedder, embedder
+from boobs_retrieval.embedding import Embedder, embed_in_thread, embedder
 from boobs_retrieval.intent import normalize
 from boobs_schemas.tables import ExecutionStat, Experience, ExperienceVersion
 
@@ -182,7 +182,7 @@ async def recall(
             # Named because it is the stage most likely to be the answer: the
             # hashing fallback is fast and wrong, fastembed is slow and right.
             embed.set_attribute("recall.embedder", type(model).__name__)
-            task_vector = model.embed([task_text])[0]
+            task_vector = (await embed_in_thread(model, [task_text]))[0]
 
         with _tracer.start_as_current_span("recall.lexical") as stage:
             lexical = await _lexical(db, principal, query, task_text)

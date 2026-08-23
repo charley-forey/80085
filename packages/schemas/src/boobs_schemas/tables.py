@@ -30,6 +30,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -168,6 +169,16 @@ class Execution(Base):
     __table_args__ = (
         Index("ix_executions_version_status", "experience_version_id", "status"),
         Index("ix_executions_queue", "status", "created_at"),
+        # Partial, so the overwhelming majority of rows -- which carry no key --
+        # are not constrained against each other. Scoped by organization because
+        # one tenant's retry token must not collide with another's.
+        Index(
+            "ux_executions_idempotency",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -183,6 +194,11 @@ class Execution(Base):
     output_key: Mapped[str | None] = mapped_column(Text)
     logs_key: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
+
+    # A client that times out and retries must not buy a second sandbox run.
+    # The row is the receipt: whoever inserts it first wins the unique index,
+    # and the retry is answered with the execution that already exists.
+    idempotency_key: Mapped[str | None] = mapped_column(String(200))
 
     # Lease bookkeeping: the executions table is the queue (see DECISIONS.md 17).
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

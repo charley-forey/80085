@@ -7,6 +7,7 @@ deterministic in CI. Swapping in a hosted embedder means implementing
 
 from __future__ import annotations
 
+import asyncio
 from functools import lru_cache
 from typing import Protocol, runtime_checkable
 
@@ -19,6 +20,22 @@ class Embedder(Protocol):
     dim: int
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
+async def embed_in_thread(model: Embedder, texts: list[str]) -> list[list[float]]:
+    """Embed from a coroutine without stalling the event loop.
+
+    ONNX inference is CPU-bound and blocking. Called straight from an async
+    handler it holds the loop for the whole forward pass, so one recall delays
+    every other in-flight request on the process -- including /v1/health and
+    /v1/ready, which are then answering for a server that looks dead.
+
+    The protocol stays synchronous on purpose: an embedder is an ordinary
+    function, and making it async would push a thread hop into every caller,
+    including the offline scripts that have no loop. The async callers pay it
+    here instead.
+    """
+    return await asyncio.to_thread(model.embed, texts)
 
 
 class FastEmbedEmbedder:

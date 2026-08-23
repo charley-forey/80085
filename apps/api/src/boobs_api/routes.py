@@ -14,9 +14,10 @@ from typing import Any
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 
 from boobs_api import leases, limits
-from boobs_api.deps import CurrentPrincipal, DbSession, MaybePrincipal
+from boobs_api.deps import CurrentPrincipal, DbSession, MaybePrincipal, release
 from boobs_api.repositories import (
     ArtifactRepository,
     ExecutionRepository,
@@ -86,17 +87,24 @@ async def health() -> dict[str, str]:
 
 @router.get("/ready")
 async def ready(db: DbSession, response: Response) -> dict[str, Any]:
+    # The two probes that are not the database run first, before anything has
+    # opened a transaction. A readiness check that pins a Postgres connection
+    # while it waits on S3 -- or on a model load -- is itself a way to exhaust
+    # the pool, and this endpoint has to keep answering precisely when the
+    # dependencies are slow.
+    object_storage = await storage.healthy()
+    # A string, not a boolean, and deliberately so: running on the
+    # non-semantic hashing fallback degrades recall without making the API
+    # unready. Reported because the fallback is otherwise invisible from
+    # outside the process. See DECISIONS.md 22.
+    embedder_state = await asyncio.to_thread(active_embedder)
     checks = {
         "database": await _db_healthy(db),
         # Checked separately because it failed separately: a Postgres image
         # without pgvector answers SELECT 1 happily while every recall 500s.
         "pgvector": await _pgvector_healthy(db),
-        "object_storage": await storage.healthy(),
-        # A string, not a boolean, and deliberately so: running on the
-        # non-semantic hashing fallback degrades recall without making the API
-        # unready. Reported because the fallback is otherwise invisible from
-        # outside the process. See DECISIONS.md 22.
-        "embedder": await asyncio.to_thread(active_embedder),
+        "object_storage": object_storage,
+        "embedder": embedder_state,
     }
     # "unavailable" means an embedder was demanded and will not load, so recall
     # would 500 -- genuinely unready. The hashing fallback is not.
@@ -379,33 +387,50 @@ async def execute_experience(
     version = await repository.get_version(principal, experience_id, request.version)
     artifact = await ArtifactRepository(db).resolve(version.artifact_id)
 
-    execution = Execution(
-        id=ids.new_id(ids.EXECUTION),
-        organization_id=principal.organization_id,
-        agent_id=principal.agent_id,
-        experience_id=experience.id,
-        experience_version_id=version.id,
-        artifact_digest=artifact.digest,
-        status=ExecutionStatus.QUEUED,
-        created_at=now(),
-    )
-    await ExecutionRepository(db).create(execution)
-
+    executions = ExecutionRepository(db)
+    key = request.idempotency_key
+    existing = await executions.by_idempotency_key(principal, key) if key else None
+    execution_id = existing.id if existing else ids.new_id(ids.EXECUTION)
     inputs = request.decoded_inputs()
-    if inputs:
-        await storage.put_json(
-            f"executions/{execution.id}/inputs.json",
-            {name: base64.b64encode(blob).decode() for name, blob in inputs.items()},
+
+    # Nothing below this point may run inside the request's transaction: an S3
+    # round trip with a Postgres connection checked out is how twenty
+    # connections disappear under a burst that never troubled the CPU.
+    await release(db)
+
+    if existing is None:
+        # Inputs are staged before the row exists, because committing the row
+        # IS the enqueue -- a worker can lease it the instant it lands. A row
+        # whose inputs were never written would be run against nothing and the
+        # result recorded as evidence, which is the one failure that corrupts
+        # the product. The reverse order only ever leaks an object nothing
+        # references, which a bucket lifecycle rule sweeps.
+        if inputs:
+            await storage.put_json(
+                f"executions/{execution_id}/inputs.json",
+                {name: base64.b64encode(blob).decode() for name, blob in inputs.items()},
+            )
+        execution_id = await _enqueue(
+            db,
+            executions,
+            principal,
+            Execution(
+                id=execution_id,
+                organization_id=principal.organization_id,
+                agent_id=principal.agent_id,
+                experience_id=experience.id,
+                experience_version_id=version.id,
+                artifact_digest=artifact.digest,
+                status=ExecutionStatus.QUEUED,
+                idempotency_key=key,
+                created_at=now(),
+            ),
         )
 
-    # Committing is the enqueue: the executions table is the queue, and a
-    # worker claims rows from it with SELECT ... FOR UPDATE SKIP LOCKED.
-    await db.commit()
-
     if request.wait_seconds:
-        await _await_terminal(execution.id, request.wait_seconds)
+        await _await_terminal(execution_id, request.wait_seconds)
 
-    result = await _execution_response(execution.id, principal)
+    result = await _execution_response(execution_id, principal)
     if result.status in TERMINAL:
         response.status_code = status.HTTP_200_OK
     return result
@@ -416,6 +441,10 @@ async def get_execution(
     execution_id: str, db: DbSession, principal: CurrentPrincipal
 ) -> ExecutionResponse:
     await ExecutionRepository(db).get(principal, execution_id)
+    # The tenancy check is the only thing this session was for. Releasing it
+    # matters because _execution_response reads object storage and opens a
+    # session of its own -- holding both at once doubles the pool per request.
+    await release(db)
     return await _execution_response(execution_id, principal)
 
 
@@ -461,6 +490,9 @@ async def verify_execution(
         raise ValidationError("no verifier declared on this version and none supplied")
     config = request.config if request.config is not None else declared.get("config", {})
 
+    # Rebuilding the result reads object storage, and re-running a verifier is
+    # arbitrary work -- neither belongs on an open connection.
+    await release(db)
     result = await _reconstruct_result(execution)
     outcome = await RegistryVerifier().verify(
         result, VerificationSpec(verifier=verifier_name, config=config)
@@ -537,6 +569,37 @@ async def _evidence(db: DbSession, experience_version_id: str) -> Evidence:
         distinct_organizations=stat.distinct_organizations,
         failure_modes=dict(stat.failure_modes or {}),
     )
+
+
+async def _enqueue(
+    db: DbSession,
+    executions: ExecutionRepository,
+    principal: Principal,
+    execution: Execution,
+) -> str:
+    """Insert the queued row and commit. Committing is the enqueue: the
+    executions table is the queue, and a worker claims rows from it with
+    SELECT ... FOR UPDATE SKIP LOCKED.
+
+    Returns the id of the execution that actually exists. A unique violation
+    means a retry carrying the same idempotency key raced this one -- the
+    partial unique index decides which insert wins, and the loser reports the
+    winner's execution rather than spending a second sandbox run.
+    """
+    try:
+        await executions.create(execution)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        winner = (
+            await executions.by_idempotency_key(principal, execution.idempotency_key)
+            if execution.idempotency_key
+            else None
+        )
+        if winner is None:
+            raise
+        return winner.id
+    return execution.id
 
 
 async def _await_terminal(execution_id: str, seconds: int) -> None:
