@@ -20,14 +20,14 @@ from typing import Any
 
 from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from boobs_api import leases
 from boobs_api.deps import CurrentPrincipal, DbSession, release
 from boobs_api.repositories import SqlEventStore
 from boobs_common import ids, storage
 from boobs_common.clock import now
-from boobs_common.errors import Forbidden, NotFound, ValidationError
+from boobs_common.errors import Forbidden, NotFound
 from boobs_domain.entities import VerificationSpec
 from boobs_domain.enums import ExecutionStatus, VerificationLevel
 from boobs_domain.events import EventType
@@ -53,6 +53,10 @@ verifier = RegistryVerifier()
 # section 33's execution_success_rate, verification_success_rate,
 # successful_reuse_rate and cross_agent_reuse_rate are all slices of this.
 _executions = counter("executions_completed", "runs reported by a worker, once each")
+# A result dropped because the lease had moved on is real work thrown away.
+# It is correct to throw it away and it must not be invisible: a rising rate
+# here means runs are outliving their lease, not that anything is broken.
+_discards = counter("results_discarded", "results dropped because the lease had moved on")
 
 
 class Strict(BaseModel):
@@ -98,6 +102,26 @@ class ResultResponse(Strict):
     status: ExecutionStatus
     verified: bool | None = None
     verifier: str | None = None
+    # False when this worker no longer held the lease and its result was
+    # dropped in favour of the one already recorded. `status` is then the
+    # status that stands, not the one that was reported.
+    accepted: bool = True
+
+
+async def _discard(db: DbSession, execution_id: str, recorded: str) -> ResultResponse:
+    """Answer a worker whose result arrived after the run stopped being its own.
+
+    It did the work honestly; the platform simply already has an answer for
+    this execution, from whoever holds the lease now. That is not the worker's
+    fault and there is nothing for it to retry, so it gets a 200 carrying the
+    status that actually stands and `accepted=false`, rather than an error it
+    would log as a rejection and an operator would chase.
+    """
+    _discards.add(1)
+    await release(db)
+    return ResultResponse(
+        execution_id=execution_id, status=ExecutionStatus(recorded), accepted=False
+    )
 
 
 def _require_worker(principal: CurrentPrincipal) -> None:
@@ -198,10 +222,13 @@ async def report_result(
     if execution is None:
         raise NotFound(f"execution {execution_id} not found")
     if execution.status != ExecutionStatus.RUNNING:
-        raise ValidationError(
-            f"execution {execution_id} is {execution.status}, not running; "
-            "its lease may have expired and been reclaimed"
-        )
+        # The lease expired and the row moved on -- back to the queue, or
+        # already finished by whoever claimed it next. Nothing is wrong with
+        # this worker and there is nothing for it to retry, so it is told so
+        # rather than failed. Before the ownership check deliberately: a worker
+        # that has been dispossessed is exactly the case that lands here, and
+        # its lease now belongs to someone else by definition.
+        return await _discard(db, execution_id, execution.status)
     if execution.leased_by and execution.leased_by != request.worker_id:
         raise Forbidden(
             f"execution {execution_id} is leased by {execution.leased_by}, not {request.worker_id}"
@@ -257,7 +284,46 @@ async def report_result(
         )
 
     # One transaction for the whole record: the events, the verdict and the
-    # terminal row commit together or not at all.
+    # terminal row commit together or not at all -- and the claim is re-checked
+    # first, because the checks at the top of this handler are minutes stale by
+    # now. Everything since then ran with no transaction open: an upload, and a
+    # verifier that may take as long as it likes. A lease is 900 seconds, so a
+    # slow enough run is reclaimed underneath itself, a second worker completes
+    # it, and this UPDATE would silently overwrite that worker's verdict --
+    # flipping a correctly recorded failure back to success in the rows
+    # evidence is recomputed from. Matching zero rows means someone else got
+    # there first; their answer stands and this one is dropped.
+    ours = (
+        await db.execute(
+            update(Execution)
+            .where(
+                Execution.id == execution_id,
+                Execution.leased_by == request.worker_id,
+                Execution.status == ExecutionStatus.RUNNING,
+            )
+            .values(
+                status=request.status,
+                exit_code=request.exit_code,
+                duration_ms=request.duration_ms,
+                output_key=output_key,
+                logs_key=logs_key,
+                error=request.error,
+                completed_at=now(),
+                lease_expires_at=None,
+            )
+            .returning(Execution.id)
+        )
+    ).scalar_one_or_none()
+    if ours is None:
+        # Before the events, deliberately. execution_events and verifications
+        # are append-only, and a verdict written here would be counted by
+        # recompute -- so a discarded result must leave no trace at all, or it
+        # corrupts the evidence by a slower route than the one just closed.
+        recorded = (
+            await db.execute(select(Execution.status).where(Execution.id == execution_id))
+        ).scalar_one_or_none()
+        return await _discard(db, execution_id, recorded or str(request.status))
+
     events = SqlEventStore(db)
     await events.append(
         execution_id,
@@ -294,16 +360,6 @@ async def report_result(
             {"passed": outcome.passed, "level": str(VerificationLevel(outcome.level))},
         )
         verified = outcome.passed
-
-    execution.status = request.status
-    execution.exit_code = request.exit_code
-    execution.duration_ms = request.duration_ms
-    execution.output_key = output_key
-    execution.logs_key = logs_key
-    execution.error = request.error
-    execution.completed_at = now()
-    execution.lease_expires_at = None
-    await db.flush()
 
     await recompute(db, version.id)
 

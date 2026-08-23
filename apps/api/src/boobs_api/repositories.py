@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common import ids
@@ -157,7 +158,29 @@ class ExperienceRepository:
         self._db.add(version)
         experience.latest_version = version_number
         experience.updated_at = now()
-        await self._db.flush()
+        # Read before the flush: a failed flush expires every instance in the
+        # session, and reading one back afterwards is a lazy load on a
+        # transaction that can no longer run a statement -- which turns the
+        # 409 below into the 500 it was written to replace.
+        parent = experience.id
+        try:
+            await self._db.flush()
+        except IntegrityError as exc:
+            # Two recordings against the same Experience read `latest_version`
+            # before either wrote it, so both computed the same next number and
+            # uq_experience_version caught the loser. Unhandled that is a 500
+            # on a request that was perfectly well formed. Same shape, and the
+            # same answer, as a concurrent append in SqlEventStore below.
+            #
+            # ponytail: the caller retries and gets the next number. Serialising
+            # instead -- SELECT latest_version ... FOR UPDATE -- would hold that
+            # row lock across the embedding above, which is the slowest thing in
+            # this method; take the number under a lock after the embedding if
+            # concurrent recordings on one Experience ever stop being rare.
+            raise Conflict(
+                f"experience {parent} already has a version {version_number}; "
+                "another recording won the race -- re-read and record again"
+            ) from exc
         return experience, version
 
     async def get(self, principal: Principal, experience_id: str) -> Experience:

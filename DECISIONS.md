@@ -1140,6 +1140,95 @@ a defence.
 
 ---
 
+### 43. A worker's result is written only if it still holds the lease
+
+**Found by audit.** `report_result` checked the lease, ended its transaction,
+and then spent an unbounded amount of time outside the database -- an object
+storage upload, and a verifier that may take as long as it likes -- before
+writing the row. It then wrote it unconditionally, from the ORM object loaded
+before all of that. Nothing rechecked who owned the execution.
+
+`DEFAULT_LEASE_SECONDS` is 900, and `leases.claim_next` reclaims anything past
+its lease. So a run slow enough to outlive its own lease goes back to the queue
+and is handed to a second worker while the first is still verifying. Where the
+first worker's write then lands decides how bad it is:
+
+* **The row is running again, claimed by B.** `executions_guard` allows the
+  UPDATE -- the row is not terminal -- so a stale SUCCEEDED becomes the
+  recorded result of a run someone else is still executing, the stale
+  verification row becomes evidence `recompute` counts, and B is refused when
+  it reports what actually happened. That is a manufactured success in the
+  corpus, which is the one thing this product sells.
+* **The row is already terminal.** Postgres refuses the UPDATE and the whole
+  transaction dies, so nothing is corrupted and a worker that did the job
+  honestly is answered with a 500 it can neither fix nor retry.
+
+The write is now `UPDATE ... WHERE id = :id AND leased_by = :worker AND status
+= 'running' RETURNING id`, and it happens **before** the events and the
+verification row rather than after: those tables are append-only, so a verdict
+written by a worker that had lost the lease could never be taken back, and
+`recompute` would count it. Zero rows matched means somebody else got there
+first; the whole report is dropped.
+
+Dropping it is not an error, and saying so is half the point. A worker in this
+position ran the artifact, produced real output, and lost a race it cannot see.
+It gets `200` with `accepted: false` and the status that actually stands --
+which is also now the answer when the lease has expired and the row is merely
+back in the queue, where the handler used to return `400`. A `403` is still a
+`403`: reporting on a *running* job leased to somebody else is a different
+thing from having been dispossessed of your own. `results_discarded` counts
+the drops, because real work being thrown away is correct here but must never
+be invisible.
+
+Locked in by `tests/unit/test_a_stale_worker_cannot_overwrite_a_finished_run.py`,
+which drives the whole handler against an instrumented session and moves the
+row underneath it from inside the verifier -- the window as a sequence of calls
+rather than a race to be caught -- and by
+`tests/integration/test_races_do_not_corrupt_evidence.py` for the paths a
+worker can reach over HTTP.
+
+---
+
+### 44. Two answers that must not depend on timing: version numbers and ties
+
+Different code, same principle: what a caller gets back must not turn on
+something they cannot see.
+
+**Recording a version.** `ExperienceRepository.create` read
+`experience.latest_version`, added one, and wrote it back with nothing holding
+the row in between. Two concurrent recordings against the same Experience both
+computed the same number, `uq_experience_version` caught the loser, and the
+raw `IntegrityError` came out as a `500` on a request that was perfectly well
+formed. `SqlEventStore.append` has the identical race on its own sequence
+number, in the same file, and has always answered it with a `Conflict`; this is
+that answer applied to the other place that needed it. Deliberately *not* a
+`SELECT ... FOR UPDATE` on the parent: the lock would be taken before the
+embedding, which is the slowest thing in the method, and decision 23 exists
+because this codebase already learned what holding a row lock across slow work
+costs. The ceiling is marked -- the caller retries and gets the next number.
+
+One trap worth recording, because it turned the fix into the bug it replaced:
+a failed flush expires every instance in the session, so building the error
+message out of `experience.id` fired a lazy load on a transaction that could no
+longer run a statement, and the 409 came back out as a 500. The id is read
+before the flush.
+
+**Recall ties.** Candidates are fetched in one batch with `WHERE id IN (...)`
+and no `ORDER BY`, and the survivors were sorted by score alone. Equal scores
+therefore came back in whatever order the planner and the buffer cache produced
+that second, so the same query against an unchanged corpus could recommend a
+different Experience. The sort is now total: score, then successful runs --
+between two equally good matches the better attested one is the better answer
+-- then version id, which is arbitrary but unique and stable, which is all a
+tiebreaker has to be.
+
+Locked in by `tests/unit/test_version_collisions_are_a_conflict.py`,
+`tests/unit/test_recall_ties_are_deterministic.py`, which ranks the same rows
+in both fetch orders, and the concurrent recording in
+`tests/integration/test_races_do_not_corrupt_evidence.py`.
+
+---
+
 ### 45. The terms name what recall keeps, because the code kept it first
 
 `recall_misses` shipped storing the caller's raw task text, and `TERMS.md` was
