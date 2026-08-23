@@ -23,6 +23,14 @@ FORMATS: dict[str, tuple[str, ...]] = {
     "image": ("image", "png", "jpeg", "jpg", "scan"),
     "yaml": ("yaml", "yml"),
     "xml": ("xml",),
+    # "json lines" also matches the bare "json" alias above at the same word.
+    # _collapse_compounds keeps the head of the phrase, so the longer label
+    # wins -- which is why the compound aliases are safe to list here.
+    "jsonl": ("jsonl", "ndjson", "json lines", "newline delimited json"),
+    "tsv": ("tsv", "tab separated", "tab delimited"),
+    "toml": ("toml",),
+    "base64": ("base64", "b64"),
+    "archive": ("archive", "tarball", "tar", "zip", "gzip"),
 }
 
 ACTIONS: dict[str, tuple[str, ...]] = {
@@ -32,6 +40,12 @@ ACTIONS: dict[str, tuple[str, ...]] = {
     "test": ("run tests", "test suite", "pytest", "unit test"),
     "repair": ("repair", "fix", "resolve", "correct"),
     "summarize": ("summarize", "summarise", "condense"),
+    "deduplicate": ("deduplicate", "dedupe", "remove duplicate", "drop duplicate"),
+    "diff": ("diff", "compare", "difference between"),
+    "hash": ("checksum", "sha256", "digest", "hash"),
+    "encode": ("encode",),
+    "decode": ("decode",),
+    "merge": ("merge", "apply patch"),
 }
 
 STOPWORDS = frozenset(
