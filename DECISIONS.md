@@ -1388,3 +1388,138 @@ fenced block, a markdown table, a literal `<user>` tag, a Windows path, a
 with the fence escaped and **nothing else changed**. A companion test pins what
 the narrowed rules still defang, so the next loosening has to argue with
 something. `apps/mcp`'s copy is synchronised, as decision 30 requires.
+
+---
+
+### 49. A miss keeps the words we wrote, not the words you typed
+
+`recall_misses.task` held the caller's request **verbatim and untruncated**,
+written on behalf of callers who supplied no credential, on the one endpoint
+that needs none. Decision 45 landed disclosing that honestly, and named the
+follow-up in its own last paragraph: the demand signal lives in the normalized
+intent, so the raw phrasing could be dropped without losing what the table is
+for. This is that follow-up, taken. Disclosure was the right thing to do and
+the wrong place to stop — the fix is not to hold it.
+
+The column is dropped. What replaces it is `terms`: a space-joined subset of
+the action and format labels in `boobs_retrieval.intent` — `convert json pdf`,
+`deduplicate`, `pdf`, or nothing at all. **Every value it can ever contain is a
+word written in our own source.** That is the sentence this decision has to
+survive being read by somebody who typed a customer name into a task:
+*we keep words from a fixed list we wrote; nothing you type can reach the
+table.*
+
+**Nothing needed the raw text**, which is the part worth checking before
+deleting a column rather than after.
+
+* The dedup fingerprint is a sha256 over `parsed.canonical`,
+  `parsed.normalized` and the filters. It never read `task`, deliberately —
+  decision 29 made it normalized precisely so a thousand rephrasings collapse.
+* No endpoint returned it, no ranking consulted it, and the only read of it
+  anywhere was a test's `WHERE task = $1`, which now looks up the fingerprint
+  it should have used in the first place.
+* The upsert never overwrote it, so what was stored was *whoever phrased the
+  need first* — an arbitrary sample of one, presented as if it were the need.
+  Losing that loses no analysis.
+
+**Why not keep a bounded form.** The tempting answer was `Intent.keywords`,
+which the intent parser already computes and which sounds sanitized. It is
+not: `keywords` is the raw text minus stopwords minus words of three letters or
+fewer, and `normalized` is those keywords joined. A customer name is neither a
+stopword nor short. Truncation fails for the same reason — a name is short.
+Anything derived from words we do not recognize is user content wearing a
+different hat, so the line is drawn at recognition, not at length.
+`tests/unit/test_recall_misses.py` asserts the rejected alternative would have
+leaked, rather than merely asserting the chosen one does not.
+
+**Why keep anything.** Because `Intent.canonical` returns `"unknown"` whenever
+no action matched — *including when a format did* — and the gaps a closed
+vocabulary cannot name are exactly the gaps most worth reading a demand report
+for. Without `terms`, "something weird involving our PDFs" and "no idea what
+this person wanted" are the same row to a reader. With it they are not, at the
+cost of nothing user-supplied. The trade is stated rather than hidden: a task
+containing no word of ours leaves one row, one counter and no description of
+itself. That is a real loss, and it is the loss we are choosing.
+
+**Existing rows are dealt with, not grandfathered.** Migration 0008 adds
+`terms` empty and drops `task`. `terms` cannot be backfilled — it comes from a
+Python tokenizer, and reimplementing that in SQL to recover three words per row
+would be a larger and much more wrong change than losing them. Old rows keep
+their intent, their filters and their counters. What they lose is the thing the
+migration exists to stop keeping.
+
+**`ponytail:` ceiling** — `DROP COLUMN` removes the text from the logical table
+at once, but Postgres leaves the bytes in the heap until the table is next
+rewritten, and `VACUUM FULL` cannot run inside Alembic's transaction. The
+migration's docstring says so and says to run it by hand. The table is small by
+construction, so it is a moment and a lock nobody will notice.
+
+The fingerprint stays, and is not returned by the endpoint. A sha256 over
+normalized text recovers nothing, but it does confirm a guess, and a demand
+report has no use for one.
+
+`docs/security.md`'s retention table and `TERMS.md` §7 both still describe the
+raw task column, accurately as of the commit before this one. Both are owned by
+other changes in flight and are not edited here; correcting them to `terms` —
+and dropping "do not put anything in a recall query you would not want retained
+for 90 days", which is no longer a caveat anyone needs — is the follow-up this
+decision owes them. `docs/legal-review.md` Q12 asks counsel whether truncation
+was the right remedy; the answer this takes is that truncation was never the
+remedy, because a customer name is short.
+
+**Undo:** the text is gone and cannot come back. `downgrade()` restores an
+empty column rather than inventing plausible task strings.
+
+---
+
+### 50. The demand signal is finally read, by an admin, across every tenant
+
+Decision 29 recorded misses and left nothing reading them, on the explicit
+grounds that recording is the irreversible half and acting on it is better
+designed against real rows than against guesses. The rows exist now.
+
+`GET /v1/admin/recall-misses`, ranked by `occurrences` descending.
+
+**The field that earns the endpoint is `best_score`.** Forty candidates all
+sitting at 0.29 and a corpus with nothing remotely close are the same empty
+answer to the caller and opposite instructions to us: the first says our
+ranking is too strict, the second says there is a hole. `candidates` and
+`best_score` are how a reader tells them apart, and they were put in the table
+in decision 29 for exactly this moment.
+
+**Admin only, and deliberately not offered per-organization.** The obvious
+alternative is letting an organization read its own misses, and it would be
+safe — `fingerprint` includes `organization_id`, so per-tenant rows never merge
+and a self-view is one `where` clause. It is not built because it would be
+nearly empty and entirely redundant: recall is keyless, so most rows belong to
+nobody, and an organization's own misses are a list of empty answers it already
+received. Build it when somebody asks. What is not on offer at any point is one
+tenant's demand to another, which is why there is no organization filter
+parameter to get wrong — the route takes no tenant argument at all.
+
+`policy.authorize(principal, "admin.misses")`, with no resource, following
+decision 39's revocation route exactly. Its own action name rather than a reuse
+of `admin.keys`: `ACTION_SCOPES` is the audit surface for *which actions exist*,
+and an action called `keys` guarding a demand report would make that list a
+lie. Not a `MUTATING_ACTION` — it is a read, and it is called with no resource
+because the rows span every tenant, which is the one thing an ownership check
+cannot express.
+
+**Capped and paged**, because this table is designed to grow: `limit` 1–100,
+default 20, plus `offset`. One row beyond the page is fetched so `next_offset`
+can answer "is there more" without a second `COUNT`. The sort has a total
+tiebreak (`occurrences DESC, last_seen_at DESC, id`) so a page boundary landing
+inside a tie cannot repeat or skip a row. `cleared` is not returned at all: a
+miss is by construction a recall where it was zero.
+
+**Rate limited** at 60/hour, which is not protecting the database — the query
+is one indexed scan of a small table behind an ADMIN scope. It bounds how fast
+a leaked admin key can page through every gap in the corpus.
+`tests/unit/test_open_access.py`'s router-wide limiter check only looked at
+POSTs, so it did not cover this; it now asks the same question of everything
+under `/v1/admin`, which is the form that makes the next admin read answer it
+too.
+
+**Undo:** delete the route, the response models and the `admin.misses` entry.
+Nothing else reads the table, and decision 29's original position — record it,
+decide later — is still available.

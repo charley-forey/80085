@@ -1,11 +1,13 @@
 """A recall that finds nothing is the one row this system cannot backfill.
 
-Two properties, and the second matters more than the first: a miss is recorded
-exactly once and only when there was one, and failing to record it never costs
-the caller their recall.
+Three properties, in ascending order of what it would cost to get wrong: a
+miss is recorded exactly once and only when there was one; failing to record
+it never costs the caller their recall; and nothing the caller typed is kept.
 """
 
 from __future__ import annotations
+
+import inspect
 
 import pytest
 from fastapi import BackgroundTasks
@@ -16,6 +18,7 @@ from boobs_domain.enums import Compatibility, Recommendation
 from boobs_domain.protocols import Principal, RecallQuery
 from boobs_retrieval.intent import normalize
 from boobs_retrieval.pipeline import RecallOutcome
+from boobs_schemas.tables import RecallMiss
 
 PARSED = normalize("convert a pdf into json")
 QUERY = RecallQuery(task="convert a pdf into json")
@@ -53,7 +56,6 @@ def test_a_zero_match_recall_queues_exactly_one_miss() -> None:
     routes._remember_miss(
         background,
         _outcome([], considered=12, cleared=0, best_score=0.29),
-        QUERY.task,
         Principal(organization_id="org_x", agent_id="agt_x"),
         QUERY,
     )
@@ -66,7 +68,6 @@ def test_a_zero_match_recall_queues_exactly_one_miss() -> None:
     assert task.kwargs["candidates"] == 12
     assert task.kwargs["cleared"] == 0
     assert task.kwargs["best_score"] == 0.29
-    assert task.kwargs["task"] == QUERY.task
     assert task.kwargs["parsed"].canonical == "pdf_to_json"
     assert task.kwargs["environment"]["os"] == "linux"
     assert task.kwargs["constraints"]["network"] is False
@@ -79,7 +80,6 @@ def test_a_matched_recall_queues_nothing() -> None:
     routes._remember_miss(
         background,
         _outcome([_candidate()], considered=12, cleared=1, best_score=0.71),
-        QUERY.task,
         Principal(organization_id="org_x", agent_id="agt_x"),
         QUERY,
     )
@@ -93,7 +93,7 @@ def test_an_anonymous_recall_is_attributed_to_nobody() -> None:
     storing that id would be a lie dressed as attribution."""
     background = BackgroundTasks()
 
-    routes._remember_miss(background, _outcome([]), QUERY.task, routes.ANONYMOUS, QUERY)
+    routes._remember_miss(background, _outcome([]), routes.ANONYMOUS, QUERY)
 
     assert background.tasks[0].kwargs["organization_id"] is None
 
@@ -123,7 +123,6 @@ async def test_a_failed_miss_write_does_not_raise() -> None:
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(misses.database, "session", explode)
         await misses.record(
-            task=QUERY.task,
             parsed=PARSED,
             environment={},
             constraints={},
@@ -132,3 +131,60 @@ async def test_a_failed_miss_write_does_not_raise() -> None:
             best_score=0.0,
             organization_id=None,
         )
+
+
+# ------------------------------------------------------- what is not retained
+
+# A customer name, in the shape somebody types one into a task by accident.
+SECRET = "acme-industries-q4-margin"
+
+
+def test_the_raw_task_never_leaves_the_request() -> None:
+    """Decision 49, in one assertion: what you typed is not what we keep.
+
+    `terms` is drawn from `FORMATS` and `ACTIONS` in intent.py, both closed
+    tables in our own source, so the worst thing a caller can get into this
+    column is a word we chose.
+    """
+    parsed = normalize(f"convert the {SECRET} pdf into json")
+
+    assert misses.vocabulary(parsed) == "convert json pdf"
+    assert SECRET not in misses.vocabulary(parsed)
+    # Not merely unwritten -- there is nowhere left to write it.
+    assert not hasattr(RecallMiss, "task")
+    assert "task" not in inspect.signature(misses.record).parameters
+
+
+def test_the_normalized_keywords_would_not_have_been_safe_either() -> None:
+    """Why `terms` is not `Intent.keywords`, which was the tempting answer.
+
+    Those are the raw text minus stopwords, and a customer name is neither a
+    stopword nor short enough to be dropped -- so storing them would have been
+    storing the task with the articles removed.
+    """
+    parsed = normalize(f"convert the {SECRET} pdf into json")
+
+    assert SECRET in parsed.keywords
+    assert SECRET in parsed.normalized
+
+
+def test_a_gap_the_vocabulary_cannot_name_still_leaves_a_trace() -> None:
+    """The argument for keeping anything at all.
+
+    `canonical` collapses to "unknown" whenever no action matched, including
+    when a format did -- and the needs our vocabulary cannot name are exactly
+    the ones worth reading a demand report for.
+    """
+    parsed = normalize("do the weekly thing with our pdfs")
+
+    assert parsed.canonical == "unknown"
+    assert misses.vocabulary(parsed) == "pdf"
+
+
+def test_a_task_with_no_word_of_ours_in_it_leaves_only_counters() -> None:
+    """And that is the trade, stated rather than hidden: an unrecognizable
+    need is one row, one counter and no description of itself."""
+    parsed = normalize("frobnicate the wibbles")
+
+    assert parsed.canonical == "unknown"
+    assert misses.vocabulary(parsed) == ""

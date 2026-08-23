@@ -220,6 +220,24 @@ def test_every_write_path_is_rate_limited() -> None:
     assert not unlimited, f"write paths with no rate limit: {unlimited}"
 
 
+def test_every_admin_route_is_rate_limited() -> None:
+    """The check above looks at POSTs, and the admin surface is not all POSTs.
+
+    `GET /v1/admin/recall-misses` pages through every gap in the corpus, which
+    is a cheap query and an expensive thing to let a leaked admin key hoover
+    up at speed. Asked over the prefix rather than the one route, so the next
+    admin read has to answer it too.
+    """
+    unlimited = [
+        route.path
+        for route in routes.router.routes
+        if route.path.startswith("/v1/admin")
+        and route.path not in UNLIMITED
+        and "limits." not in inspect.getsource(route.endpoint)  # type: ignore[attr-defined]
+    ]
+    assert not unlimited, f"admin paths with no rate limit: {unlimited}"
+
+
 # --------------------------------------------------------- who the caller is
 
 

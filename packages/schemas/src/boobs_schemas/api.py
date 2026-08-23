@@ -236,6 +236,39 @@ class VerifyRequest(Strict):
     """
 
 
+class RecallMissOut(Strict):
+    """One gap: something agents asked for and the corpus did not have.
+
+    Carries no free text. `intent` and `terms` are both drawn from closed
+    tables in `boobs_retrieval.intent`, so nothing a caller typed reaches a
+    reader of this model -- see decision 49. `cleared` is not returned because
+    a miss is by definition a recall where it was zero.
+    """
+
+    intent: str
+    terms: str = Field(description="Recognized action and format labels, or empty.")
+    environment: dict[str, Any] = Field(description="The compatibility filters that applied.")
+    constraints: dict[str, Any]
+    candidates: int = Field(description="Candidates that survived retrieval.")
+    best_score: float = Field(
+        description="The closest any candidate ever came. Low means the corpus "
+        "has a hole; just under threshold means ranking is too strict."
+    )
+    occurrences: int
+    organization_id: str | None = Field(
+        default=None, description="Null for the anonymous majority; recall needs no key."
+    )
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class RecallMissesResponse(Strict):
+    misses: list[RecallMissOut]
+    next_offset: int | None = Field(
+        default=None, description="Pass as `offset` for the next page. Null on the last one."
+    )
+
+
 class EventResponse(Strict):
     sequence: int
     event_type: str

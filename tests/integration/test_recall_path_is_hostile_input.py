@@ -14,6 +14,9 @@ import asyncpg
 import httpx
 import pytest
 
+from boobs_api.misses import fingerprint
+from boobs_domain.protocols import RecallQuery
+from boobs_retrieval.intent import normalize
 from tests.helpers import auth, bootstrap, record_experience
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("docker")]
@@ -40,6 +43,23 @@ async def _rows(database_url: str, sql: str, *args: object) -> list[asyncpg.Reco
         await connection.close()
 
 
+def _fingerprint(task: str) -> str:
+    """The row a default recall for this task would write.
+
+    Looked up by fingerprint rather than by the task text, because the task
+    text is no longer stored -- which is decision 49, and is the thing the last
+    test in this file now asserts. A default `RecallQuery` reproduces exactly
+    what the route builds from a body carrying nothing but `task`.
+    """
+    query = RecallQuery(task=task)
+    return fingerprint(
+        None,
+        normalize(task),
+        query.environment.model_dump(mode="json"),
+        query.constraints.model_dump(mode="json"),
+    )
+
+
 async def _misses(database_url: str, task: str, expected: int) -> list[asyncpg.Record]:
     """Poll, because a miss is written *after* the response is sent.
 
@@ -50,7 +70,9 @@ async def _misses(database_url: str, task: str, expected: int) -> list[asyncpg.R
     """
     rows: list[asyncpg.Record] = []
     for _ in range(50):
-        rows = await _rows(database_url, "SELECT * FROM recall_misses WHERE task = $1", task)
+        rows = await _rows(
+            database_url, "SELECT * FROM recall_misses WHERE fingerprint = $1", _fingerprint(task)
+        )
         if len(rows) == expected and (not rows or rows[0]["occurrences"] >= 1):
             return rows
         await asyncio.sleep(0.1)
@@ -146,4 +168,9 @@ async def test_a_matched_recall_records_nothing(api: httpx.AsyncClient, database
 
     # Long enough that a miss written after the response would have landed.
     await asyncio.sleep(1.0)
-    assert await _rows(database_url, "SELECT * FROM recall_misses WHERE task = $1", task) == []
+    assert (
+        await _rows(
+            database_url, "SELECT * FROM recall_misses WHERE fingerprint = $1", _fingerprint(task)
+        )
+        == []
+    )

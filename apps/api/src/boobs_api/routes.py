@@ -47,6 +47,8 @@ from boobs_schemas.api import (
     ExperienceResponse,
     GoalIn,
     RecallMatch,
+    RecallMissesResponse,
+    RecallMissOut,
     RecallRequest,
     RecallResponse,
     RecordExperienceRequest,
@@ -61,6 +63,7 @@ from boobs_schemas.tables import (
     Experience,
     ExperienceVersion,
     Organization,
+    RecallMiss,
     Verification,
 )
 from boobs_security import untrusted
@@ -318,6 +321,78 @@ async def revoke_key(key_id: str, db: DbSession, principal: CurrentPrincipal) ->
     }
 
 
+@router.get("/admin/recall-misses")
+async def read_recall_misses(
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> RecallMissesResponse:
+    """What agents asked for and did not find, most wanted first.
+
+    `recall_misses` has been filling up since decision 29 with nothing reading
+    it. That was deliberate -- recording the signal is the irreversible half,
+    and how to act on it is better designed against real rows than guesses --
+    and this is the other half.
+
+    The field that earns the endpoint is `best_score`. Forty candidates all
+    just under the threshold and an empty corpus are the same empty answer to
+    the caller and opposite instructions to us: the first says ranking is too
+    strict, the second says the corpus has a hole. `candidates` and
+    `best_score` are how a reader tells them apart.
+
+    **Admin only, across every tenant.** An organization is not offered its own
+    misses: the fingerprint includes `organization_id`, so per-tenant rows
+    never merge and a self-view would be one `where` clause -- but recall is
+    keyless, so an organization's own misses are the small anonymous-minus
+    remainder of a table it already saw the empty answers from. Built when
+    somebody asks, not before. What is *not* on offer at any point is one
+    tenant's demand to another, which is why there is no organization filter
+    parameter here to get wrong.
+
+    Paging is limit/offset because this is a report read by a person a few
+    times a week, not a feed. One row beyond the page is fetched to answer
+    "is there more" without a second count query.
+    """
+    await limits.MISSES.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "admin.misses")
+    rows = (
+        (
+            await db.execute(
+                select(RecallMiss)
+                # Demand first, then recency, then something total so a page
+                # boundary landing inside a tie does not repeat or skip a row.
+                .order_by(
+                    RecallMiss.occurrences.desc(), RecallMiss.last_seen_at.desc(), RecallMiss.id
+                )
+                .offset(offset)
+                .limit(limit + 1)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return RecallMissesResponse(
+        misses=[
+            RecallMissOut(
+                intent=row.intent,
+                terms=row.terms,
+                environment=row.environment,
+                constraints=row.constraints,
+                candidates=row.candidates,
+                best_score=row.best_score,
+                occurrences=row.occurrences,
+                organization_id=row.organization_id,
+                first_seen_at=row.first_seen_at,
+                last_seen_at=row.last_seen_at,
+            )
+            for row in rows[:limit]
+        ],
+        next_offset=offset + limit if len(rows) > limit else None,
+    )
+
+
 # ----------------------------------------------------------------- experience
 
 
@@ -377,7 +452,6 @@ def _matches(outcome: RecallOutcome) -> list[RecallMatch]:
 def _remember_miss(
     background: BackgroundTasks,
     outcome: RecallOutcome,
-    task: str,
     principal: Principal,
     query: RecallQuery,
 ) -> None:
@@ -386,12 +460,15 @@ def _remember_miss(
     After the response, never during it: this is the demand signal, not the
     product, and a recall that fails because its telemetry failed would be the
     worst trade in the codebase.
+
+    The caller's raw task is deliberately not passed on. `outcome.parsed` is
+    everything the demand signal ever needed, and it is the only one of the two
+    that cannot contain a customer's name. Decision 49.
     """
     if outcome.matches:
         return
     background.add_task(
         misses.record,
-        task=task,
         parsed=outcome.parsed,
         environment=query.environment.model_dump(mode="json"),
         constraints=query.constraints.model_dump(mode="json"),
@@ -443,7 +520,7 @@ async def recall_experiences(
         limit=request.limit,
     )
     outcome = await ExperienceRepository(db).search(principal, query)
-    _remember_miss(background, outcome, request.task, principal, query)
+    _remember_miss(background, outcome, principal, query)
     return RecallResponse(
         matches=_matches(outcome),
         query_id=ids.new_id("qry"),
@@ -477,7 +554,7 @@ async def recall_via_url(
     await limits.RECALL.check(db, limits.client_ip(http))
     query = RecallQuery(task=q, limit=limit)
     outcome = await ExperienceRepository(db).search(principal, query)
-    _remember_miss(background, outcome, q, principal, query)
+    _remember_miss(background, outcome, principal, query)
     matches = _matches(outcome)
 
     if "application/json" in http.headers.get("accept", ""):
