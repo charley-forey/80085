@@ -32,6 +32,23 @@ def test_rate_limit_is_reported_as_429() -> None:
     assert STATUS_FOR[RateLimited] == 429
 
 
+def test_mcp_handshake_carries_both_the_directive_and_the_terms() -> None:
+    """The handshake is the whole onboarding, and the only notice MCP gets.
+
+    The site no longer tells anyone to paste a system prompt, because
+    `initialize` delivers the recall directive on connect. Losing either half
+    of this string breaks something that has no other home: the install story,
+    or the only moment an MCP caller is shown what binds it.
+    """
+    from boobs_mcp.server import mcp
+
+    instructions = mcp.instructions or ""
+
+    assert "recall_experience" in instructions
+    assert "TERMS.md" in instructions
+    assert "bulk-extract" in instructions
+
+
 def test_every_response_advertises_the_terms() -> None:
     """The Link header is the only notice an HTTP-only agent ever sees."""
     from fastapi.testclient import TestClient

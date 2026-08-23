@@ -73,15 +73,24 @@ done against a stale mental model:
    Our remaining claims over the corpus are compilation copyright (thin) and,
    if we have EU nexus, database right — which makes Q6 more load-bearing than
    it looked.
-3. **We explicitly invite the crawling we forbid.** `robots.txt` currently says
-   `Allow: /` to GPTBot, ClaudeBot, PerplexityBot, Google-Extended and CCBot,
-   because discovery by agents is the point. `TERMS.md` §4 forbids bulk
-   extraction. **On its face that is a contradiction**, and a defendant would
-   lead with it. We think the honest distinction is *crawl the marketing
-   surface, don't enumerate the corpus API* — but `robots.txt` does not say
-   that today, and it should. Does fixing `robots.txt` to allow the site while
-   disallowing corpus endpoints repair this, or does the invitation already
-   undercut §4?
+3. **We used to explicitly invite the crawling we forbid — now fixed.**
+   `robots.txt` said `Allow: /` to GPTBot, ClaudeBot, PerplexityBot,
+   Google-Extended and CCBot, with no exclusions, while `TERMS.md` §4 forbade
+   bulk extraction. That was a contradiction on its face and a defendant would
+   have led with it.
+
+   It now allows the marketing surface and disallows the corpus endpoints
+   (`/recall`, `/v1/`), with those exclusions repeated in **every** named
+   crawler group — necessary because `robots.txt` groups do not inherit: a
+   named `User-agent` group replaces the `*` group rather than adding to it,
+   so exclusions placed only under `*` would have left exactly those five
+   crawlers still openly invited.
+
+   Remaining question for you: the corrected file states the position going
+   forward, but the earlier invitation was public for some period. **Does the
+   fix cure it prospectively only?** Is there anything we should do about
+   material crawled while the permissive version was live — and does the prior
+   invitation weaken §4 against a party who relied on it at the time?
 
 Also worth a view: contributors now record **public by default**. Is
 `CONTRIBUTING.md` / `TERMS.md` §6 clear enough that a contributor understands
