@@ -1259,6 +1259,50 @@ Q12 asks counsel whether truncation is the right remedy before either is done.
 
 ---
 
+### 46. The public surface is part of the change, not documentation of it
+
+`apps/web/content.js` and `apps/web/build.mjs` had a zero-line diff across
+roughly twenty-five merged pull requests. That reads as stability and was
+drift: two MCP tools, corroboration, verifier strength, key revocation and
+idempotent execute all shipped without a word of it reaching anything a
+visitor or a client can fetch.
+
+The worst of it was machine-readable. `/.well-known/mcp.json` advertised three
+tools to clients that parse it for a living, and there have been five since
+`get_execution` and `get_experience` landed. Stale prose disappoints a human;
+a stale descriptor makes a client wrong, silently, in a structured format it
+has no reason to doubt.
+
+The confidence table was the subtler failure, because every number in it was
+correct. `1/0 -> 20.7%` is still what `wilson_lower_bound` returns. It had just
+stopped being what an Experience *reports*, once runs were capped per
+organization and the result multiplied by verifier strength -- so the site's
+`100/0 -> 96.3%` described a number the API will not produce for a hundred
+self-run `exit_code` successes, which report 43.4%. A true row in a table that
+implies a false conclusion is still a false claim, and the README had already
+worked out how to say so; the site now says it the same way rather than
+inventing a second explanation.
+
+So: a change to the tool surface, the evidence maths, or the endpoint list is
+not finished until `apps/web` renders it, and there is no separate
+documentation task to schedule afterwards. `content.js` and `build.mjs` are the
+only two sources -- `public/` is build output and is deleted on every run --
+which keeps that a small edit rather than an excuse.
+
+The other half is that copy is a feature's only interface for anyone who has
+not read the code. Corroboration is the most interesting thing about this trust
+model and lived entirely in the README's FAQ, where the best sentence anyone
+has written about it -- *"Can I just run my own Experience until it says
+`use`?" "No."* -- was invisible to the site. It is on the site now: plainly in
+the evidence section, and as the joke in the FAQ, because the two flip states
+get different registers and the same fact. Revocation had the same problem in a
+worse place. `/key` explained at length how to get a credential and never
+mentioned it could be killed; that page now hands over the revoke command with
+the `key_id` already filled in, since nothing can look that id up afterwards
+and a key you cannot name is a key you cannot revoke.
+
+---
+
 ### 47. The egress filter is verified before every networked run, not remembered
 
 `DockerOciRuntime` installed the `DROP` rules on its first networked run, set
