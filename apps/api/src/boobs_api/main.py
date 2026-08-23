@@ -68,7 +68,7 @@ def _web_root() -> Path | None:
     here = Path(__file__).resolve()
     rel = Path("apps") / "web" / "public"
     candidates = [Path.cwd() / rel, *(p / rel for p in here.parents)]
-    return next((path for path in candidates if (path / "index.html").is_file()), None)
+    return next((path for path in candidates if (path / "p" / "home.html").is_file()), None)
 
 
 # Representations of the same URL, chosen by what the client says it wants.
@@ -84,10 +84,17 @@ _NEGOTIABLE = {"/": "index", "/install": "install"}
 
 
 def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str | None:
-    """Which file answers this request, or None to fall through to the page."""
+    """Which file answers this request, or None if this path is not negotiated.
+
+    The HTML pages live under /p/ rather than at the paths they are served
+    from, because on a static host an index.html at the root answers "/"
+    before any negotiation rule gets to run. Keeping both hosts on the same
+    layout is what lets them answer identically.
+    """
     stem = _NEGOTIABLE.get(path.rstrip("/") or "/")
     if stem is None:
         return None
+    page = f"/p/{'home' if stem == 'index' else stem}.html"
     if fmt in {"md", "txt"}:
         return f"/{stem}.{fmt}"
     lowered = agent.lower()
@@ -95,13 +102,11 @@ def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str 
         return f"/{stem}.ansi"
     if any(bot.lower() in lowered for bot in _AGENTS):
         return f"/{stem}.md"
-    if "text/html" in accept:
-        return None
     if "text/markdown" in accept:
         return f"/{stem}.md"
-    if "text/plain" in accept:
+    if "text/plain" in accept and "text/html" not in accept:
         return f"/{stem}.txt"
-    return None
+    return page
 
 
 def _mount_discovery_surface(app: FastAPI) -> None:

@@ -12,7 +12,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,7 @@ function resolve(pathname, { headers = {}, query = {} } = {}) {
     });
     if (holds) return rule.destination;
   }
-  return pathname === '/' ? '/index.html' : pathname; // filesystem fallback
+  return pathname; // no rule matched
 }
 
 const CHROME =
@@ -44,7 +44,7 @@ test('a browser gets HTML', () => {
     resolve('/', {
       headers: { accept: CHROME, 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/141' }
     }),
-    '/index.html'
+    '/p/home.html'
   );
 });
 
@@ -122,19 +122,34 @@ test('?format overrides everything, including a browser', () => {
 });
 
 test('a request with no Accept and no known UA still gets a page', () => {
-  assert.equal(resolve('/', {}), '/index.html');
+  assert.equal(resolve('/', {}), '/p/home.html');
+});
+
+test('the HTML pages sit where the filesystem will not claim them first', () => {
+  // The production bug this file failed to catch the first time: Vercel
+  // applies rewrites ONLY when no filesystem route already answers the
+  // request, so a public/index.html answers "/" before any rule runs and
+  // `curl 80085.ai` returns HTML. Serving the page from a path no request
+  // names keeps "/" and "/install" unclaimed.
+  for (const claimed of ['/index.html', '/install.html']) {
+    assert.ok(
+      !existsSync(join(dirname(fileURLToPath(import.meta.url)), 'public', claimed)),
+      `${claimed} exists and will pre-empt every negotiation rule`
+    );
+  }
+  assert.equal(resolve('/', { headers: { accept: CHROME } }), '/p/home.html');
+  assert.equal(resolve('/install', { headers: { accept: CHROME } }), '/p/install.html');
 });
 
 test('/58008 serves the page, which flips itself from the path', () => {
-  assert.equal(resolve('/58008', { headers: { accept: CHROME } }), '/index.html');
+  assert.equal(resolve('/58008', { headers: { accept: CHROME } }), '/p/home.html');
 });
 
 test('openapi.json is proxied to the live API rather than duplicated', () => {
   assert.equal(resolve('/openapi.json'), 'https://api.80085.ai/openapi.json');
 });
 
-test('every rewrite destination that is local actually exists', async () => {
-  const { existsSync } = await import('node:fs');
+test('every rewrite destination that is local actually exists', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   for (const rule of rewrites) {
     if (rule.destination.startsWith('http')) continue;
