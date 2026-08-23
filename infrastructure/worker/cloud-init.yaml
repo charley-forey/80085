@@ -26,6 +26,24 @@ write_files:
       BOOBS_REGISTRY_USERNAME=
       BOOBS_REGISTRY_PASSWORD=REPLACE_ME_or_delete_both
 
+  # Bridged traffic does not reach iptables unless br_netfilter is loaded, so
+  # without this the egress DROP rules only ever see *routed* packets. Cloud
+  # metadata and the gateway get filtered; two containers on the same bridge
+  # talk at layer 2 and are invisible to every rule we install.
+  #
+  # Measured on a live host rather than reasoned about: with the module absent,
+  # five egress tests passed and the one that puts a real listener on the
+  # sandbox network read "reachable" back. Loading it made all six pass.
+  - path: /etc/modules-load.d/80085-egress.conf
+    permissions: "0644"
+    content: |
+      br_netfilter
+
+  - path: /etc/sysctl.d/99-80085-egress.conf
+    permissions: "0644"
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+
   - path: /etc/systemd/system/80085-worker.service
     permissions: "0644"
     content: |
@@ -78,6 +96,10 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
+
+  # Now, not just on the next boot -- the worker starts in this same run.
+  - modprobe br_netfilter
+  - sysctl -w net.bridge.bridge-nf-call-iptables=1
 
   # A user that can reach Docker and owns nothing else. Not root: the worker
   # process has no reason to be, and the sandbox's isolation is applied to the
