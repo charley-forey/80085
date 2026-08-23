@@ -16,8 +16,11 @@
 /public/sitemap.xml
 /public/boot.js
 /public/og.svg
-/public/icon.svg
 /public/.well-known/
 
-# og.png is NOT ignored: it is drawn by hand with scripts/make-og.py and
-# committed, because there is no rasteriser in the build.
+# Committed, not generated:
+#   og.png    drawn by scripts/make-og.py; there is no rasteriser in the build
+#   icon.svg  a copy of the root brand icon, so this directory is a complete
+#             deployable root on its own and the build never reaches outside it
+
+.vercel

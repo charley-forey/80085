@@ -15,7 +15,7 @@
  * Node stdlib only. Run: node build.mjs
  */
 
-import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -781,14 +781,6 @@ log.push(
 function installBlock() {
   const at = (n) => content.serious.findIndex((x) => x.t === 'h' && x.n === n);
   return content.serious.slice(at('04'), at('05'));
-}
-
-// Brand assets already live at the repo root; the site only needs the icon.
-try {
-  cpSync(join(HERE, '../../public/80085-icon-black.svg'), join(OUT, 'icon.svg'));
-  log.push('icon.svg copied');
-} catch {
-  log.push('icon.svg MISSING — run from the repo, not a tarball');
 }
 
 console.log(log.join('\n'));

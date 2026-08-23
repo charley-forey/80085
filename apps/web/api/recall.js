@@ -12,8 +12,8 @@
  * API, not by this file.
  */
 
-export const config = { runtime: 'edge' };
-
+// Node runtime, not Edge: Vercel has deprecated Edge functions. The handler is
+// a plain web-standard Request -> Response either way.
 const API = process.env.API_URL || 'https://api.80085.ai';
 const LIMIT = 10; // requests
 const WINDOW = 60_000; // per minute, per IP
