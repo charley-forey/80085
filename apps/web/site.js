@@ -323,10 +323,10 @@ async function run(line) {
       if (!arg) return echo('usage: recall <task in your own words>');
       echo('...');
       try {
-        const res = await fetch('/api/recall', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ task: arg })
+        // The same public, keyless endpoint the homepage advertises. There is
+        // no key to hide, so there is no proxy to hide it behind.
+        const res = await fetch(`/recall?q=${encodeURIComponent(arg)}`, {
+          headers: { accept: 'application/json' }
         });
         const data = await res.json();
         if (!res.ok) return echo(data.detail || `error ${res.status}`);

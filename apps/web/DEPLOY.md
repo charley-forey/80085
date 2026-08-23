@@ -64,32 +64,13 @@ Two orphaned project records may exist from those attempts, `80085` and
 4. Add the domains `80085.ai` and `www.80085.ai`, with `www` redirecting to the
    apex.
 
-Environment variables (Production):
+Environment variables (Production): none.
 
-| Name                | Value                       | Why                                  |
-| ------------------- | --------------------------- | ------------------------------------ |
-| `API_URL`           | `https://api.80085.ai`      | the recall proxy's upstream          |
-| `RECALL_PUBLIC_KEY` | a read-only key, see §3     | terminal-mode live recall            |
+Terminal-mode recall calls `/recall`, the same public, keyless endpoint the
+homepage advertises, which `vercel.json` rewrites to the API. The site holds
+no key, so there is nothing to mint and nothing to leak.
 
-Without `RECALL_PUBLIC_KEY` the proxy returns 503 and terminal mode says live
-recall is not wired up. Everything else works.
-
-## 3. The read-only key
-
-`/v1/bootstrap` now takes an optional `scopes`. Mint a key that can read and
-nothing else — it is exposed to anyone who opens the terminal on the homepage,
-so it must not be able to execute, record, or verify:
-
-```bash
-curl -X POST https://api.80085.ai/v1/bootstrap \
-  -H 'content-type: application/json' \
-  -d '{"organization":"public","agent":"website","token":"<BOOBS_BOOTSTRAP_TOKEN>","scopes":["experiences:read"]}'
-```
-
-Put the returned `api_key` in `RECALL_PUBLIC_KEY`. It is the only time the
-plaintext exists.
-
-## 4. Verify the preview before promoting
+## 3. Verify the preview before promoting
 
 The representation matrix is the thing to check — §18 of the design spec calls
 a cross-served representation the most likely production bug in the build.
@@ -118,7 +99,7 @@ The real test, from §19: point a fresh agent at the preview with no other
 context and ask it to install the MCP server. If it cannot succeed without
 help, the machine layer is not done.
 
-## 5. The CLI
+## 4. The CLI
 
 `@80085/cli` needs the npm org `@80085` to exist and be owned by you.
 
