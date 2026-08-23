@@ -221,6 +221,12 @@ async def mint_key(
     being recommended: ranking weights a Wilson lower bound over *verified*
     runs, so an Experience nobody has successfully run is never returned as
     "use", however many of them a spammer records.
+
+    Nor can the holder of this key run its own Experience into a
+    recommendation. Successes are capped per organization before they reach
+    Wilson, and "use" needs runs from EVIDENCE_MIN_PROMOTION_ORGANIZATIONS
+    distinct organizations. Keys being free is exactly why that had to stop
+    being self-attestable -- see DECISIONS.md 41.
     """
     await limits.MINT.check(db, limits.client_ip(http))
 
@@ -635,11 +641,12 @@ async def verify_execution(
         )
     ).scalar_one()
 
+    # The version's declared verifier, and only that. See VerifyRequest.
     declared = version.verification or {}
-    verifier_name = request.verifier or declared.get("verifier")
+    verifier_name = declared.get("verifier")
     if not verifier_name:
-        raise ValidationError("no verifier declared on this version and none supplied")
-    config = request.config if request.config is not None else declared.get("config", {})
+        raise ValidationError("this version declares no verifier; record a new version to add one")
+    config = declared.get("config", {})
 
     # Rebuilding the result reads object storage, and re-running a verifier is
     # arbitrary work -- neither belongs on an open connection.

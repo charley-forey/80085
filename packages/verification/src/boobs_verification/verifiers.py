@@ -28,18 +28,24 @@ def _fail(reason: str, **detail: Any) -> VerificationResult:
     )
 
 
-def _pass(**detail: Any) -> VerificationResult:
-    return VerificationResult(passed=True, level=VerificationLevel.PROVEN, detail=detail)
+def _pass(level: VerificationLevel, **detail: Any) -> VerificationResult:
+    return VerificationResult(passed=True, level=level, detail=detail)
 
 
 async def exit_code(result: SandboxResult, config: dict[str, Any]) -> VerificationResult:
-    """The floor: the process ran to completion with the expected status."""
+    """The floor: the process ran to completion with the expected status.
+
+    Passes at CLAIMED, not PROVEN. The exit code is chosen by the artifact,
+    and the artifact is written by whoever wants the Experience recommended:
+    `exit 0` is a claim the platform observed, not a result it checked. Only a
+    verifier that inspects the *output* can say more than that.
+    """
     expected = int(config.get("expected", 0))
     if result.status is not ExecutionStatus.SUCCEEDED and expected == 0:
         return _fail("execution did not succeed", status=result.status, exit_code=result.exit_code)
     if result.exit_code != expected:
         return _fail("unexpected exit code", expected=expected, actual=result.exit_code)
-    return _pass(exit_code=result.exit_code)
+    return _pass(VerificationLevel.CLAIMED, exit_code=result.exit_code)
 
 
 async def json_schema(result: SandboxResult, config: dict[str, Any]) -> VerificationResult:
@@ -61,12 +67,16 @@ async def json_schema(result: SandboxResult, config: dict[str, Any]) -> Verifica
 
     schema = config.get("schema")
     if schema is None:
-        return _pass(file=filename, note="parsed as JSON; no schema declared")
+        # "It parsed" checks almost nothing about the answer, so it only
+        # reaches CLAIMED. Declare a schema to earn PROVEN.
+        return _pass(
+            VerificationLevel.CLAIMED, file=filename, note="parsed as JSON; no schema declared"
+        )
     try:
         jsonschema.validate(document, schema)
     except jsonschema.ValidationError as exc:
         return _fail("output does not match schema", file=filename, error=exc.message)
-    return _pass(file=filename, schema_validated=True)
+    return _pass(VerificationLevel.PROVEN, file=filename, schema_validated=True)
 
 
 async def sha256(result: SandboxResult, config: dict[str, Any]) -> VerificationResult:
@@ -83,7 +93,7 @@ async def sha256(result: SandboxResult, config: dict[str, Any]) -> VerificationR
     actual = hashlib.sha256(blob).hexdigest()
     if actual != expected:
         return _fail("digest mismatch", file=filename, expected=expected, actual=actual)
-    return _pass(file=filename, sha256=actual)
+    return _pass(VerificationLevel.PROVEN, file=filename, sha256=actual)
 
 
 REGISTRY: dict[str, VerifierFn] = {

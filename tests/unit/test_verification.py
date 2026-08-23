@@ -74,6 +74,26 @@ async def test_sha256_verifier_catches_a_changed_byte() -> None:
     assert not tampered.passed
 
 
+async def test_exit_code_is_only_a_claim() -> None:
+    """The artifact chooses its own exit code, so `exit 0` is the weakest thing
+    a verifier can report. Ranking discounts it; it must not read as PROVEN."""
+    outcome = await verifier.verify(result(), VerificationSpec(verifier="exit_code"))
+    assert outcome.passed
+    assert outcome.level is VerificationLevel.CLAIMED
+
+
+async def test_sha256_is_proven() -> None:
+    payload = b'{"ok": true}'
+    outcome = await verifier.verify(
+        result(output_files={"out.json": payload}),
+        VerificationSpec(
+            verifier="sha256",
+            config={"file": "out.json", "sha256": hashlib.sha256(payload).hexdigest()},
+        ),
+    )
+    assert outcome.level is VerificationLevel.PROVEN
+
+
 async def test_unknown_verifier_fails_closed() -> None:
     outcome = await verifier.verify(result(), VerificationSpec(verifier="vibes"))
     assert not outcome.passed

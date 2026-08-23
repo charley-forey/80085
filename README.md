@@ -277,6 +277,35 @@ def wilson_lower_bound(successes, failures, z=1.96):
     should act on."""
 ```
 
+### 🧍 Whose runs, and proven how
+
+Wilson assumes the observations are **independent**. A thousand runs by the
+organization that published the artifact are not a thousand observations —
+they are one actor pressing the same button, and minting an organization here
+costs nothing. So the runs fed to Wilson are capped at
+`RUNS_PER_ORGANIZATION_CAP = 10` per distinct organization: one organization
+alone tops out at 72.2%, "promising", and mathematically cannot reach "yeah,
+run it" by itself.
+
+And the result is scaled by *how* it was proven, because the three tiers are
+not the same claim:
+
+| Level | Verifier | Weight | Why |
+|---|---|---:|---|
+| `unverified` | nothing passed | **0.0** | not evidence |
+| `claimed` | `exit_code`, JSON that merely parses | **0.6** | the artifact chooses its own exit code |
+| `proven` | `json_schema` with a schema, `sha256` | **1.0** | the *output* was checked |
+
+The table above still describes `wilson_lower_bound`, which is unchanged. What
+an Experience *reports* is that number after both discounts:
+
+```python
+confidence = wilson_lower_bound(min(runs, orgs × 10), failures) × strength[level]
+```
+
+Which is why 100 self-runs verified by `exit 0` report **43.4%**, not 96.3%.
+That is the point. 🪞
+
 ### ♻️ Recompute, never increment
 
 Evidence is **rebuilt from immutable execution and verification rows** every
@@ -425,9 +454,10 @@ outcome — it is a guaranteed failure, so relevance counts superlinearly. 🧨
 
 | Signal | Weight | What it means |
 |---|---:|---|
-| 🎯 confidence | **0.34** | Wilson lower bound on verified runs |
+| 🎯 confidence | **0.34** | Wilson lower bound on verified runs, capped per organization and scaled by verifier strength |
 | 🧩 compatibility | **0.30** | `high` / `partial` / `none` against the caller's environment |
-| 📈 usage | **0.17** | `log10(runs+1)/3`, capped — run #1 matters, run #1001 doesn't |
+| 📈 usage | **0.10** | `log10(runs+1)/3`, capped — run #1 matters, run #1001 doesn't |
+| 🧑‍🤝‍🧑 corroboration | **0.07** | distinct organizations, saturating at 3 — *how many* actors, not how many runs |
 | ⏰ recency | **0.12** | Fresh for 24h, then decays linearly to zero over 90 days |
 | ⚡ latency | **0.05** | `1/(1 + ms/5000)` — 100ms and 400ms are both just "fast" |
 | ☢️ risk | **0.02** | Penalty for needing network (0.6) or capabilities (0.1 each) |
@@ -439,11 +469,19 @@ outcome — it is a guaranteed failure, so relevance counts superlinearly. 🧨
 | `MIN_SCORE` | **0.30** | 🚮 below this we return *nothing* |
 | `RELEVANCE_FLOOR` | **0.45** | the most a match can earn before any evidence exists |
 | `INTENT_MATCH_BONUS` | **0.15** | added to *relevance* on an exact intent hit — never to evidence |
+| `EVIDENCE_MIN_PROMOTION_ORGANIZATIONS` | **2** | distinct organizations required before `use` — and before VERIFIED |
 
 The floor is the interesting one. A **perfectly relevant but unproven**
 Experience mathematically cannot reach `use`. It lands in `consider`. Because:
 
 > Matching the task is not the same as being known to work. 🧠
+
+Corroboration is the other one, and it is a **gate rather than a weight**. No
+continuous weight can express "the only actor who has ever proven this is the
+one who published it" — a weight big enough to block that would sink genuine
+Experiences too. So `use` needs a score *and* independent runs, exactly the way
+incompatibility is a gate. Below the threshold the best answer available is
+`consider`, however good the numbers look.
 
 And when nothing clears `MIN_SCORE`, recall returns an empty list on purpose:
 
@@ -1052,6 +1090,16 @@ run. 🛡️
 Because relevance is not evidence. `RELEVANCE_FLOOR = 0.45` makes that
 arithmetic rather than policy. Run it a few times and it earns its way to
 `use`. 🎓
+
+**Can I just run my own Experience until it says `use`?**
+No. Runs are capped per organization before they reach Wilson, `use` requires
+proof from two distinct organizations, and so does promotion to `verified`.
+Self-attestation saturates; it does not accumulate. 🚫
+
+**Why does an `exit_code` Experience score below a `sha256` one?**
+Because the artifact chooses its own exit code and does not choose its own
+hash. Same runs, weaker proof, lower confidence — `claimed` is worth 0.6 of
+`proven`. Declare a real verifier and the discount goes away. 🔍
 
 **Why does confidence say 20.7% when it has never failed?**
 Because it has run once. Wilson is right and your intuition is wrong. 📐

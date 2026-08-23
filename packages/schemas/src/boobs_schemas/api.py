@@ -10,9 +10,9 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import datetime
-from typing import Any, Self
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from boobs_domain.entities import Evidence
 from boobs_domain.enums import (
@@ -225,16 +225,15 @@ class ExecutionResponse(Strict):
 
 
 class VerifyRequest(Strict):
-    verifier: str | None = Field(
-        default=None, description="Defaults to the version's declared verifier."
-    )
-    config: dict[str, Any] | None = None
+    """Deliberately empty, and `Strict` so that stays true.
 
-    @model_validator(mode="after")
-    def _config_needs_verifier(self) -> Self:
-        if self.config is not None and self.verifier is None:
-            raise ValueError("config may only be supplied together with an explicit verifier")
-        return self
+    Re-verification uses the verifier the *version* declared, never one the
+    caller names. The owner of an execution could otherwise re-verify their own
+    run under a weaker verifier -- swap a sha256 match for `exit_code` -- and
+    manufacture a passing row that ranking would then count as evidence.
+    Changing how something is verified is a change to the Experience, so it
+    needs a new version, not a request parameter.
+    """
 
 
 class EventResponse(Strict):

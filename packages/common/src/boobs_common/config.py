@@ -83,6 +83,21 @@ class SandboxLimits(BaseSettings):
         return self.model_copy(update={"timeout_seconds": max(self.timeout_seconds, wanted)})
 
 
+class EvidencePolicy(BaseSettings):
+    """What it takes for a claim to become evidence (spec section 22).
+
+    Promotion is a trust decision, not a counter. One organization can run its
+    own artifact until every counter looks good -- so the number that matters
+    is how many *independent* organizations have proven it, not how many runs
+    there were. Configurable because a single-tenant private deployment has
+    genuinely different maths from the public registry.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="EVIDENCE_", extra="ignore")
+
+    min_promotion_organizations: int = Field(default=2, ge=1)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -103,6 +118,7 @@ class Settings(BaseSettings):
     boobs_api_key: str = ""
 
     sandbox: SandboxLimits = Field(default_factory=SandboxLimits)
+    evidence: EvidencePolicy = Field(default_factory=EvidencePolicy)
 
     @field_validator("database_url")
     @classmethod
