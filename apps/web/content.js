@@ -26,6 +26,28 @@
  *   calc    where the calculator mounts
  */
 
+// How many capabilities the corpus defines. Read, never retyped.
+//
+// This file's own header claims /llms-full.txt cannot drift from the page
+// because both are rendered from here. That was true and still missed the
+// number: the count was typed once here and once in build.mjs, and by the time
+// anyone looked the page said 21, llms.txt said 24, and the manifest defined
+// 30. Two hand-maintained copies of one fact drifted from each other and from
+// the truth.
+//
+// It is deliberately the count in *this repository*, which a build can verify.
+// What the live registry holds is a different number and not knowable from a
+// static build, so the copy does not claim it.
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const CORPUS = Object.keys(
+  JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'capabilities', 'manifest.json'), 'utf8')
+  ).capabilities
+).length;
+
 export const REPO = 'https://github.com/charley-forey/80085';
 export const API = 'https://api.80085.ai';
 export const MCP = 'https://mcp.80085.ai/mcp';
@@ -241,7 +263,7 @@ Your claim is not evidence. 🙅`
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
-      ['⚠️', '21-capability corpus', 'live, and recommended by nothing yet', false],
+      ['⚠️', `${CORPUS}-capability corpus`, 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
   },

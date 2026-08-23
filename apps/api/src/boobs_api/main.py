@@ -100,7 +100,24 @@ _AGENTS = (
 _SHELLS = ("curl", "wget", "httpie", "libcurl")
 # Not "index": a file called index.md is a directory index to a static
 # host, which answers "/" from the filesystem before any negotiation runs.
-_NEGOTIABLE = {"/": "home", "/install": "install"}
+# Both hosts serve this site, and this table is half of why they answer the
+# same. The other half is the rewrite list in apps/web/vercel.json, which is
+# not generated from this one -- so a path added there and forgotten here is
+# a 404 on api.80085.ai and a 200 on the apex. That is exactly what happened
+# to /recall, /boobs and /58008; a test in tests/unit now compares the two.
+_NEGOTIABLE = {
+    "/": "home",
+    "/install": "install",
+    # The joke URLs. They are the share links people actually send.
+    "/boobs": "home",
+    "/58008": "home",
+}
+
+# Not a representation of a page -- an alias onto a real route. Vercel proxies
+# /recall to the API's /v1/recall; served directly, the API has to do the same,
+# or terminal.js (which fetches a relative /recall?q=) breaks the moment the
+# site is served from anywhere but the apex.
+_ALIASES = {"/recall": "/v1/recall"}
 
 
 def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str | None:
@@ -150,6 +167,12 @@ def _mount_discovery_surface(app: FastAPI) -> None:
         would undercut the pitch before anyone read a word.
         """
         if request.method in {"GET", "HEAD"}:
+            alias = _ALIASES.get(request.url.path.rstrip("/") or "/")
+            if alias:
+                # The query string rides along in its own scope key, so a
+                # rewrite here keeps ?q= intact.
+                request.scope["path"] = alias
+                return await call_next(request)
             target = _representation(
                 request.url.path,
                 request.headers.get("accept", ""),

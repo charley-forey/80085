@@ -33,6 +33,29 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy packages apps
 
+  web:
+    name: site build + web tests
+    runs-on: ubuntu-latest
+    # apps/web has had tests since before the Python suite did and CI has never
+    # run one of them. `node build.mjs` renders every public surface -- the
+    # page, /llms.txt, agents.md, the MCP descriptor -- so a change that breaks
+    # the build was only ever caught at deploy, and a change that made two
+    # surfaces disagree was not caught at all.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the site
+        working-directory: apps/web
+        run: node build.mjs
+      - name: Web tests
+        working-directory: apps/web
+        run: node --test
+      - name: CLI tests
+        working-directory: apps/cli
+        run: node --test
+
   unit:
     name: unit tests
     runs-on: ubuntu-latest
@@ -94,9 +117,24 @@ jobs:
       - name: Integration tests
         run: uv run pytest tests/integration -q
 
+      # Bridged traffic does not reach iptables without this, so the egress
+      # DROP rules would only ever see routed packets -- which is exactly the
+      # gap that let a sandbox reach a listener on its own bridge in
+      # production. The runner needs it for the same reason a worker host does.
+      - name: Let bridged traffic reach iptables
+        run: |
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
       - name: Sandbox isolation tests
         # If one of these fails, fix the sandbox. Never relax the test.
-        run: uv run pytest tests/security -v
+        #
+        # Privileged, and that is the point. Installing an iptables rule needs
+        # CAP_NET_ADMIN, and without it the egress tests cannot prove anything:
+        # for weeks they passed here by catching the runtime's fail-closed
+        # refusal and calling that a drop. An unprivileged run of this suite is
+        # not a weaker check, it is a check that cannot fail.
+        run: sudo -E env "PATH=$PATH" uv run pytest tests/security -v
 
       - name: Cross-agent reuse (the acceptance criterion)
         run: uv run pytest tests/e2e -v

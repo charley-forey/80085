@@ -30,6 +30,7 @@ work or the host is not fresh.
 |---|---|
 | **Linux** | The egress filter installs `iptables` rules into `DOCKER-USER` and `INPUT`. Docker Desktop on macOS/Windows runs the daemon in a VM the worker cannot reach, so a networked run is refused there (decision 25). |
 | **Docker** | The sandbox. `DECISIONS.md` 10 explains why this cannot be a managed container platform: handing a container the host's Docker socket undoes the isolation the sandbox exists to provide. |
+| **`br_netfilter`** | Loaded, with `net.bridge.bridge-nf-call-iptables=1`. Without it bridged traffic never reaches iptables, so the egress rules only filter *routed* packets and two containers on the sandbox bridge can talk freely. Measured, not theorised: a sandbox read data back from a listener on its own network until this was set. |
 | **`CAP_NET_ADMIN`** | To install the egress rules. Without it a `network: true` run is refused rather than run unfiltered. |
 | **Outbound HTTPS** | The worker is an HTTPS client of the API and nothing else. It holds no database or object-storage credential (decision 17). |
 | **~2 vCPU, 4 GB** | The default sandbox limits are `SANDBOX_CPU=2`, `SANDBOX_MEMORY_MB=2048`, and the daemon needs room beside them. One worker runs one sandbox at a time. |

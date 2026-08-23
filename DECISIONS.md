@@ -2541,3 +2541,65 @@ synchronous, and it is a smaller claim to defend.
 **Undo:** drop `execution_stats.checkpoint`. `_restore` returns `None` for every
 row, every call rescans, and the numbers are unchanged — which is the whole
 argument, stated as an undo.
+
+---
+
+### 59. The egress filter needed a capability nobody granted it
+
+**Found by measuring the live host.** The worker runs as an unprivileged system
+user. Installing an iptables rule needs `CAP_NET_ADMIN`. The unit granted
+nothing, so `runuser -u boobs -- iptables` answered "Permission denied (you
+must be root)", the runtime fell back to refusing every `network: true` run,
+and the filter had never protected anything on any host it had ever run on.
+
+Fail-closed, so nothing was exposed. But a control that has never executed is
+not a control, and this one had a table in `docs/security.md` describing what
+it stops.
+
+`AmbientCapabilities=CAP_NET_ADMIN` alone does nothing -- systemd clears the
+bounding set, so `CapabilityBoundingSet` is needed too. Both are narrow, and
+the process already held the docker group, which is a strictly larger
+privilege than the one being added.
+
+---
+
+### 60. A refusal is not evidence that anything was filtered
+
+`assert_unreachable` accepted "refusing to run a networked artifact" as proof
+that a packet was dropped. Those are different claims, and treating them as
+one is why decision 59 survived so long: on any host that could not filter --
+Windows, CI, and production -- three egress tests went green without a rule
+ever existing, and the two that would have noticed skipped. A skip is not a
+failure, so nothing was ever red.
+
+The refusal keeps its own test, which is where that claim belongs. Everything
+asserting a drop now depends on a fixture that installs the rules and
+distinguishes two cases: not Linux means the claim is untestable here and
+skipping is honest, while Linux-that-will-not-filter is production's exact
+failure and fails loudly.
+
+---
+
+### 61. Bridged traffic does not reach iptables without br_netfilter
+
+The first privileged run of the suite passed five tests and failed one: a
+sandbox with `network: true` opened a connection to a listener on its own
+bridge and read "reachable" back. The DROP rule for `172.16.0.0/12` was
+installed and correct; the packet never went near it.
+
+Without the `br_netfilter` module, packets bridged between two containers on
+the same network are switched at layer 2 and never traverse `FORWARD`. Only
+*routed* traffic -- toward the gateway, the metadata endpoint, the internet --
+reaches `DOCKER-USER`. So the filter blocked exactly the destinations that
+leave the bridge and none of the ones that do not.
+
+`br_netfilter` plus `net.bridge.bridge-nf-call-iptables=1` makes the existing
+rules cover both. All six tests then pass. Persisted through
+`/etc/modules-load.d` and `/etc/sysctl.d` rather than a runtime `modprobe`,
+because a reboot that silently returns to an unfiltered bridge is the same
+class of failure as the one above: safe-looking, and wrong.
+
+The test that caught it is the one whose docstring predicted it -- everything
+else can pass on a laptop for the wrong reason, because nothing answers on
+169.254.169.254 at home.
+
