@@ -7,7 +7,6 @@ dependencies = [
     "mcp>=1.2",
     "httpx>=0.28",
     "pydantic>=2.10",
-    "80085-common",
 ]
 
 [project.scripts]

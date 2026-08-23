@@ -3,6 +3,18 @@
 # Not for the worker: the worker needs a container runtime, and giving a
 # container the host's Docker socket would defeat the sandbox it exists to
 # operate. The worker runs on a host that has Docker (see AGENTS.md).
+
+# The site is build output, not source: apps/web/public is generated from
+# apps/web/content.js and is not committed. Building it here is what lets the
+# API host serve the landing page and the agent-readable representations of it.
+# Node stdlib only — build.mjs has no dependencies, so there is nothing to
+# install and no lockfile to honour.
+FROM node:22-slim AS web
+WORKDIR /web
+COPY apps/web/ ./
+RUN node build.mjs
+
+
 FROM python:3.13-slim AS base
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
@@ -21,6 +33,7 @@ RUN uv sync --frozen --all-packages --no-dev
 
 COPY migrations/ migrations/
 COPY alembic.ini ./
+COPY --from=web /web/public/ apps/web/public/
 
 RUN useradd --uid 10001 --create-home app && chown -R app:app /app
 USER app

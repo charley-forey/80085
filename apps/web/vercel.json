@@ -1,10 +1,80 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node build.mjs",
+  "outputDirectory": "public",
   "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/", "has": [{ "type": "query", "key": "format", "value": "md" }], "destination": "/index.md" },
+    { "source": "/", "has": [{ "type": "query", "key": "format", "value": "txt" }], "destination": "/index.txt" },
+    { "source": "/install", "has": [{ "type": "query", "key": "format", "value": "md" }], "destination": "/install.md" },
+    { "source": "/install", "has": [{ "type": "query", "key": "format", "value": "txt" }], "destination": "/install.txt" },
+
+    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*" }], "destination": "/index.ansi" },
+    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*" }], "destination": "/install.ansi" },
+
+    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/index.md" },
+    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/install.md" },
+
+    { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/index.html" },
+    { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }], "destination": "/index.md" },
+    { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/plain.*" }], "destination": "/index.txt" },
+
+    { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/install.html" },
+    { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }], "destination": "/install.md" },
+    { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/plain.*" }], "destination": "/install.txt" },
+    { "source": "/install", "destination": "/install.html" },
+
+    { "source": "/58008", "destination": "/index.html" },
+    { "source": "/openapi.json", "destination": "https://api.80085.ai/openapi.json" }
+  ],
   "headers": [
     {
-      "source": "/llms.txt",
-      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Vary", "value": "Accept, User-Agent" },
+        { "key": "Link", "value": "</llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"LLM-readable summary\", </.well-known/mcp.json>; rel=\"alternate\"; type=\"application/json\"; title=\"MCP descriptor\", </openapi.json>; rel=\"service-desc\"; type=\"application/json\"" },
+        { "key": "X-MCP-Server", "value": "https://api.80085.ai/mcp" },
+        { "key": "X-Agent-Instructions", "value": "/agents.md" },
+        { "key": "X-Robots-Tag", "value": "index, follow" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.googletagmanager.com; img-src 'self' data: https://www.googletagmanager.com https://www.google-analytics.com; font-src 'self'; connect-src 'self' https://api.80085.ai https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/(index|install)?",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/(.*).ansi",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(.*).md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(.*).txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(site.css|site.js|calc.js|seg.js|terminal.js|boot.js|icon.svg|og.png|og.svg)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
     }
   ]
 }

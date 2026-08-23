@@ -1,0 +1,9 @@
+{
+  "name": "80085-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test"
+  }
+}

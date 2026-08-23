@@ -1,0 +1,13 @@
+# public/ is generated in its entirety by build.mjs — every page, every
+# machine file, and copies of the browser modules and assets/. Committing it
+# would let it drift from content.js, which is the one thing this site's
+# architecture exists to prevent.
+/public/
+
+# Committed inputs live in assets/:
+#   og.png    drawn by scripts/make-og.py; there is no rasteriser in the build
+#   icon.svg  a copy of the root brand icon, so apps/web is a complete
+#             deployable root on its own and the build never reaches outside it
+
+.vercel
+node_modules/
