@@ -27,7 +27,7 @@ from boobs_api import routes
 from boobs_common.clock import now
 from boobs_common.errors import NotFound
 from boobs_domain.protocols import Principal
-from boobs_schemas.api import BootstrapRequest
+from boobs_schemas.api import ArtifactIn, BootstrapRequest, GoalIn, RecordExperienceRequest
 from boobs_schemas.tables import ApiKey
 from boobs_security.keys import Scope
 
@@ -144,3 +144,50 @@ async def test_revoking_a_key_that_does_not_exist_is_not_found() -> None:
             db=Session(None),  # type: ignore[arg-type]
             principal=Principal(organization_id=ORG, agent_id="agt_minting"),
         )
+
+
+async def test_recording_commits_before_it_returns_the_experience_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An id is a promise that the row is there, exactly like a credential.
+
+    Fixing the credential race made this one visible rather than causing it:
+    tests that used to die on `401 unknown api key` got further, recorded an
+    Experience, used the id it returned on the next request, and were told the
+    Experience did not exist. Record, execute, recall and cross-tenant reads
+    all failed that way, which reads as lost data and is really one commit
+    arriving after one response.
+    """
+    db = Session()
+
+    class Experiences:
+        def __init__(self, _db: Any) -> None: ...
+
+        async def create(self, _principal: Any, _request: Any) -> Any:
+            db.add(SimpleNamespace())
+            await db.flush()
+            return SimpleNamespace(id="exp_1"), SimpleNamespace(id="ver_1", artifact_id="art_1")
+
+    class Artifacts:
+        def __init__(self, _db: Any) -> None: ...
+
+        async def resolve(self, _artifact_id: str) -> Any:
+            return SimpleNamespace(digest="sha256:" + "a" * 64)
+
+    monkeypatch.setattr(routes, "ExperienceRepository", Experiences)
+    monkeypatch.setattr(routes, "ArtifactRepository", Artifacts)
+    monkeypatch.setattr(routes, "_experience_response", lambda *_a, **_k: "recorded")
+
+    answer = await routes.record_experience(
+        request=RecordExperienceRequest(
+            goal=GoalIn(statement="convert csv to json", intent="csv_to_json"),
+            artifact=ArtifactIn(type="oci", reference="repo/thing@sha256:" + "b" * 64),
+            command=["python", "main.py"],
+        ),
+        http=a_request(),
+        db=db,  # type: ignore[arg-type]
+        principal=Principal(organization_id=ORG, agent_id="agt_minting"),
+    )
+
+    assert answer == "recorded"
+    assert_committed_before_returning(db.log)

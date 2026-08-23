@@ -324,7 +324,15 @@ async def record_experience(
     repository = ExperienceRepository(db)
     experience, version = await repository.create(principal, request)
     artifact = await ArtifactRepository(db).resolve(version.artifact_id)
-    return _experience_response(experience, version, artifact.digest, Evidence())
+    response = _experience_response(experience, version, artifact.digest, Evidence())
+    # Committed before the id goes out, for the same reason a credential is.
+    # An agent that records something is told an experience_id and uses it on
+    # the very next request -- to execute it, to recall it, to check what
+    # another tenant can see. Returning the id from a transaction that commits
+    # in dependency teardown, after the response has been written, means that
+    # next request can arrive first and be answered 404.
+    await release(db)
+    return response
 
 
 @router.get("/experiences/{experience_id}")

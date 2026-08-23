@@ -916,7 +916,7 @@ for failure and it was wrong: every successful `ExecutionResponse` carries
 
 **Undo:** the envelope is `{"error", "detail", "fix"}` and callers read prose,
 so shrinking it back is a deletion.
-### 31. A credential is committed before it is handed over
+### 38. A credential is committed before it is handed over
 
 **Found five times as CI flake before it was traced.** `POST /v1/keys` and
 `/v1/bootstrap` flushed their rows and returned; `get_db` commits in its
@@ -964,7 +964,7 @@ old code every time rather than one run in twenty.
 
 ---
 
-### 32. Keys are revoked by their organization, or by an admin
+### 39. Keys are revoked by their organization, or by an admin
 
 `revoked_at` has been a column since the first migration and has been checked
 at authentication ever since, and **nothing ever set it**. `docs/security.md`
@@ -1017,7 +1017,7 @@ case, including that the refused one leaves the victim's key working.
 
 ---
 
-### 33. Rate limit windows live in Postgres, and the caller is the last proxy hop
+### 40. Rate limit windows live in Postgres, and the caller is the last proxy hop
 
 Three separate holes, one file.
 

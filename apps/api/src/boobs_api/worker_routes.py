@@ -326,6 +326,12 @@ async def report_result(
         },
     )
 
+    # Same reason as recording: the worker is answered 200 and whoever was
+    # waiting on that execution reads its evidence immediately. Evidence that
+    # commits after the response has gone out reads as a run that never
+    # happened.
+    await release(db)
+
     return ResultResponse(
         execution_id=execution_id,
         status=request.status,

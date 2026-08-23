@@ -166,7 +166,7 @@ The `key_id` is returned by `/v1/keys` and `/v1/bootstrap` and is not
 recoverable afterwards, for the same reason the key itself is not.
 
 **Both endpoints commit before they answer.** A credential the caller can act
-on is committed before they are told what it is; see `DECISIONS.md` §31 for
+on is committed before they are told what it is; see `DECISIONS.md` §38 for
 the race this fixes and why it looked like CI flake for a week.
 
 ## Rate limits
