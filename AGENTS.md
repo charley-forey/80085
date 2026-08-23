@@ -141,7 +141,7 @@ Treat every artifact as hostile.
 | `E2B_API_KEY` | Required by `BOOBS_RUNTIME=e2b`. Never defaulted, never in a file. |
 | `BOOBS_EXEC_CACHE` | `0` (default) or `1`. Replays identical runs — read `packages/execution/cache.py` first. |
 | `BOOBS_API_KEY`, `BOOBS_API_URL` | Used by the MCP server to call the API. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset keeps tracing in-process. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset installs no tracer or meter at all. |
 
 ## MCP tools
 

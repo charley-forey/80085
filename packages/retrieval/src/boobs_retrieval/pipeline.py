@@ -18,12 +18,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boobs_domain.entities import Evidence, RecallCandidate
 from boobs_domain.enums import Compatibility, ExperienceStatus, Visibility
 from boobs_domain.protocols import Principal, RecallQuery
+from boobs_observability import counter, tracer
 from boobs_retrieval import ranking
 from boobs_retrieval.embedding import Embedder, embedder
 from boobs_retrieval.intent import normalize
 from boobs_schemas.tables import ExecutionStat, Experience, ExperienceVersion
 
 CANDIDATE_POOL = 50
+
+# Recall used to report one aggregate `took_ms` and nothing else, so a slow
+# recall was indistinguishable from a slow embedder or a slow database. These
+# are the four stages, timed separately. With no OTLP endpoint configured the
+# tracer is the API's no-op and none of this allocates a span.
+_tracer = tracer(__name__)
+_recalls = counter("recall_requests", "recall queries, attributed by whether anything matched")
 
 
 @dataclass(frozen=True)
@@ -167,9 +175,45 @@ async def recall(
     parsed = normalize(query.task)
     task_text = f"{query.task} {parsed.canonical.replace('_', ' ')}"
 
-    lexical = await _lexical(db, principal, query, task_text)
-    vector = await _vector(db, principal, query, model.embed([task_text])[0])
+    with _tracer.start_as_current_span("recall") as span:
+        span.set_attribute("recall.intent", parsed.canonical)
 
+        with _tracer.start_as_current_span("recall.embed") as embed:
+            # Named because it is the stage most likely to be the answer: the
+            # hashing fallback is fast and wrong, fastembed is slow and right.
+            embed.set_attribute("recall.embedder", type(model).__name__)
+            task_vector = model.embed([task_text])[0]
+
+        with _tracer.start_as_current_span("recall.lexical") as stage:
+            lexical = await _lexical(db, principal, query, task_text)
+            stage.set_attribute("recall.candidates", len(lexical))
+
+        with _tracer.start_as_current_span("recall.vector") as stage:
+            vector = await _vector(db, principal, query, task_vector)
+            stage.set_attribute("recall.candidates", len(vector))
+
+        with _tracer.start_as_current_span("recall.rank"):
+            matches = await _merge_and_rank(db, query, parsed.canonical, lexical, vector)
+
+        span.set_attribute("recall.matches", len(matches))
+
+    # recall_match_rate (spec section 33) is matched / total over this counter.
+    _recalls.add(1, {"matched": bool(matches)})
+    return matches
+
+
+async def _merge_and_rank(
+    db: AsyncSession,
+    query: RecallQuery,
+    intent: str,
+    lexical: dict[str, float],
+    vector: dict[str, float],
+) -> list[RecallCandidate]:
+    """Fuse the two candidate lists, score the survivors, return the best.
+
+    Split out of `recall` so each retrieval stage sits in its own span; the
+    logic is unchanged.
+    """
     # RRF decides which candidates to consider; it deliberately does not decide
     # how relevant they are. RRF scores are positional, so the top candidate
     # always looks perfect -- which is how a popular Experience could win a
@@ -199,7 +243,7 @@ async def recall(
         # An exact intent match is strong evidence that two differently worded
         # tasks are the same task. It raises how well this MATCHES -- it says
         # nothing about whether it WORKS, so it must not touch the evidence.
-        if experience.goal_intent == parsed.canonical:
+        if experience.goal_intent == intent:
             relevance = min(1.0, relevance + ranking.INTENT_MATCH_BONUS)
         evidence = _evidence(stat)
         signals = ranking.Signals(

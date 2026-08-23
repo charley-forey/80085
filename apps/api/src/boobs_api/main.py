@@ -28,7 +28,7 @@ from boobs_common.errors import (
     Unauthorized,
     ValidationError,
 )
-from boobs_observability import configure, logger
+from boobs_observability import configure, instrument_fastapi, logger
 from boobs_schemas.db import dispose
 
 STATUS_FOR = {
@@ -181,6 +181,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(router)
     app.include_router(worker_router)
+
+    # Instrumented here rather than in lifespan: Starlette builds its
+    # middleware stack before the lifespan runs, so adding middleware there
+    # raises. This is a no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    instrument_fastapi(app)
 
     @app.middleware("http")
     async def advertise_terms(request: Request, call_next: Any) -> Any:

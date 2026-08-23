@@ -35,6 +35,7 @@ from boobs_domain.enums import (
 )
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
 from boobs_reputation.evidence import recompute
+from boobs_retrieval.embedding import active_embedder
 from boobs_schemas import db as database
 from boobs_schemas.api import (
     BootstrapRequest,
@@ -91,6 +92,11 @@ async def ready(db: DbSession, response: Response) -> dict[str, Any]:
         # without pgvector answers SELECT 1 happily while every recall 500s.
         "pgvector": await _pgvector_healthy(db),
         "object_storage": await storage.healthy(),
+        # A string, not a boolean, and deliberately so: running on the
+        # non-semantic hashing fallback degrades recall without making the API
+        # unready. Reported because the fallback is otherwise invisible from
+        # outside the process. See DECISIONS.md 22.
+        "embedder": await asyncio.to_thread(active_embedder),
     }
     ok = all(checks.values())
     if not ok:

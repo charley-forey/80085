@@ -83,3 +83,17 @@ def embedder() -> Embedder:
             exc,
         )
         return HashingEmbedder()
+
+
+def active_embedder() -> str:
+    """Which embedder recall is really using: `fastembed` or `hashing`.
+
+    `embedder()` is lru_cached, so one failed model load at startup degrades
+    every recall for the life of the process and the only evidence is a single
+    log line nobody reads. /v1/ready reports this so a degraded deployment is
+    visible from outside the process instead.
+
+    This forces the model load on first call, which is the point: an answer of
+    "not loaded yet" would not tell an operator anything.
+    """
+    return "fastembed" if isinstance(embedder(), FastEmbedEmbedder) else "hashing"
