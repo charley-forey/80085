@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +48,21 @@ class Settings(BaseSettings):
     boobs_api_key: str = ""
 
     sandbox: SandboxLimits = Field(default_factory=SandboxLimits)
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, value: str) -> str:
+        """Accept the `postgresql://` URL every hosting provider hands out.
+
+        Railway, Heroku, Fly and friends all emit a sync-driver URL. Requiring
+        the caller to rewrite it into `postgresql+asyncpg://` is a deploy-time
+        footgun that costs one failed deployment to discover, so normalise it
+        here instead.
+        """
+        for prefix in ("postgresql://", "postgres://"):
+            if value.startswith(prefix):
+                return "postgresql+asyncpg://" + value[len(prefix) :]
+        return value
 
 
 @lru_cache
