@@ -1,6 +1,11 @@
 # DNS setup at GoDaddy — 80085.ai
 
-Both custom domains are already attached on the Railway side. What remains is
+> **Status: done.** Both records are propagated, both certificates are issued,
+> and both hostnames are serving. `api.80085.ai` and `mcp.80085.ai` are live,
+> and the MCP service and worker are pointed at `https://api.80085.ai`.
+> Kept for reference and for whoever sets up the next environment.
+
+Both custom domains are attached on the Railway side. What was needed was
 four DNS records in GoDaddy. Railway issues the TLS certificate automatically
 once it sees them.
 
@@ -84,15 +89,22 @@ useful test):
 uv run python scripts/check_mcp.py --url https://mcp.80085.ai/mcp --key sk_80085_...
 ```
 
-## After DNS is live
+## After DNS is live — done
 
-Point things at the real names:
+1. ~~**MCP → API.**~~ `BOOBS_API_URL=https://api.80085.ai` is set on the
+   Railway `mcp` service.
+2. ~~**Worker.**~~ Restarted against `https://api.80085.ai`.
+3. **The website.** `www.80085.ai` should link to
+   `https://api.80085.ai/llms.txt` and `https://mcp.80085.ai/mcp` as the
+   integration endpoints. *(Still to do — Vercel side.)*
 
-1. **MCP → API.** Set `BOOBS_API_URL=https://api.80085.ai` on the Railway
-   `mcp` service, so it stops calling the long Railway hostname.
-2. **Worker.** Restart it with `BOOBS_API_URL=https://api.80085.ai`.
-3. **The website.** `www.80085.ai` should link to `https://api.80085.ai/llms.txt`
-   and `https://mcp.80085.ai/mcp` as the integration endpoints.
+Verified after the switch: the full smoke test passes against
+`https://api.80085.ai`, and a real MCP session against `https://mcp.80085.ai/mcp`
+recalls, executes and verifies end to end.
+
+**Note on the TXT records:** both were created with a leading space inside the
+value (`" railway-verify=..."`). Both verified anyway, so no action is needed;
+worth knowing if a future record does not verify.
 
 ## Plan limit worth knowing
 

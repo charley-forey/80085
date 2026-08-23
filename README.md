@@ -33,10 +33,11 @@
 
 | | |
 |---|---|
-| **API** | https://api-production-0734.up.railway.app |
-| **Landing page** | [`/`](https://api-production-0734.up.railway.app/) |
-| **Machine-readable brief** | [`/llms.txt`](https://api-production-0734.up.railway.app/llms.txt) |
-| **API reference** | [`/docs`](https://api-production-0734.up.railway.app/docs) · [`/openapi.json`](https://api-production-0734.up.railway.app/openapi.json) |
+| **API** | https://api.80085.ai |
+| **Landing page** | [`/`](https://api.80085.ai/) |
+| **Machine-readable brief** | [`/llms.txt`](https://api.80085.ai/llms.txt) |
+| **API reference** | [`/docs`](https://api.80085.ai/docs) · [`/openapi.json`](https://api.80085.ai/openapi.json) |
+| **MCP endpoint** | `https://mcp.80085.ai/mcp` (streamable-http) |
 | **Artifact registry** | `registry-production-ca7f.up.railway.app` |
 
 Seeded with three verified Experiences. Executions need a worker attached —

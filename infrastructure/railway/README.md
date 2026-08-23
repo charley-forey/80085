@@ -4,7 +4,8 @@
 
 | Surface | URL |
 |---|---|
-| API + discovery surface | https://api-production-0734.up.railway.app |
+| API + discovery surface | https://api.80085.ai |
+| MCP endpoint | https://mcp.80085.ai/mcp |
 | Landing page | `/` |
 | Machine-readable brief | `/llms.txt` |
 | OpenAPI | `/openapi.json` · `/docs` |
@@ -35,11 +36,11 @@ datastore is exposed to the internet.
 
 ```bash
 uv run python scripts/create_worker_key.py \
-  --url https://api-production-0734.up.railway.app --token "$BOOBS_BOOTSTRAP_TOKEN"
+  --url https://api.80085.ai --token "$BOOBS_BOOTSTRAP_TOKEN"
 
 docker login registry-production-ca7f.up.railway.app -u 80085     # to pull artifacts
 
-BOOBS_API_URL=https://api-production-0734.up.railway.app \
+BOOBS_API_URL=https://api.80085.ai \
 BOOBS_API_KEY=sk_80085_... \
 uv run 80085-worker
 ```
@@ -94,7 +95,7 @@ tag, is what an Experience stores.
 
 ```bash
 uv run python scripts/smoke.py \
-  --url https://api-production-0734.up.railway.app --token "$BOOBS_BOOTSTRAP_TOKEN"
+  --url https://api.80085.ai --token "$BOOBS_BOOTSTRAP_TOKEN"
 ```
 
 It records an Experience, executes it, checks a verifier proved it, confirms a
