@@ -5,7 +5,7 @@ results, and nothing else -- it cannot recall, record, or read another
 tenant's experiences. A leaked worker key does not expose the registry.
 
     uv run python scripts/create_worker_key.py
-    uv run python scripts/create_worker_key.py \n        --url https://api.example --token "$BOOBS_BOOTSTRAP_TOKEN"
+    uv run python scripts/create_worker_key.py --url https://api.example
 """
 
 from __future__ import annotations
