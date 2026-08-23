@@ -63,7 +63,7 @@ rests on.
 | `packages/domain` | Entities and protocols. **Imports no infrastructure, ever.** |
 | `packages/schemas` | Pydantic wire models + SQLAlchemy tables. |
 | `packages/retrieval` | Intent normalization, hard filters, hybrid retrieval, ranking. |
-| `packages/execution` | `ExecutionRuntime` protocol + `DockerOciRuntime`. |
+| `packages/execution` | `ExecutionRuntime` protocol, `DockerOciRuntime`, `E2BRuntime`, result cache. |
 | `packages/verification` | `Verifier` protocol + verifier registry. |
 | `packages/reputation` | Evidence recomputed from immutable rows. |
 | `packages/security` | API keys, scopes, `PolicyEngine`, tenant visibility. |
@@ -137,6 +137,9 @@ Treat every artifact as hostile.
 | `SANDBOX_*` | Policy defaults: cpu, memory_mb, tmpfs_mb, timeout_seconds, pids, max_output_bytes. |
 | `BOOBS_BOOTSTRAP_TOKEN` | Guards `/v1/bootstrap`, which mints API keys. |
 | `BOOBS_EMBEDDER` | `auto` (default), `fastembed`, or `hashing`. |
+| `BOOBS_RUNTIME` | `docker` (default) or `e2b`. Picks the worker's sandbox. |
+| `E2B_API_KEY` | Required by `BOOBS_RUNTIME=e2b`. Never defaulted, never in a file. |
+| `BOOBS_EXEC_CACHE` | `0` (default) or `1`. Replays identical runs — read `packages/execution/cache.py` first. |
 | `BOOBS_API_KEY`, `BOOBS_API_URL` | Used by the MCP server to call the API. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset keeps tracing in-process. |
 

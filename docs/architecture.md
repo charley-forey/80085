@@ -103,7 +103,7 @@ source of truth.
 
 | Seam | Protocol | Current implementation | Swap to |
 |---|---|---|---|
-| Execution | `ExecutionRuntime` | Docker OCI | Firecracker, gVisor, Kata, WASI, Fly, E2B |
+| Execution | `ExecutionRuntime` | Docker OCI, or E2B Firecracker (`BOOBS_RUNTIME`) | gVisor, Kata, WASI, Fly, Modal |
 | Verification | `Verifier` | name→function registry | file, http, test-suite verifiers |
 | Embeddings | `Embedder` | local fastembed ONNX | any hosted embedding API |
 | Storage | module functions | S3/MinIO | any S3-compatible service |

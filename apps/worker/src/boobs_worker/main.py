@@ -11,6 +11,10 @@ run succeeded either: it reports the raw result and the API verifies it.
 
     uv run 80085-worker
     BOOBS_API_URL=https://api.example BOOBS_API_KEY=sk_80085_... uv run 80085-worker
+    BOOBS_RUNTIME=e2b E2B_API_KEY=e2b_... uv run 80085-worker   # no local Docker
+
+`BOOBS_RUNTIME` picks the sandbox: `docker` (default) needs a local daemon,
+`e2b` runs each job in a Firecracker microVM and needs nothing local at all.
 """
 
 from __future__ import annotations
@@ -29,11 +33,13 @@ import httpx
 from boobs_common.config import settings
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
-from boobs_execution import DockerOciRuntime
+from boobs_execution import runtime as select_runtime
 from boobs_observability import configure, logger
 
 log = logger(__name__)
-runtime = DockerOciRuntime()
+# BOOBS_RUNTIME=docker|e2b -- Docker by default, so nothing changes for an
+# existing worker; e2b needs no local daemon and no laptop staying awake.
+runtime = select_runtime()
 
 IDLE_SLEEP_SECONDS = 3.0
 ERROR_SLEEP_SECONDS = 10.0

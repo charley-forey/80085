@@ -100,9 +100,15 @@ writable mounts, wall clock, fork bomb, memory hog, output flood, output size.
 ## Known gaps
 
 * **Docker is not a security boundary against a kernel exploit.** It is
-  adequate for controlled use; before running genuinely arbitrary public code,
-  move `ExecutionRuntime` onto Firecracker, gVisor, Kata, or WASI. The
-  protocol exists so that is a one-file change.
+  adequate for controlled use. For genuinely arbitrary public code, run
+  `BOOBS_RUNTIME=e2b`: `E2BRuntime` puts each run in a Firecracker microVM, so
+  a guest kernel exploit costs the attacker a disposable VM rather than the
+  worker's host. It is not the default because it needs an `E2B_API_KEY` and
+  bills per second, not because Docker is safer.
+* **The E2B runtime enforces fewer of the limits it is handed.** `cpu`,
+  `memory_mb`, `tmpfs_mb` and `pids` are Docker cgroup flags with no direct
+  E2B equivalent; the microVM's own shape bounds the run instead. Wall clock,
+  network reachability, output size and digest pinning are enforced in both.
 * **No image signing or SBOM yet.** Digest pinning proves the bytes did not
   change; it does not prove who produced them.
 * **No egress allowlist.** `network: true` is currently all-or-nothing. Spec

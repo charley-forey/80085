@@ -75,6 +75,12 @@ class SandboxResult(BaseModel):
     output_files: dict[str, bytes] = Field(default_factory=dict)
     truncated: bool = False
     error: str | None = None
+    cached: bool = False
+    """Replayed from a previous identical run rather than executed.
+
+    A cached result is not an independent verification: whatever turns results
+    into evidence must not count it as one.
+    """
 
 
 class VerificationResult(BaseModel):
