@@ -80,7 +80,9 @@ _AGENTS = (
     "Bytespider", "CCBot", "Applebot-Extended", "cohere-ai", "Meta-ExternalAgent",
 )
 _SHELLS = ("curl", "wget", "httpie", "libcurl")
-_NEGOTIABLE = {"/": "index", "/install": "install"}
+# Not "index": a file called index.md is a directory index to a static
+# host, which answers "/" from the filesystem before any negotiation runs.
+_NEGOTIABLE = {"/": "home", "/install": "install"}
 
 
 def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str | None:
@@ -94,7 +96,7 @@ def _representation(path: str, accept: str, agent: str, fmt: str | None) -> str 
     stem = _NEGOTIABLE.get(path.rstrip("/") or "/")
     if stem is None:
         return None
-    page = f"/p/{'home' if stem == 'index' else stem}.html"
+    page = f"/p/{stem}.html"
     if fmt in {"md", "txt"}:
         return f"/{stem}.{fmt}"
     lowered = agent.lower()

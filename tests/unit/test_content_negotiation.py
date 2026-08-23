@@ -24,7 +24,7 @@ def test_a_browser_gets_the_page() -> None:
 
 @pytest.mark.parametrize("agent", ["curl/8.4.0", "Wget/1.21.4", "HTTPie/3.2.2", "CURL/7.0"])
 def test_a_shell_gets_ansi(agent: str) -> None:
-    assert pick(accept="*/*", agent=agent) == "/index.ansi"
+    assert pick(accept="*/*", agent=agent) == "/home.ansi"
     assert pick(path="/install", accept="*/*", agent=agent) == "/install.ansi"
 
 
@@ -45,17 +45,17 @@ def test_a_shell_gets_ansi(agent: str) -> None:
 def test_a_crawler_gets_markdown_even_when_it_asks_for_html(agent: str) -> None:
     # The user-agent check deliberately precedes the Accept check: a crawler
     # that advertises text/html must not be handed the HTML page.
-    assert pick(accept=CHROME, agent=agent) == "/index.md"
+    assert pick(accept=CHROME, agent=agent) == "/home.md"
 
 
 def test_accept_headers_are_honoured() -> None:
-    assert pick(accept="text/markdown") == "/index.md"
-    assert pick(accept="text/plain") == "/index.txt"
+    assert pick(accept="text/markdown") == "/home.md"
+    assert pick(accept="text/plain") == "/home.txt"
 
 
 def test_format_query_overrides_everything() -> None:
-    assert pick(accept=CHROME, agent="Chrome", fmt="md") == "/index.md"
-    assert pick(accept=CHROME, agent="curl/8.4.0", fmt="txt") == "/index.txt"
+    assert pick(accept=CHROME, agent="Chrome", fmt="md") == "/home.md"
+    assert pick(accept=CHROME, agent="curl/8.4.0", fmt="txt") == "/home.txt"
     # Terminal mode on the site fetches exactly this.
     assert pick(path="/install", fmt="txt") == "/install.txt"
 
@@ -83,3 +83,17 @@ def test_the_page_never_lives_where_a_static_host_would_claim_it() -> None:
     for served in [pick(accept=CHROME), pick(path="/install", accept=CHROME)]:
         assert served is not None
         assert served.startswith("/p/"), served
+
+
+def test_no_representation_is_named_index() -> None:
+    """A file called index.md is a directory index to a static host.
+
+    With index.html moved aside, Vercel resolved "/" to index.md during its
+    filesystem step and served markdown to browsers, because the filesystem is
+    consulted before any rewrite. Nothing negotiated may be called index.
+    """
+    for path in ["/", "/install"]:
+        for kwargs in ({"accept": CHROME}, {"agent": "curl/8.4.0"}, {"fmt": "md"}):
+            served = pick(path=path, **kwargs)
+            assert served is not None
+            assert "index" not in served, served

@@ -14,7 +14,7 @@
           "value": "md"
         }
       ],
-      "destination": "/index.md"
+      "destination": "/home.md"
     },
     {
       "source": "/",
@@ -25,7 +25,7 @@
           "value": "txt"
         }
       ],
-      "destination": "/index.txt"
+      "destination": "/home.txt"
     },
     {
       "source": "/install",
@@ -58,7 +58,7 @@
           "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*"
         }
       ],
-      "destination": "/index.ansi"
+      "destination": "/home.ansi"
     },
     {
       "source": "/install",
@@ -80,7 +80,7 @@
           "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*"
         }
       ],
-      "destination": "/index.md"
+      "destination": "/home.md"
     },
     {
       "source": "/install",
@@ -113,7 +113,7 @@
           "value": ".*text/markdown.*"
         }
       ],
-      "destination": "/index.md"
+      "destination": "/home.md"
     },
     {
       "source": "/",
@@ -124,7 +124,7 @@
           "value": ".*text/plain.*"
         }
       ],
-      "destination": "/index.txt"
+      "destination": "/home.txt"
     },
     {
       "source": "/install",
