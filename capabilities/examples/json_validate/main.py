@@ -37,7 +37,8 @@ def main() -> int:
     with open(sys.argv[2], encoding="utf-8") as handle:
         schema = json.load(handle)
     errors = check(document, schema)
-    with open(sys.argv[3], "w", encoding="utf-8") as handle:
+    # newline="\n": without it the verdict is CRLF on Windows and LF on Linux.
+    with open(sys.argv[3], "w", encoding="utf-8", newline="\n") as handle:
         json.dump({"valid": not errors, "errors": errors}, handle, indent=2)
     return 0 if not errors else 1
 

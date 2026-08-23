@@ -1,0 +1,9 @@
+{
+  "columns": [
+    "track",
+    "tempo"
+  ],
+  "output": "output.csv",
+  "rows": 2,
+  "sha256": "e772e98ef7db9afbe178fcf55e17c6529d210a261c46ddde57b37bbf856ea6ec"
+}

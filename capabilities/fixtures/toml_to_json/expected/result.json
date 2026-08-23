@@ -1,0 +1,8 @@
+{
+  "keys": [
+    "release",
+    "title"
+  ],
+  "output": "output.json",
+  "sha256": "09402606637c9fe0722bcdbfe42cd1ffc2d0b575f43441e2cb7ab96b98091b97"
+}

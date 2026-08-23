@@ -1,0 +1,13 @@
+{
+  "columns": [
+    "track",
+    "bpm",
+    "track"
+  ],
+  "errors": [
+    "duplicate header columns: ['track']",
+    "line 3: 2 fields, header has 3"
+  ],
+  "rows": 2,
+  "valid": false
+}

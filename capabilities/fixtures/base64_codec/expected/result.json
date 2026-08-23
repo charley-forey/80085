@@ -1,0 +1,8 @@
+{
+  "alphabet": "standard",
+  "bytes_in": 26,
+  "bytes_out": 36,
+  "mode": "encode",
+  "output": "output.b64",
+  "sha256": "69f72c5df4fb79a3372ce9d8f5bdae49b548e743756091ad1bdc93cc80569645"
+}

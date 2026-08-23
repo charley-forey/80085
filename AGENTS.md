@@ -161,10 +161,27 @@ Treat every artifact as hostile.
 
 1. Write the capability under `capabilities/examples/<name>/` with a
    `Dockerfile` that satisfies the artifact contract below.
-2. `uv run python scripts/build_capabilities.py` — builds, pushes, and records
+2. Describe it in `capabilities/manifest.json` and add an input plus its
+   expected output under `capabilities/fixtures/<name>/`.
+   `tests/unit/test_capabilities.py` then runs it without Docker and fails if
+   the bytes move or the declared verifier does not accept them.
+3. `uv run python scripts/build_capabilities.py` — builds, pushes, and records
    the **digest**.
-3. `POST /v1/experiences` (or the `record_experience` MCP tool) with the
-   digest-pinned reference, the command, and a `verification` block.
+4. `uv run python scripts/seed.py`, or `POST /v1/experiences` (or the
+   `record_experience` MCP tool) with the digest-pinned reference, the command,
+   and a `verification` block.
+
+**Declare `json_schema` or `sha256`, never bare `exit_code`.** An exit-code
+verifier is satisfied by any container that returns 0, so a capability that
+does nothing earns the same evidence as one that works. Every capability in the
+manifest writes `result.json` describing what it produced — including the digest
+of its own output — and the verifier reads that.
+
+**Output must be deterministic.** Evidence is only worth something if the same
+input produces the same bytes: sort keys, pin separators and line terminators,
+and never emit a timestamp, a locale-dependent format or a filesystem listing
+order. A `sha256` verifier over non-deterministic output produces flapping
+evidence, which is worse than no evidence at all.
 
 **Artifact contract.** The image must:
 

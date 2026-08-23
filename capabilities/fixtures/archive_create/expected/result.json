@@ -1,0 +1,15 @@
+{
+  "entries": [
+    {
+      "bytes": 10,
+      "name": "a.txt"
+    },
+    {
+      "bytes": 16,
+      "name": "b.txt"
+    }
+  ],
+  "format": "tar",
+  "output": "output.tar",
+  "sha256": "beccaea192c99b450fbc6763c0eff1fa59ce2389bd2c2b76e43c2cfadd841410"
+}

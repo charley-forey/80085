@@ -1,0 +1,9 @@
+title = "Trax"
+
+[release]
+name = "Acid Trax"
+bpm = 128
+released = 1987-01-01
+
+[[release.artists]]
+name = "Phuture"

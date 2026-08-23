@@ -1,0 +1,16 @@
+{
+  "algorithm": "sha256",
+  "files": [
+    {
+      "bytes": 10,
+      "digest": "bfd19ec6810a7f9afb239de65a571e14f99ea558b217f149772cfc645a0be6f1",
+      "name": "a.txt"
+    },
+    {
+      "bytes": 16,
+      "digest": "2499d6f86bd196ffe2e9ce36b402d10f2c7a93394a39570bd9cb86e5e8e861f7",
+      "name": "b.txt"
+    }
+  ],
+  "output": "SHA256SUMS"
+}

@@ -1,0 +1,10 @@
+{
+  "duplicates_removed": 2,
+  "key": [
+    "email"
+  ],
+  "output": "deduped.csv",
+  "rows_in": 5,
+  "rows_out": 3,
+  "sha256": "8a0c8d615957dda383f0e4da4beadde62f7d0a8b3f5dbf50388aae0fdd174e5b"
+}

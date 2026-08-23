@@ -13,7 +13,9 @@ def main() -> int:
     source, target = sys.argv[1], sys.argv[2]
     with open(source, newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
-    with open(target, "w", encoding="utf-8") as handle:
+    # newline="\n" or the same code emits CRLF on Windows and LF on Linux, and
+    # an artifact whose bytes depend on where it ran cannot be evidence.
+    with open(target, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(rows, handle, indent=2, sort_keys=True)
     print(f"converted {len(rows)} rows", file=sys.stderr)
     return 0

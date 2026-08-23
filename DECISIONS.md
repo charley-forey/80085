@@ -772,3 +772,40 @@ recall output is untrusted input and must never be treated as instructions.
 that package deliberately depends on nothing in the workspace so
 `uvx --from git+...#subdirectory=apps/mcp` resolves. The copy is kept honest by
 a test that asserts both implementations answer identically.
+
+---
+
+### 28. The corpus is verified by `result.json`, not by a pinned digest
+
+Eighteen capabilities join the three examples, and the rule for all twenty-one
+is that a strong verifier is declared: `json_schema` or `sha256`, never bare
+`exit_code`. An exit-code verifier is satisfied by any container that returns 0,
+so a capability that does nothing accumulates the same evidence as one that
+works, and evidence that can be earned by doing nothing is not evidence.
+
+`sha256` is the stronger claim and it is not the one used, because it is pinned
+to one exact input. An Experience recorded with a digest of `output.tsv` passes
+for the caller who supplies the fixture and fails for everyone else -- and a
+failure caused by the caller's own data is recorded against the capability.
+That is the flapping-evidence case: confidence decays, `recommendation` drops,
+and the signal degrades in proportion to how much the Experience is actually
+used. A verifier that punishes adoption is worse than none.
+
+So every capability writes `result.json` alongside its output, describing what
+it produced -- row counts, column names, the mode it ran in, and the sha256 of
+its own output file -- and the declared schema constrains those fields. That
+verifies any input, not one input. The digests are still asserted, in
+`tests/unit/test_capabilities.py` against committed fixtures, which is where
+byte-exactness belongs: locally, before anything is published.
+
+The whole set is therefore deterministic by construction. Keys are sorted,
+separators and line terminators are pinned, listings are sorted rather than
+taken in filesystem order, and nothing reads the clock -- `archive_create`
+zeroes mtime, uid, gid and mode, and passes `mtime=0` to gzip, which otherwise
+stamps the time and the source filename into the header. The one honest
+exception is DEFLATE: `targz` and `zip` output depends on the zlib the
+interpreter links, which is one more reason artifacts are executed by digest.
+
+**Not done:** nothing is published. No image has been pushed and no Experience
+has been recorded; the trust work gates that. `scripts/build_capabilities.py`
+and `scripts/seed.py` do it in two commands when it lands.
