@@ -165,7 +165,10 @@ class ExperienceVersion(Base):
 
 class Execution(Base):
     __tablename__ = "executions"
-    __table_args__ = (Index("ix_executions_version_status", "experience_version_id", "status"),)
+    __table_args__ = (
+        Index("ix_executions_version_status", "experience_version_id", "status"),
+        Index("ix_executions_queue", "status", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     organization_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -180,6 +183,11 @@ class Execution(Base):
     output_key: Mapped[str | None] = mapped_column(Text)
     logs_key: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
+
+    # Lease bookkeeping: the executions table is the queue (see DECISIONS.md 17).
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    leased_by: Mapped[str | None] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

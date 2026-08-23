@@ -12,8 +12,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from boobs_api import queue
 from boobs_api.routes import router
+from boobs_api.worker_routes import router as worker_router
 from boobs_common import storage
 from boobs_common.errors import (
     Conflict,
@@ -45,7 +45,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 - startup must not depend on S3
         log.warning("object_storage_unavailable_at_startup", error=str(exc))
     yield
-    await queue.close()
     await dispose()
 
 
@@ -57,6 +56,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(router)
+    app.include_router(worker_router)
 
     @app.exception_handler(EightyKError)
     async def domain_error(_: Request, exc: EightyKError) -> JSONResponse:

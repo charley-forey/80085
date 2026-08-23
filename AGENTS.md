@@ -31,7 +31,7 @@ names and docs all read `80085`.
 | Distributions | `80085-api`, `80085-domain`, … |
 | Imports | `boobs_api`, `boobs_domain`, … |
 | Env vars | `BOOBS_API_KEY`, `BOOBS_BOOTSTRAP_TOKEN`, … |
-| Queue | `80085:executions` |
+| Queue | the `executions` table (Postgres) |
 | Registry repos | `<registry>/80085/<capability>` |
 | Containers | `80085-<execution_id>` |
 
@@ -40,10 +40,14 @@ names and docs all read `80085`.
 ```
 AI AGENTS ──► MCP ─┐
                    ├─► API ──┬─► RETRIEVAL ──► EXPERIENCE REGISTRY
-AI AGENTS ──► HTTP ┘         ├─► EVENT STORE
-                             └─► QUEUE ──► WORKER ──► SANDBOX ──► ARTIFACT
-                                                          │
-                                                    VERIFICATION ──► EVIDENCE
+AI AGENTS ──► HTTP ┘    ▲    ├─► EVENT STORE
+                        │    └─► QUEUE (Postgres, SKIP LOCKED)
+                        │              ▲
+                   lease│result        │ lease
+                        └──────── WORKER ──► SANDBOX ──► ARTIFACT
+                                 (off-platform, Docker)
+                        VERIFICATION runs in the API, never in the worker
+                                  └──► EVIDENCE
 ```
 
 **The API never executes an artifact and never touches the Docker daemon.**
@@ -53,7 +57,7 @@ rests on.
 | Path | Role |
 |---|---|
 | `apps/api` | FastAPI. `/v1` endpoints, auth, ranking, enqueue. |
-| `apps/worker` | arq worker. Dequeue → sandbox → events → verify → evidence. |
+| `apps/worker` | HTTPS client. Lease → sandbox → report. Holds only `worker:execute`. |
 | `apps/mcp` | MCP server. Three tools; an HTTP client of the API, not a backdoor. |
 | `apps/web` | Static discovery surface (landing, `llms.txt`, integration docs). |
 | `packages/domain` | Entities and protocols. **Imports no infrastructure, ever.** |
@@ -75,12 +79,13 @@ without the product domain changing.
 Prerequisites: Docker Desktop running, `uv`, Python 3.12+.
 
 ```bash
-docker compose up -d          # postgres(+pgvector), redis, minio, registry
+docker compose up -d          # postgres(+pgvector), minio, registry
 uv sync --all-packages
 uv run alembic upgrade head
 uv run python scripts/build_capabilities.py   # build example artifacts, capture digests
 make api                      # terminal 1
-make worker                   # terminal 2 — must run on a host with Docker
+uv run python scripts/create_worker_key.py    # mint a worker key
+BOOBS_API_KEY=sk_80085_... make worker        # terminal 2 — needs Docker
 uv run python scripts/seed.py # two orgs + the example Experiences
 ```
 
@@ -89,7 +94,8 @@ service commonly owns 5432 and silently wins the bind.
 
 The worker is deliberately absent from `docker-compose.yml`. It needs the
 Docker daemon, and handing a container the host socket would undo the very
-isolation the sandbox provides.
+isolation the sandbox provides. It talks to the API over HTTPS and holds only
+a `worker:execute` key — no database credentials, ever.
 
 ## Tests
 
@@ -126,7 +132,6 @@ Treat every artifact as hostile.
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres DSN (`postgresql+asyncpg://…`). |
-| `REDIS_URL` | Queue. |
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Execution outputs and logs. |
 | `ARTIFACT_REGISTRY` | Registry that `scripts/build_capabilities.py` pushes to. |
 | `SANDBOX_*` | Policy defaults: cpu, memory_mb, tmpfs_mb, timeout_seconds, pids, max_output_bytes. |
@@ -159,6 +164,22 @@ Treat every artifact as hostile.
 * read inputs from and write outputs to `/work`;
 * expect no network, no root, and a read-only root filesystem;
 * exit non-zero on failure — the floor verifier believes the exit code.
+
+## The worker protocol
+
+```
+POST /v1/worker/lease                    -> {"job": {...}} or {"job": null}
+POST /v1/worker/executions/{id}/result   -> records the run, then verifies it
+```
+
+A worker leases the oldest queued execution (`SELECT ... FOR UPDATE SKIP
+LOCKED`), runs it, and reports the raw result. **Verification happens in the
+API**, not in the worker: a worker reports what it saw, and the platform
+decides whether that counts. A worker cannot manufacture evidence.
+
+A claim that is never reported expires (`lease_expires_at`) and the row goes
+back to `queued`; after `MAX_ATTEMPTS` it is failed with a reason rather than
+retried forever.
 
 ## How to add an artifact runtime
 

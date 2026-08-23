@@ -7,27 +7,18 @@ mocked database would test nothing.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 from sqlalchemy import text
+
+from tests.helpers import auth, bootstrap
 
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("docker")]
 
 DIGEST = "sha256:" + "11" * 32
 PINNED = f"registry.test/80085/demo@{DIGEST}"
-
-
-async def bootstrap(api: httpx.AsyncClient, organization: str, agent: str) -> str:
-    response = await api.post(
-        "/v1/bootstrap",
-        json={"organization": organization, "agent": agent, "token": "test-bootstrap"},
-    )
-    assert response.status_code == 201, response.text
-    return str(response.json()["api_key"])
-
-
-def auth(key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {key}"}
 
 
 def ids(response: httpx.Response) -> set[str]:
@@ -203,30 +194,23 @@ async def test_required_capability_must_be_offered_by_the_caller(
 # --------------------------------------------------------------- immutability
 
 
-async def test_recorded_versions_cannot_be_rewritten(
-    api: httpx.AsyncClient, database_url: str
-) -> None:
+async def test_recorded_versions_cannot_be_rewritten(api: httpx.AsyncClient, db: Any) -> None:
     """Evidence is attached to a version. If the version could change, the
     evidence would be about something that no longer exists."""
     key = await bootstrap(api, "immutable-org", "immutable-agent")
     created = await api.post("/v1/experiences", headers=auth(key), json=payload())
     version_id = created.json()["experience_version_id"]
 
-    from boobs_schemas.db import session
+    with pytest.raises(Exception, match="append-only"):
+        await db.execute(
+            text("UPDATE experience_versions SET command = '{}' WHERE id = :id"),
+            {"id": version_id},
+        )
+    await db.rollback()
 
-    async with session() as db:
-        with pytest.raises(Exception, match="append-only"):
-            await db.execute(
-                text("UPDATE experience_versions SET command = '{}' WHERE id = :id"),
-                {"id": version_id},
-            )
-        await db.rollback()
-
-        with pytest.raises(Exception, match="append-only"):
-            await db.execute(
-                text("DELETE FROM experience_versions WHERE id = :id"), {"id": version_id}
-            )
-        await db.rollback()
+    with pytest.raises(Exception, match="append-only"):
+        await db.execute(text("DELETE FROM experience_versions WHERE id = :id"), {"id": version_id})
+    await db.rollback()
 
 
 async def test_authentication_is_required_and_bad_keys_are_refused(

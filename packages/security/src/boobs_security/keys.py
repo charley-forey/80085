@@ -23,9 +23,16 @@ class Scope:
     EXPERIENCES_WRITE: Final = "experiences:write"
     EXECUTIONS_RUN: Final = "executions:run"
     EXECUTIONS_VERIFY: Final = "executions:verify"
+    # A worker leases jobs and reports raw results. It is deliberately NOT
+    # granted the other scopes: it cannot read the registry or record anything.
+    WORKER: Final = "worker:execute"
     ADMIN: Final = "admin"
 
+    # What an ordinary agent gets. Deliberately excludes WORKER and ADMIN.
     ALL: Final = frozenset({EXPERIENCES_READ, EXPERIENCES_WRITE, EXECUTIONS_RUN, EXECUTIONS_VERIFY})
+    # Everything that may be granted. A scope outside this set is a typo, and
+    # a typo that silently grants nothing is worse than a rejected request.
+    KNOWN: Final = ALL | frozenset({WORKER, ADMIN})
 
 
 def generate() -> tuple[str, str]:

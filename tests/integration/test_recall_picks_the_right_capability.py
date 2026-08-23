@@ -11,23 +11,12 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from tests.helpers import auth, bootstrap
+
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("docker")]
 
 DIGEST_A = "sha256:" + "aa" * 32
 DIGEST_B = "sha256:" + "bb" * 32
-
-
-async def bootstrap(api: httpx.AsyncClient, organization: str, agent: str) -> str:
-    response = await api.post(
-        "/v1/bootstrap",
-        json={"organization": organization, "agent": agent, "token": "test-bootstrap"},
-    )
-    assert response.status_code == 201, response.text
-    return str(response.json()["api_key"])
-
-
-def auth(key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {key}"}
 
 
 async def record(

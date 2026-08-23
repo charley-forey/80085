@@ -29,6 +29,23 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class BootstrapRequest(Strict):
+    """Mints an organization, an agent and its first API key.
+
+    A single model rather than several Body(embed=True) parameters: sharing one
+    Body marker across parameters silently mis-parses the request, which is a
+    very quiet way to make every credential check fail.
+    """
+
+    organization: str = Field(min_length=1, max_length=200)
+    agent: str = Field(min_length=1, max_length=200)
+    token: str = Field(min_length=1)
+    scopes: list[str] | None = Field(
+        default=None,
+        description='Defaults to the ordinary agent scopes. Pass ["worker:execute"] for a worker.',
+    )
+
+
 class GoalIn(Strict):
     statement: str = Field(min_length=3, max_length=2000)
     intent: str = Field(min_length=2, max_length=200)
