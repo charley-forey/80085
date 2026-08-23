@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import RuntimeUnavailable
 from boobs_execution.e2b_runtime import (
     REGISTRY_PASSWORD_ENV,
     REGISTRY_USER_ENV,
@@ -42,7 +42,7 @@ def test_half_a_credential_is_refused_loudly(monkeypatch: pytest.MonkeyPatch, pr
     monkeypatch.delenv(REGISTRY_USER_ENV, raising=False)
     monkeypatch.delenv(REGISTRY_PASSWORD_ENV, raising=False)
     monkeypatch.setenv(present, "half")
-    with pytest.raises(ExecutionFailed, match="half a credential"):
+    with pytest.raises(RuntimeUnavailable, match="half a credential"):
         registry_credentials()
 
 

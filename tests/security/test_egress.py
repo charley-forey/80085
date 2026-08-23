@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from boobs_common.errors import ExecutionFailed
+from boobs_common.errors import RuntimeUnavailable
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
 from boobs_execution import DockerOciRuntime
@@ -83,7 +83,7 @@ async def filtering() -> str:
     """
     try:
         return await DockerOciRuntime()._egress_network()  # noqa: SLF001
-    except ExecutionFailed as refusal:
+    except RuntimeUnavailable as refusal:
         if sys.platform != "linux":
             pytest.skip(f"no iptables on {sys.platform}; egress filtering is untestable here")
         pytest.fail(
@@ -128,7 +128,7 @@ async def attempt(image: str, code: str) -> SandboxResult | str:
     )
     try:
         return await DockerOciRuntime().execute(request)
-    except ExecutionFailed as refusal:
+    except RuntimeUnavailable as refusal:
         return str(refusal)
 
 

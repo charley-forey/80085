@@ -31,6 +31,7 @@ from typing import Any
 import httpx
 
 from boobs_common.config import settings
+from boobs_common.errors import RuntimeUnavailable
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
 from boobs_execution import runtime as select_runtime
@@ -44,6 +45,12 @@ runtime = select_runtime()
 
 IDLE_SLEEP_SECONDS = 3.0
 ERROR_SLEEP_SECONDS = 10.0
+# Consecutive RuntimeUnavailable results after which this worker gives up and
+# exits. Three, not one: a registry hiccup or a daemon restart is transient and
+# should not take the worker down, but a broken runtime is permanent and a
+# worker that cannot run anything must leave the pool rather than keep winning
+# leases it will only abandon.
+MAX_RUNTIME_FAILURES = 3
 _stopping = asyncio.Event()
 
 
@@ -90,7 +97,16 @@ async def run_job(job: dict[str, Any]) -> SandboxResult:
         span.set_attribute("execution.image", job["image"])
         try:
             result = await runtime.execute(request)
-        except Exception as exc:  # noqa: BLE001 - a runtime failure is a failed run
+        except RuntimeUnavailable:
+            # This worker could not run it, which is not evidence about the
+            # Experience. Returning FAILED here -- as this did, on the strength
+            # of a comment reading "a runtime failure is a failed run" -- writes
+            # a failed run into the confidence of a solution that may be
+            # perfectly good. Let it reach the caller, which reports nothing and
+            # leaves the job for a worker that can run it.
+            log.error("runtime_unavailable", execution_id=job["execution_id"], exc_info=True)
+            raise
+        except Exception as exc:  # noqa: BLE001 - the artifact failed to produce a result
             log.error("sandbox_error", execution_id=job["execution_id"], error=str(exc))
             span.set_attribute("execution.error", str(exc))
             return SandboxResult(
@@ -144,6 +160,7 @@ async def report(http: httpx.AsyncClient, job: dict[str, Any], result: SandboxRe
 async def loop() -> None:
     configure("80085-worker")
     identity = worker_id()
+    consecutive_failures = 0
     async with client() as http:
         log.info("worker_started", worker_id=identity, api=str(http.base_url))
         while not _stopping.is_set():
@@ -175,7 +192,36 @@ async def loop() -> None:
             log.info("job_leased", execution_id=job["execution_id"], image=job["image"])
             with tracing.start_as_current_span("worker.job") as span:
                 span.set_attribute("execution.id", job["execution_id"])
-                result = await run_job(job)
+                try:
+                    result = await run_job(job)
+                except RuntimeUnavailable as exc:
+                    # Report nothing. `leases.reclaim_expired` returns the job to
+                    # the queue when the lease lapses and gives up after
+                    # MAX_ATTEMPTS, so an unreported job is retried by a worker
+                    # that can run it rather than being blamed on the artifact.
+                    span.set_attribute("execution.runtime_unavailable", True)
+                    consecutive_failures += 1
+                    log.error(
+                        "job_abandoned",
+                        execution_id=job["execution_id"],
+                        error=str(exc),
+                        consecutive=consecutive_failures,
+                    )
+                    # A worker that cannot run anything must remove itself. It
+                    # is not merely useless: SKIP LOCKED means whoever polls
+                    # first wins, and a worker that fails in milliseconds
+                    # out-competes a healthy one that takes seconds to run a
+                    # container. Staying in the pool starves the workers that
+                    # work.
+                    if consecutive_failures >= MAX_RUNTIME_FAILURES:
+                        raise SystemExit(
+                            f"the runtime failed {consecutive_failures} times in a row and "
+                            f"this worker cannot execute anything: {exc}"
+                        ) from exc
+                    await _sleep(ERROR_SLEEP_SECONDS)
+                    continue
+
+                consecutive_failures = 0
                 with tracing.start_as_current_span("worker.report"):
                     await report(http, job, result)
 
