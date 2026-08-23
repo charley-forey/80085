@@ -184,7 +184,9 @@ async def test_execute_stages_inputs_outside_the_transaction(
     the bucket yet it would run the artifact against nothing and the platform
     would record that as evidence.
     """
-    db = RecordingSession(None)  # the idempotency lookup finds nothing
+    # The rate limiter goes first: one statement to keep its commit off the
+    # disk, one to count the hit. Then the idempotency lookup finds nothing.
+    db = RecordingSession(None, 1, None)
     bucket = Bucket(db)
     use_bucket(monkeypatch, bucket)
 

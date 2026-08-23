@@ -12,10 +12,16 @@ covered by the ranking tests.
 
 from __future__ import annotations
 
-import pytest
+import inspect
+from types import SimpleNamespace
+from typing import Any
 
+import pytest
+from starlette.requests import Request
+
+from boobs_api import routes
 from boobs_api.deps import ANONYMOUS, get_principal_or_anonymous
-from boobs_api.limits import RateLimited, Window
+from boobs_api.limits import RateLimited, Window, client_ip
 from boobs_common.errors import Unauthorized
 from boobs_domain.enums import Visibility
 from boobs_domain.protocols import Principal
@@ -123,27 +129,58 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
 # ------------------------------------------------------------------- the limits
 
 
-def test_a_window_allows_up_to_the_limit_then_refuses() -> None:
-    window = Window(limit=3, seconds=60, what="testing")
+class Counters:
+    """The rate_limits table, minus Postgres.
+
+    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`,
+    so a dict keyed the same way does the same arithmetic and these stay unit
+    tests. That the SQL means what this says it means -- including across
+    processes, which is the whole point of moving the counter into the
+    database -- is asserted in tests/integration/test_rate_limits.py.
+    """
+
+    def __init__(self) -> None:
+        self.rows: dict[tuple[str, int], int] = {}
+
+    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+        if params is None:  # the SET LOCAL that keeps this commit off the disk
+            return None
+        row = (params["bucket"], params["window_start"])
+        self.rows[row] = self.rows.get(row, 0) + 1
+        return SimpleNamespace(scalar_one=lambda: self.rows[row])
+
+    async def commit(self) -> None: ...
+
+
+async def test_a_window_allows_up_to_the_limit_then_refuses() -> None:
+    window, db = Window(limit=3, seconds=60, what="testing"), Counters()
     for _ in range(3):
-        window.check("1.2.3.4")
+        await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
     with pytest.raises(RateLimited):
-        window.check("1.2.3.4")
+        await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
 
 
-def test_callers_are_limited_separately() -> None:
-    window = Window(limit=1, seconds=60, what="testing")
-    window.check("1.1.1.1")
-    window.check("2.2.2.2")  # must not raise
+async def test_callers_are_limited_separately() -> None:
+    window, db = Window(limit=1, seconds=60, what="testing"), Counters()
+    await window.check(db, "1.1.1.1")  # type: ignore[arg-type]
+    await window.check(db, "2.2.2.2")  # type: ignore[arg-type] - must not raise
     with pytest.raises(RateLimited):
-        window.check("1.1.1.1")
+        await window.check(db, "1.1.1.1")  # type: ignore[arg-type]
 
 
-def test_the_message_says_what_to_do_about_it() -> None:
-    window = Window(limit=1, seconds=60, what="recall")
-    window.check("1.2.3.4")
+async def test_limits_of_different_lengths_do_not_share_a_counter() -> None:
+    """One table holds every window now, so the name has to be part of the key."""
+    db, ip = Counters(), "1.2.3.4"
+    await Window(limit=1, seconds=60, what="recall").check(db, ip)  # type: ignore[arg-type]
+    await Window(limit=1, seconds=3600, what="minting").check(db, ip)  # type: ignore[arg-type]
+    assert len(db.rows) == 2
+
+
+async def test_the_message_says_what_to_do_about_it() -> None:
+    window, db = Window(limit=1, seconds=60, what="recall"), Counters()
+    await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
     with pytest.raises(RateLimited) as caught:
-        window.check("1.2.3.4")
+        await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
     assert "recall" in str(caught.value)
     assert "open source" in str(caught.value)
 
@@ -155,6 +192,60 @@ def test_reading_is_the_most_generous_limit() -> None:
     per_second = lambda w: w.limit / w.seconds  # noqa: E731
     assert per_second(limits.RECALL) > per_second(limits.RECORD)
     assert per_second(limits.RECORD) > per_second(limits.EXECUTE)
+    assert per_second(limits.RECALL) > per_second(limits.VERIFY)
+
+
+# Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
+# an authenticated, idempotent write against the caller's own organization --
+# throttling it would slow down burning a leaked key, which is the one write
+# that should never be slow.
+UNLIMITED = {"/v1/bootstrap", "/v1/keys/{key_id}/revoke"}
+
+
+def test_every_write_path_is_rate_limited() -> None:
+    """verify_execution had no limiter at all while every sibling had one.
+
+    It is the endpoint that turns a finished run into evidence, and evidence
+    is the entire product, so it was the wrong one to leave open. Asserted
+    over the router rather than over a list, because the next write endpoint
+    added should have to answer this question too.
+    """
+    unlimited = [
+        route.path
+        for route in routes.router.routes
+        if "POST" in getattr(route, "methods", set())
+        and route.path not in UNLIMITED
+        and "limits." not in inspect.getsource(route.endpoint)  # type: ignore[attr-defined]
+    ]
+    assert not unlimited, f"write paths with no rate limit: {unlimited}"
+
+
+# --------------------------------------------------------- who the caller is
+
+
+def _request(**headers: str) -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/",
+            "query_string": b"",
+            "client": ("10.0.0.9", 5000),
+            "headers": [(k.replace("_", "-").encode(), v.encode()) for k, v in headers.items()],
+        }
+    )
+
+
+def test_a_caller_cannot_choose_their_own_rate_limit_bucket() -> None:
+    """X-Forwarded-For is appended to by each hop, so everything to the left
+    of the last entry is whatever the caller sent. Reading the leftmost value
+    let anyone mint unlimited keys by varying one header -- and minting is the
+    root of the Sybil tree: a fresh organization per key, no identity."""
+    assert client_ip(_request(x_forwarded_for="1.2.3.4, 203.0.113.7")) == "203.0.113.7"
+
+
+def test_a_direct_caller_is_their_socket_address() -> None:
+    assert client_ip(_request()) == "10.0.0.9"
 
 
 # ------------------------------------------------------- minting without asking

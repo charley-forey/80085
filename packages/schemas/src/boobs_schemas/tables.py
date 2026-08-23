@@ -319,3 +319,22 @@ class RecallMiss(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
+
+
+class RateLimit(Base):
+    """One counter per caller, per limit, per time window.
+
+    Belongs to no tenant: it is keyed by client address, and the callers that
+    matter most to limit are the ones with no key yet. Written on the hot path
+    of a keyless endpoint, so it is deliberately one row and one statement --
+    see apps/api/src/boobs_api/limits.py for the shape and its ceilings.
+    """
+
+    __tablename__ = "rate_limits"
+
+    # "<what>:<client address>", so limits of different lengths never share a
+    # row and one cutoff expires all of them.
+    bucket: Mapped[str] = mapped_column(String(300), primary_key=True)
+    # Epoch seconds, aligned down to the window length.
+    window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

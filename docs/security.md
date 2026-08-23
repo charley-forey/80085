@@ -154,6 +154,35 @@ SHA-256 hashed at rest, scoped, revocable, and stamped with `last_used_at` on
 every request. The plaintext exists exactly once, in the response that created
 it. A database dump yields no working credentials.
 
+**Revoking one:** `POST /v1/keys/{key_id}/revoke`. Any key in the owning
+organization may revoke that organization's keys — there is no account to log
+into, so the organization is the only owner there is, and it is exactly the
+set that has to be burnable when one leaks. `admin` reaches across
+organizations; nothing else does, because revocation aimed at a stranger's key
+is a denial of service and anyone can mint a key for free. A revoked key fails
+at authentication on the very next request.
+
+The `key_id` is returned by `/v1/keys` and `/v1/bootstrap` and is not
+recoverable afterwards, for the same reason the key itself is not.
+
+**Both endpoints commit before they answer.** A credential the caller can act
+on is committed before they are told what it is; see `DECISIONS.md` §38 for
+the race this fixes and why it looked like CI flake for a week.
+
+## Rate limits
+
+Per client address, counted in Postgres (`rate_limits`) so the window is one
+window whatever replica takes the request. The address is the **last**
+`X-Forwarded-For` entry — each hop appends the address it received the
+connection from, so anything to its left is whatever the caller sent, and
+trusting that let a caller choose their own bucket. Behind exactly one trusted
+proxy the last entry is the real client; behind two it is not, which is the
+known ceiling recorded in `limits.py`.
+
+Limits are a floor under openness, not a business rule: the defence that
+actually protects the corpus is evidence gating, because an Experience with no
+verified runs is never recommended however many are recorded.
+
 ## Testing this
 
 `tests/security/` attacks the sandbox with real containers and real payloads:
