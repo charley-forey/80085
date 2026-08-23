@@ -303,16 +303,25 @@ Successful solutions get stronger. Failed solutions get *specific*. 🔬
 ```
 AI AGENTS ──► MCP ─┐
                    ├─► API ──┬─► RETRIEVAL ──► EXPERIENCE REGISTRY
-AI AGENTS ──► HTTP ┘         ├─► EVENT STORE
-                             └─► QUEUE ──► WORKER ──► SANDBOX ──► ARTIFACT
-                                                          │
-                                                    VERIFICATION ──► EVIDENCE
+AI AGENTS ──► HTTP ┘    ▲    ├─► EVENT STORE
+                        │    └─► QUEUE (Postgres, SKIP LOCKED)
+                        │              ▲
+                   lease│result        │ lease
+                        └──────── WORKER ──► SANDBOX ──► ARTIFACT
+                                 (off-platform, Docker)
+                        VERIFICATION runs in the API, never in the worker
+                                  └──► EVIDENCE
 ```
 
 > ⛔ **The API never executes an artifact and never touches the Docker daemon.**
 >
 > That is not a style preference. It is the boundary the entire security model
 > rests on. The API reads, ranks, records, and enqueues. That's it.
+>
+> The worker is the mirror image: it runs containers and holds **no database
+> credentials at all**. It leases a job over HTTPS, runs it, and reports the
+> raw result. It does not get to decide whether the run succeeded — the API
+> verifies. Neither side can do the other's job, which is the point. 🪞
 
 ### 📦 The map
 
@@ -401,12 +410,16 @@ All weights live in exactly one file:
 If a recall result looks wrong, that is the only place to look. 🎯
 
 ```python
-final_score = relevance × (0.45 + 0.55 × quality)
+final_score = relevance² × (0.45 + 0.55 × quality)
 ```
 
-**Relevance multiplies. It never adds.** Evidence can only amplify a match that
-is already the right thing — no quantity of proven runs should let an
-Experience win a task it does not perform. 🧨
+**Relevance multiplies, and it is squared.** Evidence can only amplify a match
+that is already the right thing — no quantity of proven runs should let an
+Experience win a task it does not perform. The exponent is not decoration:
+with a linear term, three successful runs of *CSV → JSON* out-ranked a perfect
+match for *JSON → CSV* by 0.011, and the agent was handed a capability that
+could not possibly work. Running the wrong thing is not a slightly worse
+outcome — it is a guaranteed failure, so relevance counts superlinearly. 🧨
 
 `quality` is the weighted sum of:
 
@@ -573,7 +586,11 @@ tenant information and cannot be enumerated.
   only as a SHA-256 hash, and compared in constant time. The plaintext exists
   exactly once — in the response that created it. Lose it and it is gone. 🫠
 - Scopes: `experiences:read`, `experiences:write`, `executions:run`,
-  `executions:verify`, `admin`.
+  `executions:verify`, `worker:execute`, `admin`. A worker key holds only
+  `worker:execute` — the least a thing can hold and still be useful.
+- `/v1/ready` checks pgvector separately from the database, because it fails
+  separately: a Postgres image without the extension answers `SELECT 1`
+  cheerfully while every recall 500s. 🩺
 - Visibility: `private` (creating agent) · `organization` (owning org) ·
   `public` (everyone — this is what makes cross-agent reuse possible).
 - **Mutating** an Experience requires *owning* it. **Using** one — reading,
@@ -645,20 +662,42 @@ MCP is the shortest path from an agent to 80085, so the tool surface is
 deliberately tiny: **ask, run, contribute.** The MCP server is an HTTP client
 of the API like anybody else — no database access, no privileged path. 🚪
 
+The lazy way, which finds your agent's config, shows you the diff, backs the
+file up, writes it, and checks the API answers:
+
+```bash
+npx @80085/cli init
+```
+
+The manual way:
+
 ```json
 {
   "mcpServers": {
     "80085": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "boobs_mcp.server"],
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/charley-forey/80085#subdirectory=apps/mcp", "80085-mcp"],
       "env": {
-        "BOOBS_API_URL": "http://localhost:8000",
+        "BOOBS_API_URL": "https://api.80085.ai",
         "BOOBS_API_KEY": "sk_80085_…"
       }
     }
   }
 }
 ```
+
+### 🔑 The server holds no key of its own
+
+Two modes, and the difference matters:
+
+- **local** (`stdio`) — one user, key from `BOOBS_API_KEY`.
+- **hosted** (`streamable-http`) — every caller sends **its own** key as
+  `Authorization: Bearer sk_80085_…` and the server forwards it. One
+  deployment serves every tenant, nobody shares a credential, and the API
+  stays the single authority on who may do what.
+
+A hosted server with one shared key would let any caller act as its owner.
+That is why it is not an option. 🙅
 
 | Tool | Use it when |
 |---|---|
@@ -682,7 +721,7 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 
 | Method | Path | Verb it serves |
 |---|---|---|
-| `GET` | `/v1/health` · `/v1/ready` | Liveness · readiness (db, object storage, queue depth) |
+| `GET` | `/v1/health` · `/v1/ready` | Liveness · readiness (database, **pgvector**, object storage) plus reported queue depth |
 | `POST` | `/v1/bootstrap` | Mint an org + agent + first key (guarded by `BOOBS_BOOTSTRAP_TOKEN`) |
 | `POST` | `/v1/experiences` | **RECORD** |
 | `GET` | `/v1/experiences/{id}` | **DISCOVER** |
@@ -691,6 +730,12 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 | `GET` | `/v1/executions/{id}` | Result, outputs, verdict |
 | `GET` | `/v1/executions/{id}/events` | The append-only event stream |
 | `POST` | `/v1/executions/{id}/verify` | **VERIFY** — turn an execution into evidence, or refuse to |
+| `POST` | `/v1/worker/lease` | Worker-only. Claim the next queued execution, or get `{"job": null}` |
+| `POST` | `/v1/worker/executions/{id}/result` | Worker-only. Report the raw run; the API records it and verifies it |
+
+The two `/v1/worker` endpoints require the `worker:execute` scope and nothing
+else. That scope cannot read an Experience, record one, or run one on demand —
+it can only take work that was already queued and say what happened. 🔒
 
 ### 🔍 Recall
 
@@ -856,10 +901,11 @@ executable artifact*. **What it does not measure:** an LLM token and tool-call
 cost, which needs a real agent harness and real model credentials. Those
 columns stay empty rather than invented. 📏
 
-> ⚠️ **Read this before quoting numbers.** The `benchmarks/results.json`
-> checked into this repo comes from a local run in which the **treatment arm
+> ⚠️ **Read this before quoting numbers.** `benchmarks/results.json` is
+> gitignored, because a benchmark result is a property of the machine that ran
+> it, not of the repository. The last local run recorded a **treatment arm that
 > did not pass verification** (`"verified": "NO"`, treatment slower than
-> control). Treat it as a harness smoke test, not a performance claim. 80085
+> control). Treat the harness as working and the numbers as unproven. 80085
 > makes no speed claim until that file shows verified successes on both arms.
 > Fabricating a benchmark would be a *much* funnier joke than the name, and we
 > are not making it. 🚫📉
@@ -916,7 +962,9 @@ during a demo. Yes, that is the price of admission. 🎟️😌
 | `SANDBOX_CPU`, `SANDBOX_MEMORY_MB`, `SANDBOX_TMPFS_MB`, `SANDBOX_TIMEOUT_SECONDS`, `SANDBOX_PIDS`, `SANDBOX_MAX_OUTPUT_BYTES` | Sandbox policy defaults, overridable per Experience |
 | `BOOBS_BOOTSTRAP_TOKEN` | Guards `/v1/bootstrap`, which mints API keys |
 | `BOOBS_EMBEDDER` | `auto` (default) · `fastembed` · `hashing` |
-| `BOOBS_API_KEY`, `BOOBS_API_URL` | Used by the MCP server to call the API |
+| `BOOBS_API_KEY`, `BOOBS_API_URL` | How the worker and the local MCP server reach the API |
+| `BOOBS_WORKER_ID` | Identifies the worker holding a lease |
+| `BOOBS_MCP_TRANSPORT` | `stdio` (default, local) · `sse` · `streamable-http` (hosted) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset keeps tracing in-process |
 
 Start from [`.env.example`](.env.example). Never commit `.env`.
@@ -1043,8 +1091,9 @@ issue.
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ Three, stdlib-only |
 | Benchmark harness | ⚠️ Runs; the checked-in results are **not** a performance claim |
-| `apps/web` public surface | 🚧 Specified, not built |
-| `docs/` | 🚧 Empty; `AGENTS.md` + the spec are the real documentation |
+| `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
+| `npx @80085/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
+| `docs/` | ✅ `architecture.md`, `security.md`, `benchmarks.md`; decisions in `DECISIONS.md` |
 | License | 🚧 None yet — all rights reserved until a `LICENSE` lands |
 
 ---
