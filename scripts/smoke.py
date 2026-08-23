@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import base64
 import json
+import secrets
 import sys
 from pathlib import Path
 
@@ -56,8 +57,14 @@ async def main() -> int:
             return 2
         reference = json.loads(DIGESTS.read_text())["csv_to_json"]
 
+    # Every run writes into the target registry, so it labels its own data and
+    # recalls a phrase only this run could have recorded. Without that, run N
+    # finds run N-1's identical Experience and the check proves nothing.
+    run_id = secrets.token_hex(3)
+    statement = f"Convert a CSV file into a normalized JSON array of objects (smoke {run_id})"
+
     smoke = Smoke()
-    print(f"smoke testing {args.url}\n")
+    print(f"smoke testing {args.url}  [run {run_id}]\n")
 
     async with httpx.AsyncClient(base_url=args.url, timeout=float(args.wait + 30)) as client:
         health = await client.get("/v1/health")
@@ -75,13 +82,21 @@ async def main() -> int:
 
         producer = await client.post(
             "/v1/bootstrap",
-            json={"organization": "smoke-producer", "agent": "smoke-a", "token": args.token},
+            json={
+                "organization": f"smoke-producer-{run_id}",
+                "agent": "smoke-a",
+                "token": args.token,
+            },
         )
         if not smoke.check("bootstrap producer", producer.status_code == 201, producer.text[:200]):
             return 1
         consumer = await client.post(
             "/v1/bootstrap",
-            json={"organization": "smoke-consumer", "agent": "smoke-b", "token": args.token},
+            json={
+                "organization": f"smoke-consumer-{run_id}",
+                "agent": "smoke-b",
+                "token": args.token,
+            },
         )
         smoke.check("bootstrap consumer", consumer.status_code == 201, consumer.text[:200])
 
@@ -95,9 +110,9 @@ async def main() -> int:
             headers=auth_a,
             json={
                 "goal": {
-                    "statement": "Convert a CSV file into a normalized JSON array of objects",
+                    "statement": statement,
                     "intent": "csv_to_json",
-                    "tags": ["smoke", "csv", "json"],
+                    "tags": ["smoke", "csv", "json", run_id],
                 },
                 "artifact": {"type": "oci", "reference": reference},
                 "command": ["python", "/app/main.py", "input.csv", "output.json"],
@@ -161,8 +176,11 @@ async def main() -> int:
             "/v1/experiences/recall",
             headers=auth_b,
             json={
-                "task": "turn comma separated tabular data into json records",
+                # Recall the phrase only this run recorded, so a registry full
+                # of older smoke runs cannot make this pass or fail by accident.
+                "task": statement,
                 "context": {"runtime": "python"},
+                "limit": 20,
             },
         )
         matches = recall.json().get("matches", []) if recall.status_code == 200 else []
