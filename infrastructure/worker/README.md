@@ -32,7 +32,8 @@ work or the host is not fresh.
 | **Docker** | The sandbox. `DECISIONS.md` 10 explains why this cannot be a managed container platform: handing a container the host's Docker socket undoes the isolation the sandbox exists to provide. |
 | **`CAP_NET_ADMIN`** | To install the egress rules. Without it a `network: true` run is refused rather than run unfiltered. |
 | **Outbound HTTPS** | The worker is an HTTPS client of the API and nothing else. It holds no database or object-storage credential (decision 17). |
-| **~2 vCPU, 2 GB** | The default sandbox limits are `SANDBOX_CPU=2`, `SANDBOX_MEMORY_MB=2048`. One worker runs one sandbox at a time. |
+| **~2 vCPU, 4 GB** | The default sandbox limits are `SANDBOX_CPU=2`, `SANDBOX_MEMORY_MB=2048`, and the daemon needs room beside them. One worker runs one sandbox at a time. |
+| **x86, not ARM** | Every capability image is `linux/amd64` and every Experience declares `architecture: amd64`, which is a hard filter in recall. An ARM host would emulate every sandbox, and the cheap tier at most providers is ARM -- so this is the requirement that costs money. |
 
 A small always-on VM is enough. Capacity is added by adding hosts, not by
 making one bigger — executions are leased from Postgres with
@@ -52,7 +53,11 @@ sudo useradd --system --create-home --home-dir /opt/80085 --shell /usr/sbin/nolo
 sudo usermod -aG docker boobs
 
 # 2. The code.
-sudo -u boobs git clone https://github.com/charley-forey/80085.git /opt/80085
+# Not straight into /opt/80085: useradd --create-home has already put skel
+# files there, and git refuses a non-empty target.
+git clone --depth 1 https://github.com/charley-forey/80085.git /tmp/80085src
+sudo cp -a /tmp/80085src/. /opt/80085/ && sudo rm -rf /tmp/80085src
+sudo chown -R boobs:boobs /opt/80085
 cd /opt/80085
 sudo -u boobs uv sync --frozen
 
@@ -86,7 +91,10 @@ sudo systemctl enable --now 80085-worker
 ```
 
 If the artifacts are in a private registry, the `boobs` user needs a Docker
-login for it too — the runtime pulls as whoever runs it:
+login **as well as** the two variables above. The variables let the E2B runtime
+authenticate a template build; this login is what lets the local Docker daemon
+pull, and the runtime pulls as whoever runs it — so a login as `root` does not
+help a service running as `boobs`:
 
 ```bash
 sudo -u boobs docker login <registry> -u <user>
