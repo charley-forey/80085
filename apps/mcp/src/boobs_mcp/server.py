@@ -17,7 +17,10 @@ This server holds no API key of its own. It runs in one of two modes:
   deployment serves every tenant, nobody shares a credential, and the API
   stays the single authority on who may do what. The header is never treated
   as an identity assertion here; it is passed through and the API decides.
-* **local** (`stdio`) -- one user, key from `BOOBS_API_KEY`.
+* **local** (`stdio`) -- one user. Key from `BOOBS_API_KEY` if set,
+  otherwise minted on the first call that needs one and remembered in
+  `~/.80085/key`. Recall never triggers that, because recall never needs
+  a key.
 
 A hosted server with a single shared key would let any caller act as its
 owner, which is why that is not an option.
@@ -27,6 +30,7 @@ from __future__ import annotations
 
 import base64
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -58,12 +62,54 @@ class MissingKey(RuntimeError):
     """Raised when neither the caller nor the environment supplied a key."""
 
 
-def _api_key(ctx: Context | None, *, required: bool = True) -> str | None:
-    """The caller's key if this is a hosted request, else the local one.
+# Where a self-minted key is remembered, so the first write is the only one
+# that costs a round trip.
+KEY_FILE = Path.home() / ".80085" / "key"
+
+
+def _remembered() -> str | None:
+    """The key an earlier run minted, if there was one."""
+    try:
+        return KEY_FILE.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+async def _mint() -> str | None:
+    """Get a key with nobody in the loop, and remember it.
+
+    Local mode only. The hosted server is multi-tenant, so minting there would
+    file every caller's contributions under whoever connected first.
+    """
+    base = os.environ.get("BOOBS_API_URL", DEFAULT_API_URL)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(f"{base}/v1/keys", params={"label": "mcp"})
+        response.raise_for_status()
+        key = str(response.json()["api_key"])
+    except (httpx.HTTPError, KeyError, ValueError):
+        return None
+    try:
+        KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        KEY_FILE.write_text(key, encoding="utf-8")
+        KEY_FILE.chmod(0o600)
+    except OSError:
+        pass  # usable now, minted again next run: better than failing the write
+    return key
+
+
+async def _api_key(ctx: Context | None, *, required: bool = True) -> str | None:
+    """The caller's key if this is a hosted request, else a local one.
 
     `required=False` for recall, which is answerable without any credential --
     an agent that has just discovered this server should be able to ask it
-    something before deciding whether to sign up for anything.
+    something before deciding whether to sign up for anything. That path never
+    mints: a reader who is handed a credential it never uses is a credential
+    nobody can tell apart from abuse.
+
+    A local write, though, does not stop to ask. There is no signup to send
+    anyone to and nothing for them to decide, so the question would be a
+    formality with a dead end at the end of it.
     """
     headers = getattr(ctx, "headers", None) if ctx is not None else None
     if headers:
@@ -71,19 +117,26 @@ def _api_key(ctx: Context | None, *, required: bool = True) -> str | None:
         if supplied:
             return supplied if supplied.lower().startswith("bearer ") else f"Bearer {supplied}"
 
-    key = os.environ.get("BOOBS_API_KEY", "")
+    key = os.environ.get("BOOBS_API_KEY", "") or _remembered() or ""
     if not key:
         if not required:
             return None
+        # `headers is None` is stdio: one user, one home directory to cache
+        # into. Anything else is hosted, where the caller owns the credential.
+        if headers is None:
+            key = await _mint() or ""
+    if not key:
         raise MissingKey(
-            "No 80085 API key. Send 'Authorization: Bearer sk_80085_...' with the "
-            "request, or set BOOBS_API_KEY when running this server locally."
+            "No 80085 API key, and one could not be minted. There is no signup: "
+            "`curl -X POST https://api.80085.ai/v1/keys` returns one, and it is "
+            "yours. Send it as 'Authorization: Bearer sk_80085_...', or set "
+            "BOOBS_API_KEY when running this server locally."
         )
     return f"Bearer {key}"
 
 
-def _client(ctx: Context | None, *, required: bool = True) -> httpx.AsyncClient:
-    key = _api_key(ctx, required=required)
+async def _client(ctx: Context | None, *, required: bool = True) -> httpx.AsyncClient:
+    key = await _api_key(ctx, required=required)
     return httpx.AsyncClient(
         base_url=os.environ.get("BOOBS_API_URL", DEFAULT_API_URL),
         headers={"Authorization": key} if key else {},
@@ -95,7 +148,7 @@ async def _post(
     ctx: Context | None, path: str, payload: dict[str, Any], *, required: bool = True
 ) -> dict[str, Any]:
     try:
-        async with _client(ctx, required=required) as client:
+        async with await _client(ctx, required=required) as client:
             response = await client.post(path, json=payload)
     except MissingKey as exc:
         return {"error": "unauthenticated", "detail": str(exc)}

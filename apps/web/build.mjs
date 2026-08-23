@@ -476,7 +476,7 @@ function ansiInstall(c) {
     '       }',
     '     }',
     '',
-    `  ${c.dim('No key yet? Self-serve signup is not built. See 80085.ai/key.')}`,
+    `  ${c.dim('No key? `curl -X POST ' + API + '/v1/keys` returns one. No signup.')}`,
     ''
   ].join('\n');
 }
@@ -539,7 +539,7 @@ already exists."
 
 ## Status
 
-The API is live. Self-serve signup is not built yet — keys are issued by hand.
+The API is live. Keys are self-serve: one POST, no signup, no human in the loop.
 No success-rate claim is made until both benchmark arms show verified runs.
 
 ## Source
@@ -790,8 +790,22 @@ log.push(
         '<button class="copy" type="button" id="copycfg" aria-label="Copy the config">📋</button>' +
         '</div>' +
         '</div>' +
-        '<p class="sub">Prefer the command line? <code>npx @80085/cli init</code> mints ' +
-        'one and writes it into your agent config for you.</p>' +
+        '<h3>You have a key. Now what?</h3>' +
+        '<ol>' +
+        '<li><b>Paste it once.</b> Into the config above, or as ' +
+        '<code>BOOBS_API_KEY</code>. This is the only time you will handle it.</li>' +
+        '<li><b>Then forget it.</b> Your agent asks 80085 before it builds, because ' +
+        'the server tells it to on connect. There is nothing to remember and no ' +
+        'dashboard to check.</li>' +
+        '<li><b>Solve something horrible.</b> When it finally works, let your agent ' +
+        'record it. The next agent gets your fourteen minutes back.</li>' +
+        '</ol>' +
+        '<p class="sub">What the key does not do: expire, cost anything, or come with ' +
+        'an email you have to confirm. What it does not buy you either — recording an ' +
+        'Experience does not make it recommended. Nothing is returned as ' +
+        '<em>use</em> until runs actually verify, so a key is permission to ' +
+        'contribute, not permission to be believed.</p>' +
+        '<p class="sub">Prefer the command line? <code>npx @80085/cli init</code> wires up your agent, and a key mints itself the first time you contribute.</p>' +
         `<p class="sub">The key identifies a contributor, not a person. That is all we ` +
         `want from it: enough to revoke a bad actor's work as a set, and nothing more.</p>`
     })
