@@ -26,4 +26,7 @@ RUN useradd --uid 10001 --create-home app && chown -R app:app /app
 USER app
 
 EXPOSE 8000
-CMD ["uvicorn", "boobs_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Shell form on purpose: hosting platforms inject the port as $PORT, and an
+# exec-form CMD would pass the literal string "$PORT" to uvicorn.
+CMD ["sh", "-c", "uvicorn boobs_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

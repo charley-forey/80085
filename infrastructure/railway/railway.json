@@ -5,7 +5,6 @@
     "dockerfilePath": "infrastructure/docker/Dockerfile"
   },
   "deploy": {
-    "startCommand": "uvicorn boobs_api.main:app --host 0.0.0.0 --port $PORT",
     "preDeployCommand": "alembic upgrade head",
     "healthcheckPath": "/v1/health",
     "healthcheckTimeout": 60,
