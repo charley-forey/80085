@@ -3,8 +3,13 @@
     A deployment command exiting 0 is not evidence that anything works.
 
 This exercises the real loop against a real deployment: record, execute,
-verify, recall from a second organization. It creates only its own data and
-tells you exactly which step failed.
+verify, recall from a second organization, and then have that second
+organization *execute* too -- because corroboration is what promotion turns
+on, and a consumer that only reads leaves `distinct_organizations` at 1
+forever. It also runs one Experience with `network: true`, which is the only
+way this script can tell from outside whether the worker can install the
+egress filter at all. It creates only its own data and tells you exactly which
+step failed.
 
     uv run python scripts/smoke.py --url https://api.80085.ai --token "$BOOBS_BOOTSTRAP_TOKEN"
 """
@@ -194,6 +199,121 @@ async def main() -> int:
                 found["evidence"]["successful_runs"] >= 1,
                 str(found["evidence"]),
             )
+            smoke.check(
+                "one organization counts as one",
+                found["evidence"]["distinct_organizations"] == 1,
+                str(found["evidence"]),
+            )
+
+        # Corroboration is the gate that stops an Experience being promoted on
+        # the word of the actor who published it (DECISIONS 41), and until now
+        # this script bootstrapped a second organization only to *read*. A
+        # consumer that never executes leaves `distinct_organizations` at 1
+        # forever, so the one property the gate depends on -- that the counter
+        # distinguishes organizations rather than runs -- was never observed on
+        # a real deployment.
+        #
+        # It asserts the counter moves, not that the recommendation reaches
+        # "use". Two runs on a fresh Experience do not clear the 0.70 score
+        # threshold, so asserting "use" here would be a check that fails for a
+        # reason unrelated to corroboration.
+        second = await client.post(
+            f"/v1/experiences/{experience_id}/execute",
+            headers=auth_b,
+            json={
+                "inputs": {"input.csv": base64.b64encode(CSV).decode()},
+                "wait_seconds": args.wait,
+            },
+        )
+        second_result = second.json()
+        if smoke.check(
+            "a second organization can execute it",
+            second_result.get("status") == "succeeded",
+            str(second_result)[:300],
+        ):
+            again = await client.post(
+                "/v1/experiences/recall",
+                headers=auth_b,
+                json={"task": statement, "context": {"runtime": "python"}, "limit": 20},
+            )
+            corroborated = next(
+                (
+                    m
+                    for m in (again.json().get("matches", []) if again.status_code == 200 else [])
+                    if m["experience_id"] == experience_id
+                ),
+                None,
+            )
+            if smoke.check("it is still recalled after the second run", corroborated is not None):
+                assert corroborated is not None
+                smoke.check(
+                    "a run from a second organization corroborates it",
+                    corroborated["evidence"]["distinct_organizations"] == 2,
+                    str(corroborated["evidence"]),
+                )
+
+        # The egress filter. Every check above declares `network: false`, so a
+        # deployment whose worker cannot install iptables rules passed this
+        # script cleanly -- which is exactly what happened: the control shipped,
+        # was documented, and had never run anywhere.
+        #
+        # The artifact does not need the network. What is under test is the
+        # runtime: with `network: true` it must install the DROP rules or
+        # refuse the run outright. A refusal is safe, and it is still a
+        # failure, because it means the deployed worker cannot filter egress at
+        # all and no networked Experience can ever run on it.
+        networked = await client.post(
+            "/v1/experiences",
+            headers=auth_a,
+            json={
+                "goal": {
+                    "statement": f"Convert a CSV to JSON with egress filtering (smoke {run_id})",
+                    "intent": "csv_to_json",
+                    "tags": ["smoke", "network", run_id],
+                },
+                "artifact": {"type": "oci", "reference": reference},
+                "command": ["python", "/app/main.py", "input.csv", "output.json"],
+                "environment": {
+                    "os": "linux",
+                    "architecture": "amd64",
+                    "runtime": "python",
+                    "runtime_version": "3.13",
+                },
+                "constraints": {"network": True},
+                "verification": {
+                    "verifier": "json_schema",
+                    "config": {"file": "output.json", "schema": {"type": "array"}},
+                },
+                # Private: it exists to exercise the runtime, not to be recalled
+                # by anyone as a solution to anything.
+                "visibility": "private",
+            },
+        )
+        if smoke.check(
+            "record a networked experience", networked.status_code == 201, networked.text[:300]
+        ):
+            netrun = await client.post(
+                f"/v1/experiences/{networked.json()['experience_id']}/execute",
+                headers=auth_a,
+                json={
+                    "inputs": {"input.csv": base64.b64encode(CSV).decode()},
+                    "wait_seconds": args.wait,
+                },
+            )
+            net = netrun.json()
+            refused = "refusing to run a networked artifact" in (net.get("error") or "")
+            smoke.check(
+                "the worker can filter egress rather than refusing",
+                not refused,
+                f"{net.get('error')} -- the worker lacks CAP_NET_ADMIN, so no networked "
+                "Experience can run on this deployment (see infrastructure/worker)",
+            )
+            if not refused:
+                smoke.check(
+                    "a networked run completes under the filter",
+                    net.get("status") == "succeeded",
+                    str(net)[:300],
+                )
 
         leaked = await client.get(f"/v1/executions/{result['execution_id']}", headers=auth_b)
         smoke.check("another tenant cannot read the execution", leaked.status_code == 404)
