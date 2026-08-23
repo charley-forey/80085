@@ -19,7 +19,7 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { API, REPO, WORDMARK_BLOCK, WORDMARK_SEG, content, meta } from './content.js';
+import { API, MCP, REPO, WORDMARK_BLOCK, WORDMARK_SEG, content, meta } from './content.js';
 import { readout } from './seg.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -569,6 +569,7 @@ Sitemap: ${SITE}/sitemap.xml
 # llms.txt: /llms.txt
 # Full text: /llms-full.txt
 # MCP: /.well-known/mcp.json
+# Hosted MCP endpoint: ${MCP}
 `;
 
 const MCP_JSON = {
@@ -578,6 +579,23 @@ const MCP_JSON = {
   homepage: SITE,
   repository: REPO,
   install: { command: 'npx', args: ['@80085/cli', 'init'] },
+  // The hosted endpoint is the default: nothing to install, and it holds no
+  // key of its own -- it forwards the caller's, so the API stays the single
+  // authority. `servers` lists both; `server` stays for older readers that
+  // expect exactly one stdio entry.
+  servers: [
+    {
+      type: 'streamable-http',
+      url: MCP,
+      auth: { type: 'bearer', header: 'Authorization' }
+    },
+    {
+      type: 'stdio',
+      command: 'uvx',
+      args: ['--from', `git+${REPO}#subdirectory=apps/mcp`, '80085-mcp'],
+      env: { BOOBS_API_URL: API, BOOBS_API_KEY: '<your key>' }
+    }
+  ],
   server: {
     type: 'stdio',
     command: 'uvx',
