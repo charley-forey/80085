@@ -363,15 +363,30 @@ ${states}
  * The small pages: /install, /key, /1337, 404. Same design system, no
  * calculator, no flip — they are destinations, not the site.
  */
-function shell({ title, value, body, noindex = false }) {
+function shell({ title, value, body, noindex = false, path, description = meta.description }) {
+  // A subpage that canonicalises to `/` is a subpage asking not to be indexed.
+  // These are rewritten onto clean URLs by vercel.json, so the canonical is the
+  // clean URL, never the /p/*.html file the rewrite happens to serve.
+  const head = noindex
+    ? '<meta name="robots" content="noindex">'
+    : [
+        `<link rel="canonical" href="${SITE}${path}">`,
+        '<meta property="og:type" content="website">',
+        `<meta property="og:title" content="${esc(title)}">`,
+        `<meta property="og:description" content="${esc(description)}">`,
+        `<meta property="og:url" content="${SITE}${path}">`,
+        `<meta property="og:image" content="${SITE}/og.png">`,
+        '<meta name="twitter:card" content="summary_large_image">'
+      ].join('\n');
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="${esc(meta.description)}">
-${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${SITE}/">`}
+<meta name="description" content="${esc(description)}">
+${head}
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/site.css">
 <script src="/boot.js"></script>
@@ -703,11 +718,18 @@ const AI_PLUGIN = {
   legal_info_url: `${SITE}/TERMS.md`
 };
 
+/**
+ * Indexable pages only. /1337 and 404 are noindex, and a sitemap that submits
+ * a noindex URL just earns a "Submitted URL marked noindex" error in Search
+ * Console. lastmod is the build stamp, which is honest here: every page in
+ * public/ is regenerated from content.js on every build.
+ */
+const INDEXABLE = ['/', '/install', '/key'];
+const BUILT = new Date().toISOString().slice(0, 10);
+
 const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${['/', '/install', '/key', '/1337']
-  .map((p) => `  <url><loc>${SITE}${p}</loc></url>`)
-  .join('\n')}
+${INDEXABLE.map((p) => `  <url><loc>${SITE}${p}</loc><lastmod>${BUILT}</lastmod></url>`).join('\n')}
 </urlset>
 `;
 
@@ -761,6 +783,10 @@ log.push(
     'p/install.html',
     shell({
       title: 'Install — 80085.ai',
+      path: '/install',
+      description:
+        'Add 80085 to Claude Code, Cursor, or any MCP client in one command. ' +
+        'Reading the shared memory needs no key and no signup.',
       value: '1n5t4LL',
       body: html(installBlock())
     })
@@ -772,6 +798,10 @@ log.push(
     'key.html',
     shell({
       title: 'Get a key — 80085.ai',
+      path: '/key',
+      description:
+        'Get a free 80085 API key. You only need one to write — recording or ' +
+        'running an Experience. Reading is always keyless.',
       value: '5372',
       body:
         '<h2>🔑 Get a key</h2>' +
