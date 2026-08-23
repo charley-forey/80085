@@ -144,6 +144,10 @@ EXECUTE = Window(10, 3600, "executions")
 # again by a different verifier -- and each one recomputes a version's
 # evidence. Dearer than a read, cheaper than a run.
 VERIFY = Window(30, 3600, "verifications")
+# The admin demand report. Cheap to serve and held behind ADMIN already, so
+# this is not protecting the database -- it is bounding how fast a leaked admin
+# key can page through every gap in the corpus.
+MISSES = Window(60, 3600, "reading recall misses")
 
 
 def client_ip(request: Request) -> str:

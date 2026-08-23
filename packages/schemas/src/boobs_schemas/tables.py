@@ -301,6 +301,12 @@ class RecallMiss(Base):
     A row is written only when nothing cleared MIN_SCORE. `candidates` and
     `best_score` are what separate "nothing remotely close" from "one hair
     under the threshold".
+
+    **It holds no free text.** It used to store the raw task, untruncated,
+    from callers who supplied no credential. Nothing read it and the demand
+    signal never needed it: the fingerprint dedups on the *normalized* intent,
+    and what a gap is called is `intent` plus `terms`, both drawn from closed
+    tables in our own source. Decision 49.
     """
 
     __tablename__ = "recall_misses"
@@ -312,7 +318,12 @@ class RecallMiss(Base):
     # unmet need collapse to one row and a counter.
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     organization_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    task: Mapped[str] = mapped_column(Text, nullable=False)
+    # What is left of the asker's words after everything we did not write
+    # ourselves is thrown away: a space-joined subset of the action and format
+    # labels in `boobs_retrieval.intent`. Nothing a caller types can reach this
+    # column -- see `misses.vocabulary` and decision 49. It replaces `task`,
+    # which held the raw, untruncated request text.
+    terms: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     intent: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     environment: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
     constraints: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)

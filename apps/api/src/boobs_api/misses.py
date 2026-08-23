@@ -15,6 +15,10 @@ Three properties this module exists to guarantee, in order of importance:
   is an abuse target. Two bounds: an upsert on a fingerprint over the
   *normalized* intent, so a thousand rephrasings of one unmet need are one row
   and a counter; and a retention window, swept on write.
+* **It cannot retain what somebody typed.** The row used to carry the raw task
+  text. It no longer carries any free text at all: `vocabulary()` keeps only
+  labels written in `boobs_retrieval.intent`, so the worst thing a caller can
+  put in this table is a word we chose. Decision 49.
 """
 
 from __future__ import annotations
@@ -36,9 +40,10 @@ from boobs_schemas.tables import RecallMiss
 
 log = logger(__name__)
 
-# Long enough to see a seasonal pattern in demand, short enough that
-# user-supplied task text is not kept indefinitely. Stated in docs/security.md,
-# where someone deciding whether to type something into recall can find it.
+# Long enough to see a seasonal pattern in demand, short enough that a gap
+# nobody has asked about since spring stops being counted as demand. It was
+# also the bound on how long user-supplied text was kept; there is no longer
+# any, which makes this a data-quality window rather than a privacy one.
 RETENTION = timedelta(days=90)
 
 
@@ -63,9 +68,29 @@ def fingerprint(
     return hashlib.sha256(material.encode()).hexdigest()
 
 
+def vocabulary(parsed: Intent) -> str:
+    """The words of a task we are willing to keep: the ones we wrote ourselves.
+
+    Every value this can return is a key of `FORMATS` or `ACTIONS` in
+    `boobs_retrieval.intent` -- a closed list in our own source. A task that
+    names a customer, a hostname or a patient yields at most `convert pdf`.
+
+    It exists because `intent` alone loses the gaps most worth knowing about.
+    `Intent.canonical` collapses to `"unknown"` whenever no action matched,
+    including when a format did, so "something weird involving our PDFs" and
+    "no idea what this person wanted" would otherwise be the same row to read.
+    `terms` keeps them apart at the cost of nothing user-supplied.
+
+    Deliberately *not* `Intent.keywords` or `Intent.normalized`, which are the
+    raw text minus stopwords -- a customer name survives both intact.
+    """
+    return " ".join(
+        sorted({t for t in (parsed.action, parsed.source_format, parsed.target_format) if t})
+    )
+
+
 async def record(
     *,
-    task: str,
     parsed: Intent,
     environment: dict[str, Any],
     constraints: dict[str, Any],
@@ -82,7 +107,7 @@ async def record(
                 id=ids.new_id(ids.RECALL_MISS),
                 fingerprint=fingerprint(organization_id, parsed, environment, constraints),
                 organization_id=organization_id,
-                task=task,
+                terms=vocabulary(parsed),
                 intent=parsed.canonical,
                 environment=environment,
                 constraints=constraints,

@@ -31,6 +31,12 @@ ACTION_SCOPES: Final[dict[str, str]] = {
     "execution.read": Scope.EXPERIENCES_READ,
     "execution.verify": Scope.EXECUTIONS_VERIFY,
     "admin.keys": Scope.ADMIN,
+    # Reading what everyone asked for and did not find. Its own name rather
+    # than a reuse of admin.keys because this list is the audit surface for
+    # "which actions exist"; an action called `keys` guarding a demand report
+    # would make that list a lie. Not a MUTATING_ACTION: it is a read, and it
+    # is called with no resource because the rows span every tenant.
+    "admin.misses": Scope.ADMIN,
 }
 
 # Actions that change an object. These require ownership, never visibility.
