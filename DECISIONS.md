@@ -548,6 +548,85 @@ than a transport retry, and inventing a key on its behalf would suppress that.
 
 ---
 
+### 25. A networked sandbox gets a filtered bridge, or it does not run
+
+`constraints.network` is set by the artifact's own author, at record time, with
+nothing approving it. `--network=bridge` was therefore an attacker-chosen flag,
+and what it bought was the cloud metadata service (`169.254.169.254`, one HTTP
+GET from the worker's IAM credentials), the worker's own LAN, and every service
+bound on the worker itself. `risk_score()` penalises such an Experience in
+ranking; ranking is not a control.
+
+A networked run now joins `80085-egress` on the `br-80085egress` interface, and
+the runtime installs `DROP` rules for that interface in two chains:
+`DOCKER-USER` for forwarded packets, `INPUT` for packets addressed to the
+worker itself. Only the first is the documented Docker hook, and only the
+second sees a packet aimed at the host -- filtering one would have left the
+other wide open. Dropped: link-local, loopback, all three RFC1918 ranges,
+carrier NAT, multicast and reserved space. Public DNS and public HTTP still
+work.
+
+This is a deny-list on the private world, **not** an allowlist of destinations.
+Spec §17's per-domain policy is still unbuilt, and DNS to a public resolver
+remains an exfiltration channel.
+
+**It fails closed.** No `iptables`, no `CAP_NET_ADMIN`, no `DOCKER-USER` chain,
+or an `80085-egress` network someone created on a different interface, and the
+run is refused with the exact commands to install the rules by hand. Refusing a
+networked run is a bad afternoon; running it unfiltered is a stolen credential.
+Runs with `network: false` are untouched by any of this and remain the default.
+
+**`ponytail:` ceiling** -- the worker shells out to the host's `iptables`, so
+this needs a Linux Docker host and privileges. On Docker Desktop it refuses.
+Upgrade path: install the rules once at provisioning time, or put an egress
+proxy on the network and drop everything else. This is a Docker control and
+has no E2B counterpart: decision 27 measured that E2B does not enforce the
+network flag at all, which is why it now refuses `network: false` outright.
+
+Locked in by `tests/security/test_egress.py`, which puts a real listener on a
+real RFC1918 address and requires the filter to be what stops it.
+
+---
+
+### 26. Execution length is a tier an operator grants, not a number a recorder picks
+
+Real agent workflows need more than sixty seconds. `SANDBOX_TIMEOUT_SECONDS` is
+one number for everybody, so raising it hands every anonymous stranger an hour
+of networked compute per request -- a mining pool with a REST API. The
+`policies` table existed and nothing used it.
+
+Three tiers: `quick` (today's configured timeout, the default, open to
+everyone), `standard` (10 minutes), `extended` (1 hour). An author asks by
+declaring `constraints.max_duration_seconds`, which already existed on the
+record request, and the smallest tier covering it is stored on the version.
+Asking by name would be asking to be trusted.
+
+The **lease** decides what that request is worth. Grants come from `policies`
+rows that no endpoint writes -- an operator inserts them -- so no tier above
+`quick` is self-serve. `extended` additionally requires a verifier that checks
+what the run produced, because `exit_code` is the floor and it passes for an
+artifact that mines for an hour and exits 0. An unapproved request is
+downgraded to `quick` rather than refused, and the reason is written into the
+immutable `execution_started` event.
+
+The API sends a tier *name*; the worker looks up locally what that name is
+worth. A number on the wire would be a number worth forging.
+
+**Only the wall clock moves.** `cpu`, `memory_mb`, `tmpfs_mb` and `pids` are
+Docker cgroup flags with no E2B equivalent (decision 19), so tiering them would
+be a promise one of the two runtimes silently breaks. The wall clock is
+enforced by both, which is the one thing a tier moves.
+
+**Still open:** nothing in the API grants a tier. That is deliberate for now --
+approval that an endpoint can perform is approval an attacker can request --
+but it means today a grant is an `INSERT`. The obvious next step is an
+admin-scoped endpoint, which is an API change and needs its own review.
+
+Everything recorded before this exists resolves to `quick`, which is exactly
+what it was already getting.
+
+---
+
 ### 27. E2B refuses a no-network artifact rather than pretending
 
 **Found by running it.** The E2B runtime shipped without ever having executed
@@ -582,4 +661,3 @@ was promised.
 **Undo:** if E2B's egress controls start working, delete the guard and let
 `tests/security/test_e2b_runtime.py::test_a_no_network_artifact_is_refused_rather_than_run`
 fail -- that failure is the signal it is safe to remove.
-

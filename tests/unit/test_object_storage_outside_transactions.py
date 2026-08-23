@@ -31,7 +31,7 @@ DIGEST = "sha256:" + "ab" * 32
 
 
 class Rows:
-    """A result set with the two accessors the handlers use."""
+    """A result set with the accessors the handlers use."""
 
     def __init__(self, row: Any) -> None:
         self._row = row
@@ -41,6 +41,12 @@ class Rows:
 
     def scalar_one_or_none(self) -> Any:
         return self._row
+
+    def scalars(self) -> Rows:
+        return self
+
+    def all(self) -> list[Any]:
+        return [] if self._row is None else [self._row]
 
 
 class RecordingSession:

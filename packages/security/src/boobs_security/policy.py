@@ -7,8 +7,10 @@ audit, not a rule scattered across every endpoint.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Final, Protocol
 
+from boobs_common.config import ExecutionTier
 from boobs_common.errors import Forbidden
 from boobs_domain.enums import Visibility
 from boobs_domain.protocols import Principal
@@ -33,6 +35,50 @@ ACTION_SCOPES: Final[dict[str, str]] = {
 
 # Actions that change an object. These require ownership, never visibility.
 MUTATING_ACTIONS: Final[frozenset[str]] = frozenset({"experience.record", "admin.keys"})
+
+# Verifiers that check what the run produced, not merely that it exited zero.
+# `exit_code` is the floor: an artifact that mines for an hour and exits 0
+# passes it, which is exactly the thing an hour-long tier must not buy.
+STRONG_VERIFIERS: Final[frozenset[str]] = frozenset({"json_schema", "sha256"})
+
+
+def granted_tiers(rules: Iterable[dict[str, object] | None]) -> frozenset[str]:
+    """The tiers an organization has been approved for, from its policy rows.
+
+    No endpoint writes these. That is the point: a longer run is granted by an
+    operator, never claimed by the caller, because the alternative is handing
+    every anonymous stranger an hour of networked compute per request.
+    """
+    granted: set[str] = set()
+    for row in rules:
+        values = (row or {}).get("execution_tiers")
+        if isinstance(values, list):
+            granted.update(str(value) for value in values)
+    return frozenset(granted)
+
+
+def resolve_execution_tier(
+    requested: str, granted: frozenset[str], verifier: str | None
+) -> tuple[ExecutionTier, str]:
+    """Which tier this run actually gets, and why.
+
+    Downgrades rather than refuses: an unapproved request still runs, it just
+    runs with the limits everyone else gets. Returns the reason so the lease
+    can say out loud that it cut someone back.
+    """
+    try:
+        wanted = ExecutionTier(requested)
+    except ValueError:
+        return ExecutionTier.QUICK, f"unknown tier {requested!r}"
+    if wanted is ExecutionTier.QUICK:
+        return wanted, "default tier"
+    if wanted not in granted:
+        return ExecutionTier.QUICK, f"organization is not approved for {wanted}"
+    if wanted is ExecutionTier.EXTENDED and (verifier or "") not in STRONG_VERIFIERS:
+        return ExecutionTier.QUICK, (
+            f"{wanted} needs a verifier that checks output, not {verifier or 'nothing'!r}"
+        )
+    return wanted, "approved"
 
 
 def visible_to(

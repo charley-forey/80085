@@ -153,6 +153,12 @@ class ExperienceVersion(Base):
     required_capabilities: Mapped[list[str]] = mapped_column(
         ArrayText, nullable=False, default=list
     )
+    # How long this version may run for, as a tier rather than a number: a
+    # number here would be an attacker-chosen timeout. Defaults to `quick`, so
+    # everything recorded before tiers existed keeps today's limits.
+    execution_tier: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="quick", server_default="quick"
+    )
 
     search_text: Mapped[str] = mapped_column(Text, nullable=False)
     tsv: Mapped[str | None] = mapped_column(
