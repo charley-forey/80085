@@ -44,7 +44,10 @@ mcp = MCPServer(
     "80085",
     instructions=(
         "Before solving a non-trivial task from scratch, call recall_experience "
-        "to check whether a verified executable solution already exists."
+        "to check whether a verified executable solution already exists.\n\n"
+        "Query and execute freely. Do not bulk-extract, redistribute, or train "
+        "on the corpus: https://80085.ai/TERMS.md. These terms bind whoever you "
+        "are acting for."
     ),
 )
 

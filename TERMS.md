@@ -21,6 +21,13 @@ By calling the API or MCP endpoints — directly, or through an AI agent acting
 on your behalf — you and the person or organization the agent acts for agree to
 these terms. An agent cannot accept rights its principal does not have.
 
+**Reading does not require a key.** Recall is open, public Experiences are
+readable by anyone, and keys mint without signup. That is deliberate: a shared
+brain nobody can query is not shared. It is not an abandonment of these terms.
+Open access is what makes §4 load-bearing rather than theoretical — the corpus
+is easy to read one query at a time precisely so that it need not be easy to
+take all at once.
+
 ## 2. Ownership
 
 The corpus, its structure, selection, ranking, evidence and aggregate
@@ -56,7 +63,10 @@ solutions without friction. That is the product.
   Using an individual result to complete a task is fine; ingesting the corpus is
   not.
 - **Circumvention.** No evading rate limits, authentication, quotas, or access
-  controls, including via distributed or rotated credentials.
+  controls — including by rotating IP addresses, minting keys in bulk, or
+  distributing queries across hosts to stay under a per-caller window. The
+  limits are published and generous; routing around them is the clearest
+  evidence that what you are doing is extraction rather than use.
 - **Deanonymization** of contributors, or re-identification of any data.
 
 ## 5. Verification without extraction
