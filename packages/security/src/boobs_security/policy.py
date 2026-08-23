@@ -42,11 +42,17 @@ ACTION_SCOPES: Final[dict[str, str]] = {
     # surface for which actions exist, and `extended` is an hour of compute per
     # execution -- the most expensive thing any action here can hand out.
     "admin.execution_tiers": Scope.ADMIN,
+    # Withdrawing one Experience from recall, or putting it back. Its own name
+    # for the same reason the two above have one -- this list is the audit
+    # surface for which actions exist -- and because it is the only action that
+    # reaches across tenants to change what the corpus recommends. Everything
+    # else an admin can do here hands something out; this one takes it away.
+    "admin.quarantine": Scope.ADMIN,
 }
 
 # Actions that change an object. These require ownership, never visibility.
 MUTATING_ACTIONS: Final[frozenset[str]] = frozenset(
-    {"experience.record", "admin.keys", "admin.execution_tiers"}
+    {"experience.record", "admin.keys", "admin.execution_tiers", "admin.quarantine"}
 )
 
 # The policy row the grant endpoint owns. An operator's hand-written `INSERT`

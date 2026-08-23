@@ -153,6 +153,11 @@ MISSES = Window(60, 3600, "reading recall misses")
 # hour of compute per execution -- so this bounds how much a leaked admin key
 # can hand out before somebody notices.
 GRANT = Window(20, 3600, "granting execution tiers")
+# Withdrawing an Experience from recall, or putting it back. Same reasoning and
+# the same number as GRANT: nobody quarantines twenty capabilities an hour by
+# hand, and this is the one admin write that can take a working capability away
+# from every agent asking for it.
+QUARANTINE = Window(20, 3600, "quarantining experiences")
 
 
 def client_ip(request: Request) -> str:

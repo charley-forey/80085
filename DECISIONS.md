@@ -188,6 +188,13 @@ source of truth.
 A run counts as **successful** only if the sandbox succeeded *and* a verifier
 passed. An agent's claim is not evidence.
 
+**Amended by decision 57.** The request path now folds new runs on to a stored
+checkpoint instead of rescanning the history, so evidence *is* incremented
+there. What survives, and what this decision was always for, is that the
+numbers can be rederived from the immutable rows at any time — and that
+something on a clock regularly does. Read 57 before relying on the sentence
+above.
+
 ---
 
 ### 12. Immutability is enforced by triggers
@@ -2302,3 +2309,235 @@ are two, and they are in the pull request.
 `capabilities/fixtures`, their manifest entries, the three property tests, and
 the `tzdata` dev dependency. The corpus reverts to twenty-one converters and
 to measuring 1.0x.
+
+---
+
+### 56. `quarantined` finally has a writer, and it has two
+
+`ExperienceStatus.QUARANTINED` existed from the first migration and nothing
+ever set it. Two places read it and acted on it correctly — `_promote` refused
+to promote a quarantined Experience, and the recall pipeline hard-filtered
+quarantined and deprecated ones out — so the status worked perfectly and could
+only be reached by an operator typing an `UPDATE` against production.
+
+What that left is a ratchet. Promotion is one way: an Experience that reached
+`verified` and then started failing every run stayed `verified` forever and
+kept being handed to every agent that asked. Spec §24 asks for the other half
+— *re-verify on a schedule, quarantine what rots* — and this is it.
+
+**The automatic writer is `recompute`**, because it is the one function
+guaranteed to run whenever anything about a version changes: every reported
+result and every verification. It withdraws a version whose **recent** runs are
+failing, and three decisions inside that sentence are the whole design.
+
+**Recent, not lifetime.** The rate is over the last 20 terminal runs, not over
+all of history. An Experience with nine hundred successes and its last twenty
+runs all failing is broken *now*, and its lifetime success rate is precisely
+the number that says otherwise. Five runs is the floor: below that there is no
+trend, only noise, and a corpus that withdraws capabilities on two bad runs
+empties itself.
+
+**Hysteresis, because thrashing is worse than either state.** Entering costs
+80% of the window failing; leaving costs 20% or fewer. A capability sitting on
+a single threshold would flip on every run, and a product whose pitch is that
+the same question gets the same recommendation cannot have its answer depend on
+the minute you asked. With a twenty-run window the gap means a quarantined
+version has to replace twelve of its last twenty outcomes before anything
+moves. `tests/unit/test_quarantine.py` asserts the gap as a property over the
+whole window rather than as two numbers, and the integration test adds twenty
+runs one at a time and asserts the status never changed once.
+
+**Rot has to be fresh.** Fifty failures from two years ago are already worth
+nothing to the ranker, and `ranking.recency_score` is what says so — so it is
+what the second gate uses, rather than a second opinion here about what "old"
+means. Withdrawing something on evidence nobody can reproduce is the opposite
+of what this corpus sells. `boobs_reputation` already depended on
+`boobs_retrieval.ranking` for `confidence_score`, so the import adds no edge.
+
+**Only the current version votes.** Recall offers nothing else, and an old
+version rotting is not a reason to withdraw the one people are actually being
+handed — which would punish exactly the fix published to replace it.
+
+**It is not terminal, and that is deliberate.** A corpus that can only lose
+entries decays. A quarantined Experience is still executable by its exact id —
+only recall withdraws it — so the way back is the way in: run it, and let the
+runs say so. It returns to `candidate`, never straight to `verified`;
+corroboration is re-earned through the ordinary path, because a status restored
+without evidence is the self-attestation decision 41 exists to prevent.
+
+**The manual writer is `POST /v1/admin/experiences/{id}/quarantine`**, because
+the reasons a person withdraws a capability are not failures. An artifact with
+a credential baked into it runs perfectly. So does one whose licence turns out
+to be wrong, or one doing something nobody wants done. No amount of run history
+detects any of that and every one of them is urgent. It follows decision 39's
+revocation route and decision 53's grant route exactly:
+`policy.authorize(principal, "admin.quarantine")` **with no resource** — it is
+a `MUTATING_ACTION`, so passing the row would make the engine demand an
+ownership a cross-tenant admin action cannot have — its own action name in
+`ACTION_SCOPES` for decision 50's reason, and rate limited at 20/hour, which
+satisfies both router-wide checks in `tests/unit/test_open_access.py` rather
+than joining their exemption list. One endpoint in both directions, for the
+reason a tier grant is a set and not a delta: there has to be a way back that
+is not another hand-typed `UPDATE`.
+
+**`experiences.quarantine` is where the reason lives** (migration 0010), stored
+on the row it justifies the way decision 53 stores a grant's: the cause, the
+agent, the time. A withdrawal nobody can explain is one nobody will confidently
+reverse. It also carries `manual`, and that flag is load-bearing rather than
+decorative — **`recompute` releases its own quarantines and never an
+operator's**. A judgement about a leaked credential must not be undone by a
+lucky afternoon of green runs.
+
+**The scheduler is the third trigger, and the one that matters most.** A
+capability that broke and that nobody has run since gets no `recompute` call at
+all, and it is exactly the one still sitting in recall recommending itself. The
+`evidence` job (decision 54's dispatch table, one more line) rebuilds the least
+recently updated versions on a clock and re-evaluates them. That is spec §24's
+sweep. It is not yet §24's *re-verification*: nothing here re-runs an artifact,
+which is a job of its own and is named in `scheduler.py` as the next one.
+
+Locked in by `tests/unit/test_quarantine.py` (the arithmetic, the refusals, the
+anti-thrash property) and `tests/integration/test_quarantine.py`, which asserts
+against a real database that a failing capability leaves `base_query` — the
+actual recall filter, not a copy of it — and that a recovered one comes back. A
+status nothing acts on is a column value; the point is that agents stop being
+given the thing.
+
+**A capability is never quarantined for correctly refusing bad input**, and
+that is a property of decision 58's capabilities rather than a special case
+here. `date_parse` refusing to guess `03/04/2024`, `encoding_detect` reporting
+pure ASCII as `ambiguous`, `csv_dialect_sniff` finding a single-column file:
+every one of those **exits 0** and writes a complete `result.json` that its
+declared `json_schema` verifier passes, so `recompute` counts it as a
+*successful* run. Non-zero is reserved for input that is genuinely malformed —
+a `prefer` value outside the enum, an archive that will not open — which is a
+caller error and honestly a failure. The line the rot detector reads is
+"sandbox succeeded **and** a verifier passed", which is decision 11's
+definition and not a new one, so a strict capability driven hard by a naive
+caller accumulates successes, not failures. Already checked, and not by this
+change: `tests/unit/test_capabilities.py` runs every capability against its
+fixtures — the ambiguous ones included — and asserts both the zero exit and
+that the declared verifier passes on what came out. Worth stating because the
+opposite would be a bad outcome from two good changes: a corpus that withdraws
+capabilities for being honest.
+
+**Deliberately not built:** a notification to whoever recorded the Experience.
+It is the right feature and there is nowhere to send it — keys mint anonymously
+and there is no account, no address and no signup. When there is somewhere to
+send it, the row this writes is already the message.
+
+**Undo:** delete the route, the two models, the `admin.quarantine` entry, the
+window, and `_grade`'s two status branches. Anything already quarantined stays
+quarantined, and `_promote` and the recall filter go back to reading a status
+nothing writes.
+
+---
+
+### 57. Evidence is folded forward, and the rescan becomes the reconciliation
+
+`recompute` refetched every terminal execution row for a version and re-scanned
+its verifications on **every call**, and it is called synchronously inside the
+request path twice per run — from `report_result` after every completed
+execution and from `verify_execution`. So the price of recording a run grew
+without bound with how many runs had already happened, and a capability was
+charged most for evidence exactly when it was succeeding most. Two audits
+flagged it and it was still there.
+
+**This changes what decision 11 says, and says so out loud.** Decision 11 is
+"evidence is recomputed from immutable rows, never incremented", and that is
+load-bearing: it is why the numbers are auditable and replayable and why
+`execution_stats` is a cache rather than a source. What follows keeps every
+consequence of that sentence and gives up its literal wording. Evidence is now
+**incremented on the request path**. The invariant that survives, and the only
+one that was ever doing the work, is this:
+
+> The numbers can always be rederived from the immutable rows, and something
+> regularly does.
+
+Three things make that true rather than hopeful.
+
+**The fold is exact, not approximate, and it is exact for a stated reason.** A
+terminal `executions` row is immutable — decision 12's triggers enforce it — and
+`verifications` is append-only. So the contribution of a row that has already
+been read can never change, which is what makes folding only the rows *since*
+the last read identical to reading them all again. That is not a claim about
+care taken; it is a property of the tables.
+
+**The one thing that could change an already-folded row forces a full rebuild.**
+A run counted as failed becomes successful the moment a verification passes for
+it, which moves a count, an organization, a duration sample and a failure mode
+at once. `_extend` detects exactly that — a passed verification whose execution
+is not in the batch it just read — and abandons the checkpoint rather than
+patching it. That is `POST /executions/{id}/verify` against an older run, and it
+is rare: the ordinary path verifies inside the same transaction that records the
+run.
+
+**The rescan still runs, on a clock.** `evidence.rebuild` is the original
+function, unchanged in what it means, and the scheduler's `evidence` job
+(decision 54) runs it over the least recently updated versions every tick. If a
+checkpoint ever diverged — a lost update between two workers reporting in the
+same instant, a bug in the fold, a row somebody wrote by hand — it is corrected
+without anyone having noticed it was wrong. **That is what makes the checkpoint
+a cache**: `execution_stats.checkpoint` can be set to null at any time and every
+number comes back identical.
+
+**`Execution.cached.is_(False)` is on both paths.** Decision 51's exclusion is
+not a filter that was added to one query and forgotten in the other; a replay is
+not an observation on the fast path either.
+
+**What the checkpoint holds** (migration 0010, one nullable JSONB column) is
+only what the existing columns cannot carry forward: how far the reading got,
+the organizations that have proven the version, a bounded sample of recent
+durations, and the recent outcomes decision 56's staleness policy reads.
+Everything else — the counts, the strongest level, the last verification — folds
+into the columns already there. Every existing row starts null, so the deploy
+needs no backfill: the first recompute rebuilds and fills it in.
+
+**Two numbers change meaning, and both change for the better.**
+`median_duration_ms` and `p95_duration_ms` are now over the most recent 200
+successful runs rather than over all of them. Latency is the one figure where
+the whole history is actively misleading — a p95 over runs from two years ago
+describes hardware nobody is using — and it is also the only quantity that
+cannot be folded without keeping every sample. Weight 0.05 in ranking, and more
+honest than what it replaces.
+
+**Measured, not asserted, and measured in rows rather than milliseconds.** A
+wall clock on a laptop is mostly round trips; both paths pay six of them and
+neither can go below that floor, which makes a timing ratio partly a
+measurement of Docker's network stack.
+`tests/integration/test_evidence_cost_is_bounded.py` counts every row the code
+pulls out of Postgres, against two versions forty times apart in history. The
+rescan is the control and is required to demonstrate the problem — it read
+**3575 more rows** for the longer history. A fold read **5 rows** for a new run
+in both cases: the stat row, the execution that just finished, its verification,
+the Experience being graded, and the stat row read back. Not "smaller" — the
+same number. The same test folds two thousand runs one at a time and then
+rescans and requires every field to match, with the rescan having to prove it
+actually read the history before its answer is believed.
+
+**ponytail: the checkpoint refuses a timestamp shared by more than 64 rows.**
+The cursor is a clock and the scan is `>=`, minus the ids already folded at that
+exact instant — because two runs *can* finish in the same microsecond and a
+strict `>` would drop the second one forever. Real traffic puts one row in that
+instant; a bulk backfill can put thousands, and rather than store them the
+checkpoint declares itself unusable and the next call rebuilds. Ceiling: a
+version whose runs all share one timestamp never folds and always rescans, which
+is correct and slow. Upgrade path is a monotonic sequence on `executions` to
+cursor over instead of a clock.
+
+**Also fixed, and it was already wrong:** every write to `execution_stats` is a
+Core upsert, which the ORM identity map knows nothing about, so a session that
+had already read a version's stats kept handing back the copy it read. Both
+reads now use `populate_existing`. Without it the second `recompute` in one
+request answers with the first one's numbers — which is exactly the shape of the
+two calls on the request path.
+
+**Deliberately not built:** taking `recompute` off the request path entirely.
+It is the obvious next move and it costs something real — evidence would be
+stale between ticks, and "record it, run it, see the evidence" stops being true
+within one request. Bounded and synchronous is better than unbounded and
+synchronous, and it is a smaller claim to defend.
+
+**Undo:** drop `execution_stats.checkpoint`. `_restore` returns `None` for every
+row, every call rescans, and the numbers are unchanged — which is the whole
+argument, stated as an undo.

@@ -7,10 +7,24 @@ Jobs are named, invoked one per process, and exit:
 
 ```bash
 uv run 80085-scheduler retention     # drop recall misses older than 90 days
+uv run 80085-scheduler evidence      # rebuild evidence, and quarantine what rots
 ```
 
-There is one job today. Each job gets **its own Railway service** with its own
+There are two jobs today. Each job gets **its own Railway service** with its own
 schedule; they share the image and nothing else.
+
+The service below is `retention`. `evidence` is the same table with three cells
+changed — name `scheduler-evidence`, start command `80085-scheduler evidence`,
+schedule `41 * * * *` — and everything else, including the three rows people
+get wrong, is identical.
+
+**Why `evidence` runs hourly and retention runs daily.** Retention enforces a
+90-day window, so a day either way is nothing. `evidence` is what withdraws a
+capability that broke and that nobody has run since, and every hour it does not
+run is an hour of agents being handed something that no longer works. It
+rebuilds the 500 least-recently-updated versions per tick from their immutable
+rows (decision 57), so an hourly tick also means a corpus of a few thousand
+versions is fully reconciled daily.
 
 ## The service
 

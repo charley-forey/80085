@@ -193,6 +193,30 @@ class ExecutionTiersResponse(Strict):
     granted_at: datetime
 
 
+class QuarantineRequest(Strict):
+    """Withdraw one Experience from recall, or put it back.
+
+    One field rather than two endpoints, for the reason a tier grant is a set
+    rather than a delta: what you send is what the row ends up saying, so
+    repeating a request cannot accumulate anything and there is a way back that
+    is not an operator typing UPDATE. `reason` is required in both directions
+    -- releasing something that was withdrawn for cause is exactly as much a
+    judgement as withdrawing it, and the row is the whole audit trail.
+    """
+
+    quarantined: bool
+    reason: str = Field(min_length=8, max_length=500)
+
+
+class QuarantineResponse(Strict):
+    experience_id: str
+    status: str = Field(description="What the Experience's status now is.")
+    quarantine: dict[str, Any] | None = Field(
+        default=None,
+        description="Why it is quarantined, who decided and when. Null once it is not.",
+    )
+
+
 class RecallContext(Strict):
     runtime: str | None = None
     runtime_version: str | None = None

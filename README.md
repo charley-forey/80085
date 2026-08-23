@@ -162,7 +162,7 @@ Experience:
     verifier: json_schema
     config:   {file: "output.json", schema: {type: "array"}}
 
-  evidence:                            # ← recomputed, never incremented
+  evidence:                            # ← always rederivable from the runs
     successful_runs: 1284
     failed_runs: 17
     success_rate: 0.987
@@ -368,7 +368,7 @@ AI AGENTS ──► HTTP ┘    ▲    ├─► EVENT STORE
 | [`packages/retrieval`](packages/retrieval) | Intent normalization, hard filters, hybrid retrieval, ranking. |
 | [`packages/execution`](packages/execution) | `ExecutionRuntime` protocol, `DockerOciRuntime`, `E2BRuntime`, result cache. |
 | [`packages/verification`](packages/verification) | `Verifier` protocol + verifier registry. |
-| [`packages/reputation`](packages/reputation) | Evidence, recomputed from immutable rows. |
+| [`packages/reputation`](packages/reputation) | Evidence, always rederivable from immutable rows. |
 | [`packages/security`](packages/security) | API keys, scopes, `PolicyEngine`, tenant visibility. |
 | [`packages/observability`](packages/observability) | OTel tracing, structlog JSON logs, product metrics. |
 | [`packages/common`](packages/common) | ids, clock, config, errors, object storage. |
@@ -789,6 +789,7 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 | `GET` | `/v1/executions/{id}/events` | The append-only event stream |
 | `POST` | `/v1/executions/{id}/verify` | **VERIFY** — turn an execution into evidence, or refuse to |
 | `POST` | `/v1/admin/organizations/{id}/execution-tiers` | `admin`-only. Approve one org for the longer tiers. The set you send is the set it gets |
+| `POST` | `/v1/admin/experiences/{id}/quarantine` | `admin`-only. Withdraw one Experience from recall, or put it back. A stated reason is required and stored |
 | `POST` | `/v1/worker/lease` | Worker-only. Claim the next queued execution, or get `{"job": null}` |
 | `POST` | `/v1/worker/executions/{id}/result` | Worker-only. Report the raw run; the API records it and verifies it |
 
