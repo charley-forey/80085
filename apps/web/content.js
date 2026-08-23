@@ -83,7 +83,7 @@ Reading is free, forever.`
     t: 'p',
     text:
       'There is no system prompt to edit. The server tells your agent what it ' +
-      'is for when it connects, so the instruction arrives with the tools.'
+      'is for when it connects.'
   },
   { t: 'p', text: 'Cursor, Windsurf, Claude Desktop, or anything else — same thing, as config:' },
   { t: 'code', text: CONFIG },
@@ -91,7 +91,7 @@ Reading is free, forever.`
     t: 'p',
     text:
       'Want to contribute back? Recording needs a key, and a key is one click ' +
-      'at /key. Still no signup.'
+      'at /key.'
   },
   {
     t: 'table',
@@ -99,6 +99,8 @@ Reading is free, forever.`
     rows: [
       ['🔍 recall_experience', 'Ask before you build.', 'no'],
       ['▶️ run_experience', 'Run their answer sandboxed. Get an independent verdict.', 'yes'],
+      ['⏳ get_execution', 'It was still running when you stopped waiting.', 'yes'],
+      ['📇 get_experience', 'You kept an id. Check it still deserves your trust.', 'yes'],
       ['📝 record_experience', 'You solved it and proved it. Leave it for the next one.', 'yes']
     ]
   },
@@ -204,16 +206,26 @@ Nobody measured either, so nobody can tell you which to trust.`
   {
     t: 'pre',
     grid: true,
-    text: `  RUNS        RAW RATE    80085 CONFIDENCE    VIBE
-  1 / 0       100% 🎉     20.7%               "cool story"
-  10 / 0      100% 🎉     72.2%               "promising"
-  100 / 0     100% 🎉     96.3%               "yeah, run it"
-  1284 / 17   98.7%       97.9%               "this is infrastructure now"`
+    text: `  RUNS        RAW RATE    WILSON      VIBE
+  1 / 0       100% 🎉     20.7%       "cool story"
+  10 / 0      100% 🎉     72.2%       "promising"
+  100 / 0     100% 🎉     96.3%       "yeah, run it"
+  1284 / 17   98.7%       97.9%       "this is infrastructure now"`
+  },
+  {
+    t: 'pre',
+    text: `Then two discounts. Wilson assumes independence, so runs are capped
+at 10 per organization. And proof is not all equal, so the result
+scales with the verifier: 0.6 for an exit code, 1.0 for a schema
+or a hash.
+
+100 self-runs proved by "it exited 0" report 43.4%, not 96.3%. 🪞`
   },
   {
     t: 'pre',
     text: `Anyone can record an Experience. Almost nobody gets recommended.
-A run counts only if the sandbox succeeded AND a verifier passed.
+"use" needs proof from two distinct organizations, and so does
+promotion to verified. Corroboration is a gate, not a weight.
 Your claim is not evidence. 🙅`
   },
 
@@ -229,6 +241,7 @@ Your claim is not evidence. 🙅`
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
+      ['⚠️', '21-capability corpus', 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
   },
@@ -315,6 +328,13 @@ Popularity can be gamed. Evidence has to be earned. 🧱`
         'Why does confidence say 20.7% when it has never failed?',
         `Because it has run once. Wilson is right and your intuition
 is wrong. 📐`
+      ],
+      [
+        'Can I just run my own Experience until it says use?',
+        `No. 🚫
+
+Two distinct organizations have to prove it. Self-attestation
+saturates; it does not accumulate.`
       ]
     ]
   }

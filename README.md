@@ -11,7 +11,7 @@
 [![status](https://img.shields.io/badge/status-MVP-orange)](#-status-honest-edition)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![api](https://img.shields.io/badge/API-FastAPI-009688)](apps/api)
-[![mcp](https://img.shields.io/badge/MCP-3%20tools-8A2BE2)](apps/mcp)
+[![mcp](https://img.shields.io/badge/MCP-5%20tools-8A2BE2)](apps/mcp)
 [![sandbox](https://img.shields.io/badge/sandbox-no%20net%20%7C%20no%20root%20%7C%20read--only-critical)](packages/execution)
 [![evidence](https://img.shields.io/badge/evidence-Wilson%20lower%20bound-informational)](packages/retrieval/src/boobs_retrieval/ranking.py)
 
@@ -40,8 +40,12 @@
 | **MCP endpoint** | `https://mcp.80085.ai/mcp` (streamable-http) |
 | **Artifact registry** | `registry-production-ca7f.up.railway.app` |
 
-Seeded with three verified Experiences. Executions need a worker attached —
-see [Deployment](infrastructure/railway/README.md).
+Seeded with 24 Experiences: the 21-capability corpus plus the original three.
+Every one sits at `candidate` / `consider`, not `verified` / `use`, because
+every one has evidence from exactly one organization — ours. We could run them
+from our second seeded org and clear the gate tonight; that is precisely the
+Sybil pattern the gate exists to stop, so we have not. Executions need a worker
+attached — see [Deployment](infrastructure/railway/README.md).
 
 ---
 
@@ -52,7 +56,7 @@ see [Deployment](infrastructure/railway/README.md).
 | **Why** | [The problem](#-the-problem-agents-have-amnesia) · [The idea](#-the-idea-in-one-breath) · [Why not X](#-why-not-just-use-x) |
 | **What** | [Experience](#-the-core-abstraction-an-experience) · [The loop](#-the-loop-six-verbs-that-matter) · [Evidence](#-evidence-not-stars-) |
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
-| **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-three-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
+| **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
 | **Meta** | [Naming](#-about-the-name-yes-really) · [Roadmap](#️-roadmap) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
 
@@ -362,13 +366,13 @@ AI AGENTS ──► HTTP ┘    ▲    ├─► EVENT STORE
 | [`packages/domain`](packages/domain) | Entities and protocols. **Imports no infrastructure, ever.** |
 | [`packages/schemas`](packages/schemas) | Pydantic wire models + SQLAlchemy tables, deliberately separate. |
 | [`packages/retrieval`](packages/retrieval) | Intent normalization, hard filters, hybrid retrieval, ranking. |
-| [`packages/execution`](packages/execution) | `ExecutionRuntime` protocol + `DockerOciRuntime`. |
+| [`packages/execution`](packages/execution) | `ExecutionRuntime` protocol, `DockerOciRuntime`, `E2BRuntime`, result cache. |
 | [`packages/verification`](packages/verification) | `Verifier` protocol + verifier registry. |
 | [`packages/reputation`](packages/reputation) | Evidence, recomputed from immutable rows. |
 | [`packages/security`](packages/security) | API keys, scopes, `PolicyEngine`, tenant visibility. |
 | [`packages/observability`](packages/observability) | OTel tracing, structlog JSON logs, product metrics. |
 | [`packages/common`](packages/common) | ids, clock, config, errors, object storage. |
-| [`capabilities/examples`](capabilities/examples) | Three real, stdlib-only artifacts used by tests and benchmarks. |
+| [`capabilities/examples`](capabilities/examples) | 21 real, stdlib-only artifacts used by tests and benchmarks. |
 
 **Dependency rule:** infrastructure implements the protocols in
 [`packages/domain/protocols.py`](packages/domain/src/boobs_domain/protocols.py).
@@ -384,7 +388,7 @@ WASI without the product domain noticing. 🔌
 | Database | Postgres 16 + **pgvector** | Lexical `tsvector` **and** vector search in one place, with triggers doing the enforcing |
 | Objects | S3 / MinIO | Execution outputs and logs |
 | Embeddings | fastembed · `BAAI/bge-small-en-v1.5` (384d) | Local ONNX. No API key, no network at query time, deterministic in CI |
-| Sandbox | Docker OCI, digest-pinned | Behind a protocol, so it is replaceable |
+| Sandbox | Docker OCI, digest-pinned — or E2B Firecracker (`BOOBS_RUNTIME`) | Behind a protocol, so it is replaceable, and it has been replaced once already |
 | Tooling | `uv` workspace · ruff · mypy · pytest | Fast, boring, correct |
 
 ---
@@ -513,6 +517,15 @@ gives every execution:
 
 Inputs and outputs move as **tar streams via `docker cp`**, which is precisely
 why no bind mount is needed. Please do not add one. 🙏
+
+That table describes `DockerOciRuntime`, which is what `BOOBS_RUNTIME` selects
+by default. The other implementation is
+[`E2BRuntime`](packages/execution/src/boobs_execution/e2b_runtime.py)
+(`BOOBS_RUNTIME=e2b`), a Firecracker microVM per run — stronger isolation from
+the worker's host, and a *weaker* network guarantee, because it cannot close
+the sandbox's egress. So it **refuses** any execution declaring
+`network: false` rather than quietly running it with the internet reachable.
+A promise it cannot keep is worse than a runtime it cannot offer. 🔥
 
 The security tests in [`tests/security`](tests/security) run **real
 containers** and try to break out: unreachable network, DNS failure, read-only
@@ -764,9 +777,12 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 |---|---|---|
 | `GET` | `/v1/health` · `/v1/ready` | Liveness · readiness (database, **pgvector**, object storage) plus reported queue depth |
 | `POST` | `/v1/bootstrap` | Mint an org + agent + first key (guarded by `BOOBS_BOOTSTRAP_TOKEN`) |
+| `POST` | `/v1/keys` | Mint a key with no signup. Returns the plaintext **once**, and a `key_id` |
+| `POST` | `/v1/keys/{key_id}/revoke` | Kill a key. Any key in the org may revoke the org's keys; `admin` reaches across orgs |
 | `POST` | `/v1/experiences` | **RECORD** |
 | `GET` | `/v1/experiences/{id}` | **DISCOVER** |
 | `POST` | `/v1/experiences/recall` | **RECALL** |
+| `GET` | `/v1/recall?q=…` | The same question in a URL, no key, no body — what `curl 80085.ai/recall` hits |
 | `POST` | `/v1/experiences/{id}/execute` | **EXECUTE** (202, or 200 with `wait_seconds`) |
 | `GET` | `/v1/executions/{id}` | Result, outputs, verdict |
 | `GET` | `/v1/executions/{id}/events` | The append-only event stream |
@@ -777,6 +793,11 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 The two `/v1/worker` endpoints require the `worker:execute` scope and nothing
 else. That scope cannot read an Experience, record one, or run one on demand —
 it can only take work that was already queued and say what happened. 🔒
+
+Keep the `key_id` that comes back with a minted key. There is no account to
+look it up in afterwards, and it is the only handle revocation has. Revoking
+is idempotent — the second call keeps the first timestamp, because what is
+being recorded is *when the key stopped working*. 🗝️
 
 ### 🔍 Recall
 
@@ -825,7 +846,8 @@ curl -s localhost:8000/v1/experiences/exp_5f3c…/execute \
   -d '{
     "version": 1,
     "inputs": {"input.csv": "dHJhY2ssYnBtCkFjaWQgVHJheCwxMjgK"},
-    "wait_seconds": 120
+    "wait_seconds": 120,
+    "idempotency_key": "9c1f…-uuid4"
   }'
 ```
 
@@ -833,6 +855,12 @@ Inputs are `filename → base64`, staged into the sandbox working directory;
 filenames must be plain names (no `/`, no `\`, no leading `.`). Outputs come
 back the same way, alongside `stdout`, `stderr`, `exit_code`, `duration_ms`,
 and a `verification` block that is *the system's* verdict, not the artifact's.
+
+`idempotency_key` is optional and scoped to your organization: repeating a
+request with the same key returns the execution the first one created instead
+of running the sandbox again. Use it on every retry. A dropped response is not
+a reason to run a stranger's code twice, and the second run would produce real
+evidence for something you only meant to do once. ♻️
 
 ---
 
@@ -1012,8 +1040,12 @@ during a demo. Yes, that is the price of admission. 🎟️😌
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Execution outputs and logs |
 | `ARTIFACT_REGISTRY` | Registry that `scripts/build_capabilities.py` pushes to |
 | `SANDBOX_CPU`, `SANDBOX_MEMORY_MB`, `SANDBOX_TMPFS_MB`, `SANDBOX_TIMEOUT_SECONDS`, `SANDBOX_PIDS`, `SANDBOX_MAX_OUTPUT_BYTES` | Sandbox policy defaults, overridable per Experience |
+| `EVIDENCE_MIN_PROMOTION_ORGANIZATIONS` | Distinct organizations required before VERIFIED or `use`. Default **2** |
 | `BOOBS_BOOTSTRAP_TOKEN` | Guards `/v1/bootstrap`, which mints API keys |
 | `BOOBS_EMBEDDER` | `auto` (default) · `fastembed` · `hashing` |
+| `BOOBS_RUNTIME` | `docker` (default) · `e2b`. Picks the worker's sandbox |
+| `E2B_API_KEY` | Required by `BOOBS_RUNTIME=e2b`. Never defaulted, never in a file |
+| `BOOBS_EXEC_CACHE` | `0` (default) · `1`. Replays identical runs — read `packages/execution/cache.py` first |
 | `BOOBS_API_KEY`, `BOOBS_API_URL` | How the worker and the local MCP server reach the API |
 | `BOOBS_WORKER_ID` | Identifies the worker holding a lease |
 | `BOOBS_MCP_TRANSPORT` | `stdio` (default, local) · `sse` · `streamable-http` (hosted) |
@@ -1041,8 +1073,9 @@ Record → recall → execute → verify → evidence, proven by the cross-agent
 **Phase 1 — Reach**
 - 🌍 `apps/web`: public discovery surface, `llms.txt`, integration docs
 - 🤖 Agent SDK, so `recall` is one line in any harness
-- 📚 Publishing the 21-capability corpus in `capabilities/manifest.json` — built
-  and tested, not yet pushed or recorded anywhere
+- ✅ **Done:** the 21-capability corpus in `capabilities/manifest.json` is pushed
+  to the registry and recorded against the live API — and recommended by
+  nothing, until an organization that is not ours runs one
 
 **Phase 2 — Depth**
 - 🧬 **Experience Graph** — the `lineage` fields already exist and are unused
@@ -1152,7 +1185,7 @@ issue.
 | Record → recall → execute → verify → evidence | ✅ Implemented end to end |
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
-| Example capabilities | ✅ Three, stdlib-only |
+| Example capabilities | ✅ 21, stdlib-only, live — and none corroborated yet |
 | Benchmark harness | ⚠️ Runs; the checked-in results are **not** a performance claim |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
