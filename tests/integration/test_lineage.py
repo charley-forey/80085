@@ -195,7 +195,14 @@ async def test_a_caller_can_read_back_the_lineage_they_recorded(
 async def test_lineage_of_something_you_cannot_see_is_not_traversable(
     api: httpx.AsyncClient,
 ) -> None:
-    """The root goes through the ordinary read rules, not around them."""
+    """The root goes through the ordinary read rules, not around them.
+
+    Those rules used to answer 403 here and 404 for an id that was never
+    recorded, which made the root a cheaper oracle than the walk this endpoint
+    was carefully built not to be: one GET, no lineage edge to write. The read
+    path now gives the same answer to both, and this asserts that the root
+    inherited it rather than keeping a private exception.
+    """
     victim = await bootstrap(api, "lineage-root-victim", "victim")
     secret = await _record(
         api, victim, "198.51.100.66", "private, and not a traversal root", visibility="private"
@@ -203,7 +210,10 @@ async def test_lineage_of_something_you_cannot_see_is_not_traversable(
 
     stranger = await bootstrap(api, "lineage-root-stranger", "stranger")
     refused = await api.get(f"/v1/experiences/{secret}/lineage", headers=auth(stranger))
-    assert refused.status_code == 403, refused.text
-
     missing = await api.get(f"/v1/experiences/{NEVER_RECORDED}/lineage", headers=auth(stranger))
-    assert missing.status_code == 404, missing.text
+
+    assert refused.status_code == missing.status_code == 404, refused.text
+    assert refused.json()["error"] == missing.json()["error"]
+    assert refused.json()["detail"].replace(secret, "ID") == missing.json()["detail"].replace(
+        NEVER_RECORDED, "ID"
+    )

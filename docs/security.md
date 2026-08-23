@@ -158,6 +158,18 @@ Using someone's public Experience is allowed; *mutating* it is not. An
 execution is never cross-tenant readable — it is the caller's own run and may
 contain the caller's data, so another organization gets `404`, not `403`.
 
+**Refusals do not say whether something exists.** The same rule now governs
+reading one Experience: an id that exists and is not visible to you and an id
+that was never recorded produce the identical `404`, identical error and
+identical sentence, so a status code cannot be used to confirm an id picked up
+from a log, a ticket or a screenshot. The distinction is kept *inside* one
+organization — a colleague refused a private Experience still gets `403`,
+because "this exists and you need different permissions" beats sending an
+operator hunting for a typo, and existence is not a fact their own tenant is
+being told for the first time. The rule is that the distinction never crosses
+an organization. Missing-scope refusals are answered before the row is
+fetched, so they say nothing either. See `DECISIONS.md` §55.
+
 ## Keys
 
 SHA-256 hashed at rest, scoped, revocable, and stamped with `last_used_at` on

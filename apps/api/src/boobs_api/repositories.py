@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boobs_common import ids
 from boobs_common.clock import now
 from boobs_common.config import tier_for_duration
-from boobs_common.errors import Conflict, NotFound, ValidationError
+from boobs_common.errors import Conflict, Forbidden, NotFound, ValidationError
 from boobs_domain.entities import DIGEST_RE, OCI_PINNED_RE
 from boobs_domain.enums import ExperienceStatus, VerificationLevel
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
@@ -184,12 +184,50 @@ class ExperienceRepository:
         return experience, version
 
     async def get(self, principal: Principal, experience_id: str) -> Experience:
+        """Every read of one Experience, and the only place existence is answered.
+
+        `get_experience`, `execute_experience` and the lineage root all arrive
+        here, so the rule below is stated once rather than per route.
+
+        **The rule: the 403/404 distinction never crosses an organization.**
+        An Experience owned by someone else and not visible to the caller is
+        reported exactly as an id that was never recorded -- same error, same
+        sentence, same status. Decision 52 built the lineage traversal so that
+        an invisible edge and a dangling edge are byte-identical, and that
+        guarantee was cosmetic while this path would answer the same question
+        directly: private ids are not guessable, but they do not have to be
+        guessed -- they are handed to their owner in plain text at record and
+        they travel in logs, tickets and screenshots. Confirming one is the
+        whole attack, and it is the thing refused here.
+
+        Inside the caller's own organization the 403 is kept, because there it
+        is worth more than it costs: an agent that cannot see a colleague's
+        private Experience is told the id is real and the permission is not,
+        rather than being sent hunting for a typo. The organization is the
+        tenancy boundary the rest of this file defends; it is not a boundary
+        this answer crosses.
+
+        Scope is checked first and without the row, so a caller who lacks
+        `experiences:read` gets the same 403 whether or not the id exists --
+        otherwise the fix above would just move the oracle to anyone holding a
+        write-only key.
+        """
+        await self._policy.authorize(principal, "experience.read")
         experience = (
             await self._db.execute(select(Experience).where(Experience.id == experience_id))
         ).scalar_one_or_none()
         if experience is None:
             raise NotFound(f"experience {experience_id} not found")
-        await self._policy.authorize(principal, "experience.read", experience)
+        try:
+            await self._policy.authorize(principal, "experience.read", experience)
+        except Forbidden:
+            # Raised through the policy engine rather than by re-deciding
+            # visibility here: `visible_to` stays the single definition of who
+            # may see what, and this only chooses which of two answers the
+            # refusal is allowed to be.
+            if experience.organization_id == principal.organization_id:
+                raise
+            raise NotFound(f"experience {experience_id} not found") from None
         return experience
 
     async def get_version(
@@ -248,6 +286,9 @@ class ExecutionRepository:
             raise NotFound(f"execution {execution_id} not found")
         # Executions are never cross-tenant readable: they are the caller's own
         # run of someone else's Experience, and may contain the caller's data.
+        # Note which answer that is -- the same 404, not a 403. This path
+        # settled the question before `get` above did, and `get` was brought
+        # into line with it rather than the other way round.
         if execution.organization_id != principal.organization_id:
             raise NotFound(f"execution {execution_id} not found")
         return execution
