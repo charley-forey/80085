@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DEFAULT_API, mergeConfig, serverBlock, targets } from './init.js';
+import {
+  DEFAULT_API,
+  DEFAULT_MCP,
+  localServerBlock,
+  mergeConfig,
+  serverBlock,
+  targets
+} from './init.js';
 
-test('the server block is digest-agnostic but repo-pinned and installable', () => {
+test('the default block points at the hosted endpoint, with nothing to install', () => {
   const b = serverBlock('sk_80085_abc');
+  assert.equal(b.url, DEFAULT_MCP);
+  assert.equal(b.headers.Authorization, 'Bearer sk_80085_abc');
+  assert.ok(!('command' in b), 'the default path must not require a local runtime');
+});
+
+test('--local still yields a runnable, repo-pinned local server', () => {
+  const b = localServerBlock('sk_80085_abc');
   assert.equal(b.command, 'uvx');
   assert.ok(b.args.some((a) => a.includes('subdirectory=apps/mcp')));
   assert.equal(b.args.at(-1), '80085-mcp');
@@ -20,7 +34,7 @@ test('merging preserves everything already in the config', () => {
   const next = mergeConfig(existing, serverBlock('sk_80085_x'));
   assert.deepEqual(next.somethingElse, { keep: true });
   assert.deepEqual(next.mcpServers.other, { command: 'node' });
-  assert.equal(next.mcpServers['80085'].command, 'uvx');
+  assert.equal(next.mcpServers['80085'].url, DEFAULT_MCP);
 });
 
 test('merging into nothing produces a valid config', () => {
@@ -32,7 +46,7 @@ test('re-running replaces our block rather than duplicating it', () => {
   let cfg = mergeConfig(null, serverBlock('sk_80085_old'));
   cfg = mergeConfig(cfg, serverBlock('sk_80085_new'));
   assert.equal(Object.keys(cfg.mcpServers).length, 1);
-  assert.equal(cfg.mcpServers['80085'].env.BOOBS_API_KEY, 'sk_80085_new');
+  assert.equal(cfg.mcpServers['80085'].headers.Authorization, 'Bearer sk_80085_new');
 });
 
 test('the merge never mutates the config it was given', () => {
@@ -60,4 +74,13 @@ test('every supported client is covered', () => {
   for (const n of ['Claude Code', 'Claude Desktop', 'Cursor', 'Windsurf', 'this project']) {
     assert.ok(names.includes(n), `missing ${n}`);
   }
+});
+
+test('the install never asks the user for anything', async () => {
+  // The whole promise of the command is that it is one step. If a prompt ever
+  // creeps back in, this fails.
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('./init.js', import.meta.url), 'utf8');
+  assert.ok(!/rl\.question\(\s*['"`]\s*paste/i.test(src), 'it prompts for a key again');
+  assert.ok(src.includes('mintKey('), 'it no longer mints a key');
 });

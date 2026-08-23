@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from boobs_api.limits import RateLimited
 from boobs_api.routes import router
 from boobs_api.worker_routes import router as worker_router
 from boobs_common import storage
@@ -36,6 +37,7 @@ STATUS_FOR = {
     NotFound: 404,
     Conflict: 409,
     ValidationError: 422,
+    RateLimited: 429,
 }
 
 log = logger(__name__)

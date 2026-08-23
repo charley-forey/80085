@@ -55,8 +55,13 @@ class MissingKey(RuntimeError):
     """Raised when neither the caller nor the environment supplied a key."""
 
 
-def _api_key(ctx: Context | None) -> str:
-    """The caller's key if this is a hosted request, else the local one."""
+def _api_key(ctx: Context | None, *, required: bool = True) -> str | None:
+    """The caller's key if this is a hosted request, else the local one.
+
+    `required=False` for recall, which is answerable without any credential --
+    an agent that has just discovered this server should be able to ask it
+    something before deciding whether to sign up for anything.
+    """
     headers = getattr(ctx, "headers", None) if ctx is not None else None
     if headers:
         supplied = headers.get("authorization") or headers.get("Authorization")
@@ -65,6 +70,8 @@ def _api_key(ctx: Context | None) -> str:
 
     key = os.environ.get("BOOBS_API_KEY", "")
     if not key:
+        if not required:
+            return None
         raise MissingKey(
             "No 80085 API key. Send 'Authorization: Bearer sk_80085_...' with the "
             "request, or set BOOBS_API_KEY when running this server locally."
@@ -72,17 +79,20 @@ def _api_key(ctx: Context | None) -> str:
     return f"Bearer {key}"
 
 
-def _client(ctx: Context | None) -> httpx.AsyncClient:
+def _client(ctx: Context | None, *, required: bool = True) -> httpx.AsyncClient:
+    key = _api_key(ctx, required=required)
     return httpx.AsyncClient(
         base_url=os.environ.get("BOOBS_API_URL", DEFAULT_API_URL),
-        headers={"Authorization": _api_key(ctx)},
+        headers={"Authorization": key} if key else {},
         timeout=httpx.Timeout(300.0),
     )
 
 
-async def _post(ctx: Context | None, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def _post(
+    ctx: Context | None, path: str, payload: dict[str, Any], *, required: bool = True
+) -> dict[str, Any]:
     try:
-        async with _client(ctx) as client:
+        async with _client(ctx, required=required) as client:
             response = await client.post(path, json=payload)
     except MissingKey as exc:
         return {"error": "unauthenticated", "detail": str(exc)}
@@ -109,6 +119,9 @@ async def recall_experience(
     artifact is compatible with your environment. A `recommendation` of "use"
     means running it is very likely cheaper than rebuilding it. An empty list
     means no verified solution exists -- solve the task yourself, then record it.
+
+    Needs no API key. Without one you see public Experiences, which is most of
+    them; with one you also see your own organization's.
     """
     return await _post(
         ctx,
@@ -124,6 +137,7 @@ async def recall_experience(
             "constraints": {"network": network},
             "limit": limit,
         },
+        required=False,
     )
 
 

@@ -4,9 +4,12 @@
  *
  * Wires the 80085 MCP server into whichever agent you actually use.
  *
- * It does not mint credentials for you, open a browser, or phone home. It
- * finds the config, shows you what it is about to write, backs the file up,
- * writes it, and verifies the API answers. Everything it did is printed.
+ * One command, no questions. It finds the config, mints a key (no signup, no
+ * email, nothing to fill in), backs the file up, writes it, and verifies the
+ * API answers. Everything it did is printed, including the path it touched.
+ *
+ * It never opens a browser and never phones home beyond the one call that
+ * mints the key and the one that checks health.
  */
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -18,6 +21,7 @@ import { pathToFileURL } from 'node:url';
 
 export const REPO = 'https://github.com/charley-forey/80085';
 export const DEFAULT_API = 'https://api.80085.ai';
+export const DEFAULT_MCP = 'https://mcp.80085.ai';
 const KEY_PREFIX = 'sk_80085_';
 
 /** Every config we know how to write, in the order we prefer them. */
@@ -38,12 +42,45 @@ export function targets(os = platform(), env = process.env, home = homedir()) {
   ];
 }
 
-export function serverBlock(key, apiUrl = DEFAULT_API) {
+/**
+ * The hosted endpoint, which is what almost everyone should use: there is
+ * nothing to install and nothing to keep up to date.
+ */
+export function serverBlock(key, mcpUrl = DEFAULT_MCP) {
+  return {
+    url: mcpUrl,
+    headers: { Authorization: `Bearer ${key}` }
+  };
+}
+
+/** The same server as a local process, for people who would rather it be one. */
+export function localServerBlock(key, apiUrl = DEFAULT_API) {
   return {
     command: 'uvx',
     args: ['--from', `git+${REPO}#subdirectory=apps/mcp`, '80085-mcp'],
     env: { BOOBS_API_URL: apiUrl, BOOBS_API_KEY: key }
   };
+}
+
+/**
+ * Get a key without asking anyone for one.
+ *
+ * No signup, no email, no browser. The endpoint mints on demand because every
+ * credential a tool demands costs it a user, and this one has nothing to gain
+ * by knowing who you are.
+ */
+export async function mintKey(apiUrl = DEFAULT_API, label = 'cli') {
+  const res = await fetch(`${apiUrl}/v1/keys?label=${encodeURIComponent(label)}`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`could not mint a key (${res.status}) ${detail.slice(0, 200)}`);
+  }
+  const body = await res.json();
+  if (!body.api_key) throw new Error('the mint endpoint returned no key');
+  return body.api_key;
 }
 
 /**
@@ -77,14 +114,16 @@ const HELP = `
     npx @80085/cli init [options]
 
   Options
-    --key <sk_80085_...>   your API key (otherwise you are asked)
+    --key <sk_80085_...>   use this key (otherwise one is minted for you)
+    --local                run the server as a local process instead of
+                           using the hosted endpoint
     --api-url <url>        default ${DEFAULT_API}
     --target <path>        write this exact file, skip detection
     --all                  write every config found, without asking
     --dry-run              print what would change, write nothing
     --help                 this
 
-  No key? Self-serve signup is not built yet. https://80085.ai/key
+  No key? One is minted for you. There is no signup.
 `;
 
 function parseArgs(argv) {
@@ -94,28 +133,14 @@ function parseArgs(argv) {
     if (a === '--help' || a === '-h') args.help = true;
     else if (a === '--all') args.all = true;
     else if (a === '--dry-run') args.dryRun = true;
+    else if (a === '--local') args.local = true;
+    else if (a === '--mcp-url') args.mcpUrl = argv[++i];
     else if (a === '--key') args.key = argv[++i];
     else if (a === '--api-url') args.apiUrl = argv[++i];
     else if (a === '--target') args.target = argv[++i];
     else args._.push(a);
   }
   return args;
-}
-
-/** Ask for the key without echoing it into the scrollback. */
-async function askKey(rl) {
-  const mute = { muted: false };
-  const write = stdout.write.bind(stdout);
-  stdout.write = (chunk, ...rest) => (mute.muted ? true : write(chunk, ...rest));
-  const question = rl.question('  paste your 80085 API key: ');
-  mute.muted = true;
-  try {
-    return (await question).trim();
-  } finally {
-    mute.muted = false;
-    stdout.write = write;
-    write('\n');
-  }
 }
 
 async function main(argv) {
@@ -157,16 +182,21 @@ async function main(argv) {
       }
     }
 
-    // --- key -------------------------------------------------------------
+    // --- key ---------------------------------------------------------------
+    // Nothing is asked for here on purpose. A tool that stops to demand a
+    // credential is a tool most people close, and there is nothing worth
+    // learning about someone from making them fill in a form first.
     key = args.key || process.env.BOOBS_API_KEY || '';
     if (!key) {
-      if (!stdin.isTTY) {
-        console.log(bad('no key. pass --key sk_80085_... or set BOOBS_API_KEY.'));
+      console.log(dim('\n  minting a key: no signup, no email, nothing to fill in'));
+      try {
+        key = await mintKey(apiUrl, 'cli');
+        console.log(ok(`minted      ${dim(KEY_PREFIX + '…' + key.slice(-6))}`));
+      } catch (err) {
+        console.log(bad(String(err.message)));
+        console.log(dim('    pass --key sk_80085_... if you already have one.'));
         return 1;
       }
-      console.log(dim('\n  Nothing is minted for you — paste a key you already have.'));
-      console.log(dim('  No key yet? https://80085.ai/key\n'));
-      key = await askKey(rl);
     }
     if (!key.startsWith(KEY_PREFIX)) {
       console.log(bad(`that does not look like a key — they start with ${KEY_PREFIX}`));
@@ -180,7 +210,7 @@ async function main(argv) {
 }
 
 async function apply(chosen, key, apiUrl, args) {
-  const block = serverBlock(key, apiUrl);
+  const block = args.local ? localServerBlock(key, apiUrl) : serverBlock(key, args.mcpUrl);
   console.log('');
 
   for (const t of chosen) {
