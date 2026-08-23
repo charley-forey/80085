@@ -14,7 +14,8 @@ Three properties this module exists to guarantee, in order of importance:
 * **It cannot grow without bound.** Recall is keyless and public, so this table
   is an abuse target. Two bounds: an upsert on a fingerprint over the
   *normalized* intent, so a thousand rephrasings of one unmet need are one row
-  and a counter; and a retention window, swept on write.
+  and a counter; and a retention window, swept by `80085-scheduler retention`
+  with the write path as its fallback until that cron exists (decision 54).
 * **It cannot retain what somebody typed.** The row used to carry the raw task
   text. It no longer carries any free text at all: `vocabulary()` keeps only
   labels written in `boobs_retrieval.intent`, so the worst thing a caller can
@@ -25,11 +26,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import delete, func
+from sqlalchemy import CursorResult, delete, func
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common import ids
 from boobs_common.clock import now
@@ -45,6 +48,29 @@ log = logger(__name__)
 # also the bound on how long user-supplied text was kept; there is no longer
 # any, which makes this a data-quality window rather than a privacy one.
 RETENTION = timedelta(days=90)
+
+# Set to "0" on the API once `80085-scheduler retention` is confirmed running.
+# It defaults to on so that deploying this code cannot be the moment retention
+# quietly stopped -- see `sweep` and decision 54.
+SWEEP_ON_WRITE = "BOOBS_MISS_SWEEP_ON_WRITE"
+
+
+async def sweep(session: AsyncSession) -> int:
+    """Delete misses nobody has asked for since `RETENTION` ago.
+
+    The one implementation of retention, called from two places: the scheduled
+    job in `boobs_api.scheduler`, and the fallback below. It does not commit --
+    the write path folds it into the transaction that wrote the miss.
+    """
+    # `AsyncSession.execute` is typed as the read-shaped `Result`; a DELETE
+    # always yields a `CursorResult`, which is the half that counts rows.
+    result = cast(
+        CursorResult[Any],
+        await session.execute(
+            delete(RecallMiss).where(RecallMiss.last_seen_at < now() - RETENTION)
+        ),
+    )
+    return int(result.rowcount or 0)
 
 
 def fingerprint(
@@ -135,14 +161,26 @@ async def record(
                     },
                 )
             )
-            # ponytail: swept on write rather than by a scheduler, because this
-            # stack has no scheduler and adding one to delete a handful of rows
-            # would be the larger change. It is an indexed range delete that
-            # matches nothing on almost every call. Move it to a cron job if
-            # misses ever arrive fast enough for the delete to show up.
-            await session.execute(
-                delete(RecallMiss).where(RecallMiss.last_seen_at < timestamp - RETENTION)
-            )
+            # ponytail: retention has a proper home now -- `80085-scheduler
+            # retention` -- and this is the fallback for a deployment where
+            # nobody has created the cron service yet. It stays on by default
+            # because the alternative is that shipping this code is the moment
+            # retention silently stopped. Ceiling: an indexed range delete
+            # inside the miss write, which is what it always was. Set
+            # BOOBS_MISS_SWEEP_ON_WRITE=0 once the cron is confirmed running.
+            if os.environ.get(SWEEP_ON_WRITE, "1").strip() != "0":
+                removed = await sweep(session)
+                if removed:
+                    # Deliberately a warning, and deliberately only when it
+                    # deletes something. With the job running there is never
+                    # anything left here to delete, so this line appearing at
+                    # all is the symptom of a cron nobody made -- or made and
+                    # broke. It is the only alarm a forgotten schedule sets off.
+                    log.warning(
+                        "recall_miss_retention_swept_on_write",
+                        removed=removed,
+                        job="80085-scheduler retention",
+                    )
             await session.commit()
     except Exception as exc:  # noqa: BLE001 - a lost miss must never cost a recall
         log.warning("recall_miss_not_recorded", error=str(exc), kind=type(exc).__name__)

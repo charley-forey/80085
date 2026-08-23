@@ -20,6 +20,12 @@ dependencies = [
     "80085-observability",
 ]
 
+# The API's maintenance jobs, run by a Railway cron service from this same
+# image with a different start command. Decision 54 explains why they are not
+# their own workspace member.
+[project.scripts]
+"80085-scheduler" = "boobs_api.scheduler:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

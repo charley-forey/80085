@@ -21,6 +21,7 @@
 | `minio` | Railway + volume | Execution outputs and logs. |
 | `registry` | Railway + volume | The project's own OCI artifact registry, digest-addressed and authenticated. |
 | `worker` | **Any host with Docker** | Runs sandboxes. Talks HTTPS to the API and holds only a `worker:execute` key. |
+| `scheduler-*` | Railway, cron schedule | One service per job. Runs `80085-scheduler <job>` from the API image and exits. `scheduler.md`. |
 
 There is no Redis: the queue lives in Postgres (see `DECISIONS.md` 8 and 17).
 
@@ -71,7 +72,9 @@ BOOBS_BOOTSTRAP_TOKEN  (secret — this endpoint mints API keys)
 BOOBS_EMBEDDER         fastembed
 ```
 
-Migrations run as a pre-deploy step: `alembic upgrade head`.
+Migrations run as a pre-deploy step: `alembic upgrade head`. The cron services
+must **not** repeat it — see `scheduler.md`, which is the whole of how one gets
+made and how to tell whether it ran.
 
 **The Postgres image must ship pgvector.** Use
 `ghcr.io/railwayapp-templates/postgres-ssl:18`; plain `postgres:*` does not

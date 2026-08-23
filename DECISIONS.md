@@ -1571,3 +1571,124 @@ too.
 **Undo:** delete the route, the response models and the `admin.misses` entry.
 Nothing else reads the table, and decision 29's original position — record it,
 decide later — is still available.
+
+---
+
+### 54. Railway is the scheduler; this repository only holds the jobs
+
+**Found by reading a `ponytail:` comment.** `misses.record` swept its own
+retention window inside the transaction that wrote the miss, and said why:
+this stack had no scheduler, and building one to delete a handful of rows
+would be the larger change. That stopped being true. Staleness sweeps (§24),
+re-verification and autonomous maintenance (§26–27) all want the same missing
+thing, and `railway.json` had `cronSchedule` sitting unused the whole time.
+
+So: one entrypoint, jobs invoked by name, and **no timing logic anywhere in
+this repository**.
+
+```bash
+uv run 80085-scheduler retention
+```
+
+A Railway service with a cron schedule runs its start command on that schedule
+and expects the process to exit. That is the whole design. There is no
+interval, no crontab parser, no in-process loop and no queue, because a second
+opinion about when a job should run is a second thing that can be wrong and
+the platform already holds the first. Adding a job is a coroutine, a line in
+`JOBS`, and another Railway service.
+
+**It is not `apps/scheduler/` and it is not `scripts/`.** It is
+`apps/api/src/boobs_api/scheduler.py`, for two reasons and one fact. The
+reasons: the jobs maintain the API's own tables, need exactly the API's
+dependencies, and deploy from the API's image with a different start command —
+the way `alembic upgrade head` already does; and a separate workspace member
+would have to depend on `80085-api` to reach the retention window and the table
+it applies to, which is a backwards dependency edge bought for one dispatch
+dict. The fact: `infrastructure/docker/Dockerfile` copies `packages/`, `apps/`
+and `migrations/`. It does not copy `scripts/`. Nothing under `scripts/` is in
+the deployed image, so Railway could not run it at all.
+
+**It talks to Postgres directly, and that is not the same call as decision 17.**
+Decision 17 says a worker holds no datastore credential, and the temptation is
+to read that as "only the API touches the database". It does not say that. It
+says *the untrusted side of the boundary* holds no datastore credential, and
+what makes a worker untrusted is specific: it runs on somebody else's host,
+because it needs a container runtime nobody will give a managed platform. The
+scheduler has the opposite properties on every axis. It runs on Railway, on the
+private network, from the same image and the same `DATABASE_URL` as `api`, and
+it executes nothing a caller supplied.
+
+The alternative was a job that authenticates to the API and calls an endpoint.
+That is worse, and specifically worse for security: it means a route that
+deletes rows across every tenant, reachable from the internet, guarded by an
+admin key — a leaked key would then delete the demand corpus rather than merely
+read it (decision 50 deliberately made that surface a read). It also makes
+retention depend on the API being up. A `DELETE` behind the private network
+with no HTTP surface at all is the smaller attack surface, not the larger one.
+
+The one variable that service gets is `DATABASE_URL`. No bootstrap token, no S3
+credentials, no API key.
+
+**The write-path sweep does not get deleted, it gets demoted.** Removing it in
+the same change that adds a scheduler nobody has provisioned yet is how
+retention silently stops — and *silent* is the failure mode this codebase keeps
+being bitten by (decisions 8b, 18 and 27 are each a thing that looked fine and
+was not). So `misses.sweep` is now one function called from two places, and the
+write path still calls it **by default**:
+
+* `BOOBS_MISS_SWEEP_ON_WRITE=0` on `api` turns it off. It is the last step of
+  `infrastructure/railway/scheduler.md`, after the cron is confirmed, and it is
+  deliberately manual. Unset, the worst case is a redundant indexed range
+  delete that matches nothing. Set too early, the worst case is retention that
+  stopped without telling anyone.
+* **It is loud, and only when it matters.** The fallback logs a warning when it
+  *actually deletes something*. With the job running there is never anything
+  left for it to delete — so that line appearing at all means the schedule is
+  not doing its work. That is a genuine detector for a cron nobody created, and
+  for one that was created and then broke, and it cost one `if` on a count that
+  was already in hand.
+
+The `ponytail:` comment stays, because the shortcut stays; it now names the job
+that replaces it and the flag that retires it.
+
+**Failure is an exit code, because a cron service emits nothing else.** `0` ran,
+`1` a job raised, `2` the start command named a job that does not exist.
+Railway shows non-zero as a crashed deployment, which is the only thing about a
+cron service anybody sees without going looking. `2` is what a typo in "Custom
+start command" produces, and it produces it on the very first tick rather than
+looking like a job with nothing to do — which is precisely why an unknown name
+is not a no-op. The restart policy is `Never`: `ON_FAILURE` on a job that fails
+because Postgres is down is a tight loop against a database that is down, and
+the next tick is the retry.
+
+**Overlap needs no lock, and that is a claim about this job rather than a
+policy.** Railway skips a tick whose predecessor is still `Active`, so a slow
+run cannot stack — and separately, `retention` is an idempotent range delete:
+two of them running at once means the loser deletes the rows the winner already
+took, which is zero rows and no conflict. Both halves are worth stating,
+because the first is a platform behaviour that could change and the second is
+the reason no guard was written. A job added later that is *not* idempotent has
+to bring its own.
+
+**Config as Code could express this, and cannot be used for it.** Railway's
+schema does have `deploy.cronSchedule`, so `railway.json` looks like the
+obvious home for the schedule. It is not: Config as Code is deprecated, new
+services cannot opt into it, and existing files stop being read on 2026-12-01.
+`infrastructure/railway/railway.json` still configures `api` only because `api`
+predates that. The schedule is therefore a dashboard setting, and
+`infrastructure/railway/scheduler.md` documents the service the way
+`infrastructure/worker/README.md` documents standing up a worker — settings,
+schedule, variables, and three commands that say whether it ran. The service is
+**not provisioned here**: that is a live change with a cost, on somebody's
+account.
+
+The eventual answer is Railway's Infrastructure as Code (`.railway/railway.ts`),
+which replaces Config as Code and would put the schedule back in the
+repository. It refuses to manage a project while any service is still on
+`railway.json`, so adopting it means migrating `api` first. Deliberately not
+done here: that is a separate blast radius, and retention does not need it.
+
+**Undo:** delete `scheduler.py` and its `[project.scripts]` entry, delete the
+Railway service, and leave `BOOBS_MISS_SWEEP_ON_WRITE` unset. The write path
+sweeps again and nothing else moves — which is the property the fallback was
+kept for.
