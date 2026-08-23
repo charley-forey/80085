@@ -33,6 +33,29 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy packages apps
 
+  web:
+    name: site build + web tests
+    runs-on: ubuntu-latest
+    # apps/web has had tests since before the Python suite did and CI has never
+    # run one of them. `node build.mjs` renders every public surface -- the
+    # page, /llms.txt, agents.md, the MCP descriptor -- so a change that breaks
+    # the build was only ever caught at deploy, and a change that made two
+    # surfaces disagree was not caught at all.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the site
+        working-directory: apps/web
+        run: node build.mjs
+      - name: Web tests
+        working-directory: apps/web
+        run: node --test
+      - name: CLI tests
+        working-directory: apps/cli
+        run: node --test
+
   unit:
     name: unit tests
     runs-on: ubuntu-latest
