@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from boobs_api.limits import RateLimited
+from boobs_api.limits import RateLimited, client_ip
 from boobs_api.routes import router
 from boobs_api.worker_routes import router as worker_router
 from boobs_common import storage
@@ -41,6 +41,11 @@ STATUS_FOR = {
 }
 
 log = logger(__name__)
+
+# The licence and corpus terms are served from the site, which copies them out
+# of the repository root at build time. Both hosts serve apps/web/public, so
+# this one origin answers for either.
+SITE = "https://80085.ai"
 
 # The ANSI representation is text. Left unregistered it is served as
 # application/octet-stream, which invites a client to download `curl 80085.ai`
@@ -77,9 +82,20 @@ def _web_root() -> Path | None:
 # These mirror the rewrite table in apps/web/vercel.json; both are generated
 # from the same content, so the two hosts answer identically.
 _AGENTS = (
-    "ClaudeBot", "Claude-User", "Claude-SearchBot", "GPTBot", "ChatGPT-User",
-    "OAI-SearchBot", "PerplexityBot", "Perplexity-User", "Google-Extended",
-    "Bytespider", "CCBot", "Applebot-Extended", "cohere-ai", "Meta-ExternalAgent",
+    "ClaudeBot",
+    "Claude-User",
+    "Claude-SearchBot",
+    "GPTBot",
+    "ChatGPT-User",
+    "OAI-SearchBot",
+    "PerplexityBot",
+    "Perplexity-User",
+    "Google-Extended",
+    "Bytespider",
+    "CCBot",
+    "Applebot-Extended",
+    "cohere-ai",
+    "Meta-ExternalAgent",
 )
 _SHELLS = ("curl", "wget", "httpie", "libcurl")
 # Not "index": a file called index.md is a directory index to a static
@@ -157,16 +173,43 @@ def create_app() -> FastAPI:
         version="0.1.0",
         summary="Shared, evidence-backed memory of executable solutions for AI agents.",
         lifespan=lifespan,
+        # Two assets, two instruments: ELv2 covers the code in the repository,
+        # TERMS.md covers the corpus this API serves. An agent that reads only
+        # openapi.json still gets told which is which.
+        license_info={"name": "Elastic License 2.0 (code)", "url": f"{SITE}/LICENSE"},
+        terms_of_service=f"{SITE}/TERMS.md",
     )
     app.include_router(router)
     app.include_router(worker_router)
+
+    @app.middleware("http")
+    async def advertise_terms(request: Request, call_next: Any) -> Any:
+        """Attach the licence terms to every response, machine-readably.
+
+        Recall needs no key, so for most callers there is no signup step at
+        which to show them anything. RFC 8288 link relations are the one notice
+        channel that reaches an agent which only ever speaks HTTP.
+        """
+        response = await call_next(request)
+        response.headers["Link"] = (
+            f'<{SITE}/LICENSE>; rel="license"; title="Elastic License 2.0 (code)", '
+            f'<{SITE}/TERMS.md>; rel="terms-of-service"; title="corpus terms"'
+        )
+        return response
+
     _mount_discovery_surface(app)
 
     @app.exception_handler(EightyKError)
-    async def domain_error(_: Request, exc: EightyKError) -> JSONResponse:
+    async def domain_error(request: Request, exc: EightyKError) -> JSONResponse:
         code = next((status for kind, status in STATUS_FOR.items() if isinstance(exc, kind)), 500)
         if code >= 500:
             log.error("unhandled_domain_error", error=str(exc), kind=type(exc).__name__)
+        elif code == 429:
+            # TERMS.md section 4 forbids bulk extraction. A limit that refuses
+            # silently makes the clause unenforceable in practice, because
+            # nobody can show a pattern after the fact -- so a breach is a
+            # logged event, not just a status code.
+            log.warning("rate_limited", ip=client_ip(request), detail=str(exc))
         return JSONResponse(
             status_code=code, content={"error": type(exc).__name__, "detail": str(exc)}
         )
