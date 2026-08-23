@@ -614,8 +614,8 @@ worth. A number on the wire would be a number worth forging.
 
 **Only the wall clock moves.** `cpu`, `memory_mb`, `tmpfs_mb` and `pids` are
 Docker cgroup flags with no E2B equivalent (decision 19), so tiering them would
-be a promise one of the two runtimes silently breaks. Wall clock, network
-reachability and output size are enforced by both.
+be a promise one of the two runtimes silently breaks. The wall clock is
+enforced by both, which is the one thing a tier moves.
 
 **Still open:** nothing in the API grants a tier. That is deliberate for now --
 approval that an endpoint can perform is approval an attacker can request --

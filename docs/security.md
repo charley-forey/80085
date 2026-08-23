@@ -200,7 +200,8 @@ run.
 * **The E2B runtime enforces fewer of the limits it is handed.** `cpu`,
   `memory_mb`, `tmpfs_mb` and `pids` are Docker cgroup flags with no direct
   E2B equivalent; the microVM's own shape bounds the run instead. Wall clock,
-  network reachability, output size and digest pinning are enforced in both.
+  output size and digest pinning are enforced in both. Network reachability is
+  not -- see "Isolation is per-runtime" above.
 * **No image signing or SBOM yet.** Digest pinning proves the bytes did not
   change; it does not prove who produced them.
 * **No egress allowlist.** Link-local, metadata, loopback and RFC1918 are now
@@ -212,10 +213,9 @@ run.
 * **Egress filtering needs a Linux Docker host and `CAP_NET_ADMIN`.** The
   worker shells out to `iptables`. On Docker Desktop, an unprivileged worker,
   or a remote daemon it cannot install the rules -- and refuses the networked
-  run instead of running it unfiltered. `E2BRuntime` has no egress filter at
-  all: `allow_internet_access` is a boolean with no destination policy. Its
-  mitigation is topology, not policy -- the microVM is in E2B's cloud, so the
-  private network it can reach is not the worker's.
+  run instead of running it unfiltered. It is a Docker control with no E2B
+  counterpart; see "Isolation is per-runtime" above for what E2B does with the
+  network flag.
 * **`/work` is not disk-quota bounded** (see above). Neither obvious fix works
   on a stock Docker host: a tmpfs-backed local volume is unmounted between
   `docker cp` and `start` and loses the inputs, and `--storage-opt size=`

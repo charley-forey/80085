@@ -11,19 +11,18 @@ What deliberately does **not** carry over from `docker_oci`: `--cap-drop`,
 `--security-opt no-new-privileges`, `--read-only` and uid 65534. Those exist
 because Docker shares the host kernel with the artifact; here the guest kernel
 *is* the sandbox and there is nothing else inside it to protect. The limits
-that still mean something -- wall clock, network reachability, output size --
-are enforced here, and the image is still refused unless it is pinned by
-digest (DECISIONS 13): if the bytes could change under a version, every
+that still mean something -- wall clock and output size -- are enforced here,
+and the image is still refused unless it is pinned by digest (DECISIONS 13):
+if the bytes could change under a version, every
 success rate in the system would be a lie.
 
-Two things this runtime does **not** do, said out loud rather than implied:
+What this runtime does **not** enforce, said out loud rather than implied:
 `cpu`, `memory_mb`, `tmpfs_mb` and `pids` are cgroup flags with no E2B
-equivalent and are not enforced here (DECISIONS 19), and `network` stays
-all-or-nothing -- `allow_internet_access` has no destination filter, so the
-link-local and RFC1918 blocks `docker_oci` installs have no counterpart. What
-saves it is topology rather than policy: the microVM runs in E2B's cloud, so
-"the private network" it can reach is not the worker's. Cloud metadata inside
-E2B's own fabric is E2B's boundary to hold, not something this code can claim.
+equivalent (DECISIONS 19), and the network is not isolated at all, which is
+why `execute` refuses `network: false` outright (DECISIONS 27). A networked
+run gets no destination filter either -- `allow_internet_access` is a boolean
+-- so the link-local and RFC1918 drops `docker_oci` installs (DECISIONS 25)
+have no counterpart here.
 
 E2B runs *templates*, not registry references, so the pinned image is turned
 into a template once per digest and reused. The template's identity is
