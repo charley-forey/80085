@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from boobs_api import leases, limits, misses
+from boobs_api import leases, limits, misses, scheduler
 from boobs_api.deps import ANONYMOUS, CurrentPrincipal, DbSession, MaybePrincipal, release
 from boobs_api.repositories import (
     ArtifactRepository,
@@ -69,6 +69,7 @@ from boobs_schemas.tables import (
     ExecutionStat,
     Experience,
     ExperienceVersion,
+    JobRun,
     Organization,
     Policy,
     RecallMiss,
@@ -137,7 +138,43 @@ async def ready(db: DbSession, response: Response) -> dict[str, Any]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     # Queue depth is reported, not checked: a backlog means no worker is
     # attached, which is an operational fact rather than an unhealthy API.
-    return {"ready": ok, "checks": checks, "queued_executions": await leases.depth(db)}
+    #
+    # Scheduled jobs likewise. A cron service that stopped firing is not an
+    # unhealthy API -- recall and execution carry on working -- but it means
+    # evidence has quietly stopped being reconciled, and until now the only
+    # trace was a log line in a Railway service nobody opens. Reported as an
+    # age so a reader needs no clock of their own; null means it has never run
+    # here, which is what a cron service that was never created looks like.
+    return {
+        "ready": ok,
+        "checks": checks,
+        "queued_executions": await leases.depth(db),
+        "jobs": await _job_ages(db),
+    }
+
+
+async def _job_ages(db: DbSession) -> dict[str, dict[str, Any]]:
+    """Seconds since each scheduled job last finished, by name.
+
+    Every job the scheduler knows about appears, whether or not it has ever
+    run: a name that is simply absent from the response is indistinguishable
+    from a name nobody thought to look for, and "never" is the answer worth
+    seeing.
+    """
+    rows = {row.name: row for row in (await db.execute(select(JobRun))).scalars()}
+    moment = now()
+    ages: dict[str, dict[str, Any]] = {}
+    for name in sorted(scheduler.JOBS):
+        row = rows.get(name)
+        if row is None:
+            ages[name] = {"finished_at": None, "age_seconds": None, "affected": None}
+            continue
+        ages[name] = {
+            "finished_at": row.finished_at.isoformat(),
+            "age_seconds": int((moment - row.finished_at).total_seconds()),
+            "affected": row.affected,
+        }
+    return ages
 
 
 async def _db_healthy(db: DbSession) -> bool:

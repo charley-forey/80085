@@ -379,3 +379,32 @@ class RateLimit(Base):
     # Epoch seconds, aligned down to the window length.
     window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class JobRun(Base):
+    """When each scheduled job last finished. One row per job, overwritten.
+
+    Railway is the scheduler and it does report a crashed deployment when a job
+    exits non-zero -- but only for a service that still exists. The failure
+    this table exists for is quieter: a cron service never created, deleted, or
+    given a schedule that does not fire. Nothing crashes, no alarm is raised,
+    and evidence simply stops being reconciled while every dashboard stays
+    green.
+
+    `scripts/smoke.py` could not check it before this. The obvious candidate,
+    `execution_stats.updated_at`, is also written by the execution path, so a
+    recent value proves only that somebody ran something -- a check that passes
+    for the wrong reason, which is the failure mode this project keeps finding.
+
+    Deliberately not a history. What is actionable is "when did this last
+    succeed", and a growing audit log of cron ticks would need a retention job
+    of its own. Decision 63.
+    """
+
+    __tablename__ = "job_runs"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # What the job did, so a heartbeat that is alive but doing nothing is
+    # distinguishable from one that is working.
+    affected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

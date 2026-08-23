@@ -33,6 +33,13 @@ CSV = b"track,bpm\nAcid Trax,128\n"
 PASS = "  ok   "
 FAIL = " FAIL  "
 
+# How stale each scheduled job may be before something is wrong, in seconds.
+# `evidence` runs hourly (`41 * * * *`) and `retention` daily, per
+# infrastructure/railway/scheduler.md, so each window is roughly two ticks --
+# tight enough to catch a service that stopped firing, loose enough that one
+# skipped tick is not an outage.
+JOB_STALE_AFTER = {"evidence": 2 * 60 * 60, "retention": 2 * 24 * 60 * 60}
+
 
 class Smoke:
     def __init__(self) -> None:
@@ -80,6 +87,19 @@ async def main() -> int:
         smoke.check("ready", ready.status_code == 200, ready.text[:300])
         for service, ok in (body.get("checks") or {}).items():
             smoke.check(f"  dependency: {service}", bool(ok))
+
+        # A cron service that was never created, or has been deleted, raises no
+        # alarm anywhere: recall and execution carry on working while evidence
+        # quietly stops being reconciled. `age_seconds` is null when a job has
+        # never run against this database, which is exactly what a missing cron
+        # service looks like from here.
+        for job, window in JOB_STALE_AFTER.items():
+            age = ((body.get("jobs") or {}).get(job) or {}).get("age_seconds")
+            smoke.check(
+                f"  scheduled job ran: {job}",
+                age is not None and age <= window,
+                "never" if age is None else f"last finished {age}s ago, over the {window}s window",
+            )
 
         if smoke.failures:
             print("\ndependencies are not healthy; stopping before writing data")

@@ -39,12 +39,14 @@ import sys
 from collections.abc import Awaitable, Callable
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from boobs_api import misses
+from boobs_common.clock import now
 from boobs_observability import configure, logger
 from boobs_reputation.evidence import rebuild
 from boobs_schemas import db as database
-from boobs_schemas.tables import ExecutionStat
+from boobs_schemas.tables import ExecutionStat, JobRun
 
 log = logger(__name__)
 
@@ -121,11 +123,36 @@ JOBS: dict[str, Callable[[], Awaitable[int]]] = {
 }
 
 
+async def _record(name: str, affected: int) -> None:
+    """Leave a mark that this job finished, for anything that is not Railway.
+
+    Railway reports a crashed deployment when a job exits non-zero, but only
+    for a service that still exists. The failure this guards is quieter: a
+    cron service never created, deleted, or given a schedule that does not
+    fire. Nothing crashes and evidence simply stops being reconciled.
+
+    Written only on success, and after the job's own commit: a heartbeat that
+    updated whether or not the work happened would be a check that passes for
+    the wrong reason, which is the exact bug it exists to catch elsewhere.
+    """
+    async with database.session() as session:
+        await session.execute(
+            insert(JobRun)
+            .values(name=name, finished_at=now(), affected=affected)
+            .on_conflict_do_update(
+                index_elements=[JobRun.name],
+                set_={"finished_at": now(), "affected": affected},
+            )
+        )
+        await session.commit()
+
+
 async def run(name: str) -> int:
     """Run one job by name and return how many rows it touched."""
     log.info("job_started", job=name)
     try:
         affected = await JOBS[name]()
+        await _record(name, affected)
     finally:
         # A cron service is expected to leave nothing open. Postgres counts an
         # abandoned pool against max_connections whether the process meant it
