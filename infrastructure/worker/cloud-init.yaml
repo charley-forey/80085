@@ -84,7 +84,14 @@ runcmd:
   - sh /tmp/uv.sh --no-modify-path
   - install -m 0755 /root/.local/bin/uv /usr/local/bin/uv
 
-  - git clone --depth 1 https://github.com/charley-forey/80085.git /opt/80085
+  # Cloned elsewhere and copied in, because useradd --create-home has already
+  # populated /opt/80085 with skel files and git refuses a non-empty target.
+  # Found the way you would expect: the worker came up 203/EXEC because the
+  # code was never there.
+  - rm -rf /tmp/80085src
+  - git clone --depth 1 https://github.com/charley-forey/80085.git /tmp/80085src
+  - cp -a /tmp/80085src/. /opt/80085/
+  - rm -rf /tmp/80085src
   - chown -R boobs:boobs /opt/80085
   - runuser -u boobs -- /usr/local/bin/uv sync --frozen --directory /opt/80085
 
