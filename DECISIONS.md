@@ -379,3 +379,87 @@ review and its own integration test rather than riding along with a runtime.
 worker and is not shared between workers. Upgrade path when the hit rate
 matters: key -> `SandboxResult` in Postgres (outputs already go to object
 storage), read through the API so every worker shares one cache.
+
+---
+
+### 21. Instrument the four things nobody could see, and stop claiming the rest
+
+**The module was a facade.** `tracer()`, `counter()` and `histogram()` had no
+callers anywhere outside the file that defined them, and nothing ever called
+`FastAPIInstrumentor.instrument_app`, so a deployment with
+`OTEL_EXPORTER_OTLP_ENDPOINT` configured got a `TracerProvider` that emitted
+zero spans. The module docstring meanwhile claimed one trace following a
+request from MCP through the API, retrieval, ranking, the queue, the worker,
+the sandbox, verification and reputation.
+
+What is instrumented now:
+
+* **The API**, auto-instrumented, excluding `/v1/health` and `/v1/ready` --
+  a platform probes those forever and the volume would bury real requests.
+* **`recall`, in four spans**: embedding, lexical query, vector query, ranking.
+  The only latency signal was one aggregate `took_ms`, which cannot tell a cold
+  embedder from a slow vector query -- the one distinction anybody debugging
+  recall actually needs.
+* **The worker's lease -> run -> report loop**, including the empty polls: an
+  idle worker and an unreachable API otherwise look identical.
+* **Counts, not rates**: `recall_requests{matched}`,
+  `executions_completed{status, verified, cross_organization}`, `queue_depth`,
+  `lease_reclaims{outcome}`. Spec section 33 names rates; a rate is a query
+  over counts, and an application that pre-divides can only ever answer the one
+  question it thought of.
+
+What is *not* instrumented, and the docstring now says so: nothing carries
+trace context across the queue, so the worker's spans start a new trace rather
+than continuing the caller's, and MCP, the sandbox, the verifiers and
+reputation have no spans of their own. Joining the halves needs a `traceparent`
+column on `executions` and a propagator at both ends. That is a schema change
+and it is not made here -- but an overclaiming docstring is worse than a
+missing feature, because it stops anyone from noticing the feature is missing.
+
+**Unconfigured means off.** With no endpoint, neither provider is installed and
+the API's no-ops answer: no span is allocated on the recall path, no instrument
+records. Previously a real `TracerProvider` was installed unconditionally,
+which was harmless only because nothing produced spans. Now that something
+does, it would not be.
+
+`_signal_endpoint` exists because `OTEL_EXPORTER_OTLP_ENDPOINT` is a base URL:
+handing it to both exporters unchanged posts traces and metrics to the same
+path, which no collector accepts.
+
+Locked in by `tests/unit/test_observability.py`.
+
+---
+
+### 22. A degraded embedder is reported by `/v1/ready`, and is not unready
+
+`embedder()` is `lru_cache`d and `BOOBS_EMBEDDER=auto` falls back to the
+non-semantic `HashingEmbedder` when the ~90MB model will not load. One startup
+failure therefore degrades every recall for the life of the process, and the
+only evidence was a single log line. `/v1/ready` now reports
+`checks.embedder`, a string (`fastembed` or `hashing`) rather than a boolean,
+and the probe forces the model load rather than answering "not loaded yet".
+
+**Readiness stays true on the fallback.** The argument the other way is real:
+serving degraded recall silently is bad, and a platform cycling the container
+is at least a loud signal. But it is the wrong signal. The failure this catches
+is "the model could not be fetched" -- no network, no disk, no cache -- and a
+restart fixes none of those. Reporting unready would take a deployment that
+answers most queries correctly and make it answer none, converting a
+degradation into an outage without moving the underlying problem an inch.
+
+The degradation is also bounded: lexical retrieval (`ts_rank_cd`) still carries
+the query, relevance multiplies rather than adds (decision 6), and `MIN_SCORE`
+still refuses a weak match. Fewer results, not wrong ones. An empty answer is a
+correct answer.
+
+**No embedder at all is a different failure, and it is unready.**
+`BOOBS_EMBEDDER=fastembed` refuses to fall back, so a model that will not load
+means every recall returns 500. That reports `unavailable` and fails the probe.
+`active_embedder` itself never raises: decision 18's rule is that a readiness
+check must exercise the dependency the way the product does, and a probe that
+500s exercises nothing and reports even less than one that answers.
+
+**Undo:** one line -- put a boolean in `checks` instead of the string, and
+`all(checks.values())` fails readiness on the fallback by itself.
+
+Locked in by `tests/unit/test_ready_reports_the_embedder.py`.

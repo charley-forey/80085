@@ -965,7 +965,7 @@ during a demo. Yes, that is the price of admission. 🎟️😌
 | `BOOBS_API_KEY`, `BOOBS_API_URL` | How the worker and the local MCP server reach the API |
 | `BOOBS_WORKER_ID` | Identifies the worker holding a lease |
 | `BOOBS_MCP_TRANSPORT` | `stdio` (default, local) · `sse` · `streamable-http` (hosted) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset keeps tracing in-process |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional; unset installs no tracer or meter at all |
 
 Start from [`.env.example`](.env.example). Never commit `.env`.
 

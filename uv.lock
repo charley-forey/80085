@@ -207,6 +207,7 @@ version = "0.1.0"
 source = { editable = "packages/retrieval" }
 dependencies = [
     { name = "80085-domain" },
+    { name = "80085-observability" },
     { name = "80085-schemas" },
     { name = "fastembed" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -215,6 +216,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "80085-domain", editable = "packages/domain" },
+    { name = "80085-observability", editable = "packages/observability" },
     { name = "80085-schemas", editable = "packages/schemas" },
     { name = "fastembed", specifier = ">=0.5" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },

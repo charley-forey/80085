@@ -18,7 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common.clock import now
 from boobs_domain.enums import ExecutionStatus
+from boobs_observability import counter, gauge
 from boobs_schemas.tables import Execution
+
+# Two things nobody could see from outside: how much work is waiting, and how
+# often a worker dies holding a claim. A rising reclaim rate is the signal that
+# a worker is crashing on a particular artifact rather than merely being slow.
+_depth = gauge("queue_depth", description="executions waiting for a worker")
+_reclaims = counter("lease_reclaims", "expired leases, attributed by what happened to the row")
 
 # How long a worker may hold a claim before it is assumed dead. Comfortably
 # longer than the sandbox wall-clock limit plus image pull time.
@@ -54,10 +61,12 @@ async def reclaim_expired(db: AsyncSession) -> int:
             execution.status = ExecutionStatus.FAILED
             execution.error = f"abandoned after {execution.attempts} attempts without a result"
             execution.completed_at = moment
+            _reclaims.add(1, {"outcome": "failed"})
         else:
             execution.status = ExecutionStatus.QUEUED
             execution.lease_expires_at = None
             execution.leased_by = None
+            _reclaims.add(1, {"outcome": "requeued"})
         reclaimed += 1
     return reclaimed
 
@@ -106,4 +115,9 @@ async def depth(db: AsyncSession) -> int:
     rows = (
         await db.execute(select(Execution.id).where(Execution.status == ExecutionStatus.QUEUED))
     ).scalars()
-    return len(list(rows))
+    queued = len(list(rows))
+    # Sampled here rather than by a callback, because the callback would need a
+    # database session of its own. /v1/ready and every lease call this, so an
+    # attached worker or a probing platform keeps it fresh.
+    _depth.set(queued)
+    return queued

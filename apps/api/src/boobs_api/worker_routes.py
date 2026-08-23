@@ -32,13 +32,25 @@ from boobs_domain.entities import VerificationSpec
 from boobs_domain.enums import ExecutionStatus, VerificationLevel
 from boobs_domain.events import EventType
 from boobs_domain.protocols import SandboxResult
+from boobs_observability import counter
 from boobs_reputation.evidence import recompute
-from boobs_schemas.tables import Artifact, Execution, ExperienceVersion, Verification
+from boobs_schemas.tables import (
+    Artifact,
+    Execution,
+    Experience,
+    ExperienceVersion,
+    Verification,
+)
 from boobs_security.keys import Scope
 from boobs_verification.verifiers import RegistryVerifier
 
 router = APIRouter(prefix="/v1/worker", tags=["worker"])
 verifier = RegistryVerifier()
+
+# The one place every run ends, so the one place worth counting them. Spec
+# section 33's execution_success_rate, verification_success_rate,
+# successful_reuse_rate and cross_agent_reuse_rate are all slices of this.
+_executions = counter("executions_completed", "runs reported by a worker, once each")
 
 
 class Strict(BaseModel):
@@ -242,6 +254,25 @@ async def report_result(
     await db.flush()
 
     await recompute(db, version.id)
+
+    # Reuse is only *cross-agent* when the organization running the Experience
+    # is not the one that recorded it. That is the number the thesis rests on,
+    # so it is measured from the row rather than inferred from traffic.
+    owner = (
+        await db.execute(
+            select(Experience.organization_id).where(Experience.id == execution.experience_id)
+        )
+    ).scalar_one_or_none()
+    _executions.add(
+        1,
+        {
+            "status": str(request.status),
+            # None means the version declared no verifier, which is neither a
+            # pass nor a fail and must not be counted as either.
+            "verified": "none" if verified is None else str(verified).lower(),
+            "cross_organization": owner is not None and owner != execution.organization_id,
+        },
+    )
 
     return ResultResponse(
         execution_id=execution_id,

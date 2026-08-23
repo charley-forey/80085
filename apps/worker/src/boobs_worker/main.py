@@ -34,9 +34,10 @@ from boobs_common.config import settings
 from boobs_domain.enums import ExecutionStatus
 from boobs_domain.protocols import SandboxRequest, SandboxResult
 from boobs_execution import runtime as select_runtime
-from boobs_observability import configure, logger
+from boobs_observability import configure, logger, tracer
 
 log = logger(__name__)
+tracing = tracer(__name__)
 # BOOBS_RUNTIME=docker|e2b -- Docker by default, so nothing changes for an
 # existing worker; e2b needs no local daemon and no laptop staying awake.
 runtime = select_runtime()
@@ -81,13 +82,20 @@ async def run_job(job: dict[str, Any]) -> SandboxResult:
         max_output_bytes=limits.max_output_bytes,
         network=bool(job.get("network")),
     )
-    try:
-        return await runtime.execute(request)
-    except Exception as exc:  # noqa: BLE001 - a runtime failure is a failed run
-        log.error("sandbox_error", execution_id=job["execution_id"], error=str(exc))
-        return SandboxResult(
-            status=ExecutionStatus.FAILED, exit_code=None, duration_ms=0, error=str(exc)
-        )
+    with tracing.start_as_current_span("worker.run") as span:
+        span.set_attribute("execution.id", job["execution_id"])
+        span.set_attribute("execution.image", job["image"])
+        try:
+            result = await runtime.execute(request)
+        except Exception as exc:  # noqa: BLE001 - a runtime failure is a failed run
+            log.error("sandbox_error", execution_id=job["execution_id"], error=str(exc))
+            span.set_attribute("execution.error", str(exc))
+            return SandboxResult(
+                status=ExecutionStatus.FAILED, exit_code=None, duration_ms=0, error=str(exc)
+            )
+        span.set_attribute("execution.status", str(result.status))
+        span.set_attribute("execution.duration_ms", result.duration_ms)
+        return result
 
 
 async def report(http: httpx.AsyncClient, job: dict[str, Any], result: SandboxResult) -> None:
@@ -131,7 +139,10 @@ async def loop() -> None:
         log.info("worker_started", worker_id=identity, api=str(http.base_url))
         while not _stopping.is_set():
             try:
-                response = await http.post("/v1/worker/lease", json={"worker_id": identity})
+                # A span per poll, including the empty ones: an idle worker and
+                # an unreachable API look identical in the logs otherwise.
+                with tracing.start_as_current_span("worker.lease"):
+                    response = await http.post("/v1/worker/lease", json={"worker_id": identity})
                 if response.status_code == 401:
                     raise SystemExit("API key rejected (401). Check BOOBS_API_KEY.")
                 if response.status_code == 403:
@@ -153,8 +164,11 @@ async def loop() -> None:
                 continue
 
             log.info("job_leased", execution_id=job["execution_id"], image=job["image"])
-            result = await run_job(job)
-            await report(http, job, result)
+            with tracing.start_as_current_span("worker.job") as span:
+                span.set_attribute("execution.id", job["execution_id"])
+                result = await run_job(job)
+                with tracing.start_as_current_span("worker.report"):
+                    await report(http, job, result)
 
 
 async def _sleep(seconds: float) -> None:
