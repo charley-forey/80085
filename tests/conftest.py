@@ -12,6 +12,7 @@ because the worker is an HTTPS client and needs a socket to talk to.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -27,9 +28,31 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP_TOKEN = "test-bootstrap"
+
+
+def _database_name() -> str:
+    """One database per checkout, derived from where this checkout lives.
+
+    The session fixture below drops and recreates its database, so two
+    checkouts sharing a name delete each other's schema mid-run. That happens
+    routinely now: git worktrees put several checkouts on one machine against
+    the same Postgres, and the resulting failures are spectacularly misleading
+    -- `relation "organizations" does not exist`, an api key that authenticated
+    a second ago now unknown, a recall that ranks a row belonging to nobody.
+    None of them reproduce in isolation, and all of them look like product
+    bugs.
+
+    Hashing the absolute path rather than using the directory name keeps this
+    deterministic across runs (so a database is reused, not accumulated) while
+    staying a legal identifier whatever the directory is called.
+    """
+    digest = hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]
+    return f"boobs_test_{digest}"
+
+
 TEST_DATABASE = os.environ.get(
     "BOOBS_TEST_DATABASE_URL",
-    "postgresql+asyncpg://boobs:boobs@localhost:55432/boobs_test",
+    f"postgresql+asyncpg://boobs:boobs@localhost:55432/{_database_name()}",
 )
 
 
