@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
-from typing import Any
+from typing import Any, Final
 
 from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -37,15 +37,20 @@ from boobs_domain.enums import (
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
 from boobs_reputation.evidence import recompute
 from boobs_retrieval.embedding import active_embedder
-from boobs_retrieval.pipeline import RecallOutcome
+from boobs_retrieval.pipeline import RecallOutcome, visibility_clause
 from boobs_schemas import db as database
 from boobs_schemas.api import (
     BootstrapRequest,
     EventResponse,
     ExecuteRequest,
     ExecutionResponse,
+    ExecutionTiersResponse,
     ExperienceResponse,
     GoalIn,
+    GrantExecutionTiersRequest,
+    LineageIn,
+    LineageNode,
+    LineageResponse,
     RecallMatch,
     RecallMissesResponse,
     RecallMissOut,
@@ -63,12 +68,13 @@ from boobs_schemas.tables import (
     Experience,
     ExperienceVersion,
     Organization,
+    Policy,
     RecallMiss,
     Verification,
 )
 from boobs_security import untrusted
 from boobs_security.keys import Scope, generate
-from boobs_security.policy import ScopePolicyEngine
+from boobs_security.policy import TIER_GRANT_POLICY, ScopePolicyEngine, granted_tiers
 from boobs_verification.verifiers import RegistryVerifier
 
 router = APIRouter(prefix="/v1")
@@ -80,6 +86,17 @@ TERMINAL = {
     ExecutionStatus.TIMEOUT,
     ExecutionStatus.REJECTED,
 }
+
+# The lineage relations, read off the request model so the read path cannot
+# drift from the write path -- a seventh relation added to `LineageIn` is
+# traversable the same day. Fixed order because JSONB guarantees none, and two
+# identical traversals must not disagree about which edge came first.
+LINEAGE_RELATIONS: Final[tuple[str, ...]] = tuple(LineageIn.model_fields)
+
+# Six relations per node means depth 5 is 7776 nodes in the worst case, so the
+# node budget -- not the depth -- is what actually bounds the answer. Depth
+# bounds the number of round trips: one pair of queries per level.
+MAX_LINEAGE_NODES: Final = 200
 
 
 # --------------------------------------------------------------------- health
@@ -393,6 +410,120 @@ async def read_recall_misses(
     )
 
 
+@router.post("/admin/organizations/{organization_id}/execution-tiers")
+async def grant_execution_tiers(
+    organization_id: str,
+    request: GrantExecutionTiersRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> ExecutionTiersResponse:
+    """Approve one organization for the longer execution tiers.
+
+    Decision 26 said a tier above `quick` is granted by an operator running an
+    `INSERT` into `policies`, on the grounds that approval an endpoint can
+    perform is approval an attacker can request, and named an admin-scoped
+    endpoint as the obvious next step. This is it, and the reasoning survives
+    intact: the caller cannot ask for a tier for themselves, they can only be
+    given one by a key holding `admin`.
+
+    `policy.authorize(principal, "admin.execution_tiers")` with no resource,
+    following decision 39's revocation route exactly: it is a
+    `MUTATING_ACTION`, so passing a row would make the engine demand an
+    ownership a cross-tenant admin action cannot have.
+
+    **Scoped to one organization**, named in the path, and the organization has
+    to exist -- a typo becomes a 404 rather than a policy row nothing will ever
+    read. **Deliberate**: the body is the exact set of tiers the organization
+    ends up with, not a delta, so `{"tiers": []}` is how a grant is taken back
+    and no grant is ever the accidental result of repeating a request.
+    **Auditable**: `reason` is required and stored on the row alongside the
+    granting agent and the time.
+
+    What this cannot do is hand out an hour of compute on its own. `extended`
+    additionally requires a verifier that checks what the run produced, checked
+    per version at lease time by `resolve_execution_tier` -- an artifact that
+    mines for an hour and exits 0 passes `exit_code`, which is why that second
+    gate is not something an admin grant can wave through.
+
+    The answer carries `effective` as well as `granted` because
+    `granted_tiers` unions *every* policy row for the organization: a row an
+    operator inserted by hand still grants, and this endpoint owns only its
+    own. Where the two differ, `effective` is the truth.
+    """
+    # Cheap to serve and already behind ADMIN, so this is not protecting the
+    # database. It bounds what a leaked admin key can do in an hour, and this
+    # is the write that would be worth stealing one for.
+    await limits.GRANT.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "admin.execution_tiers")
+
+    organization = (
+        await db.execute(select(Organization).where(Organization.id == organization_id))
+    ).scalar_one_or_none()
+    if organization is None:
+        raise NotFound(f"organization {organization_id} not found")
+
+    tiers = sorted({tier.value for tier in request.tiers})
+    granted_at = now()
+    # ponytail: read-then-write, with no unique index on (organization_id,
+    # name) to make it an upsert -- adding one needs a migration. Two admins
+    # granting the same organization at the same instant can leave two rows,
+    # which over-grants rather than under-grants because `granted_tiers` unions
+    # them; `effective` in the answer says so out loud. Ceiling: one admin at a
+    # time. Upgrade path is the unique index plus ON CONFLICT.
+    existing = (
+        (
+            await db.execute(
+                select(Policy)
+                .where(
+                    Policy.organization_id == organization_id,
+                    Policy.name == TIER_GRANT_POLICY,
+                )
+                .order_by(Policy.created_at)
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    rules: dict[str, Any] = {
+        "execution_tiers": tiers,
+        "granted_by": principal.agent_id,
+        "reason": request.reason,
+        "granted_at": granted_at.isoformat(),
+    }
+    if existing is None:
+        db.add(
+            Policy(
+                id=ids.new_id(ids.POLICY),
+                organization_id=organization_id,
+                name=TIER_GRANT_POLICY,
+                rules=rules,
+                created_at=granted_at,
+            )
+        )
+    else:
+        existing.rules = rules
+    await db.flush()
+
+    effective = granted_tiers(
+        (await db.execute(select(Policy.rules).where(Policy.organization_id == organization_id)))
+        .scalars()
+        .all()
+    )
+    # Committed before the answer goes out, for the same reason a credential
+    # is: an operator told a tier is granted will run the thing immediately.
+    await release(db)
+    return ExecutionTiersResponse(
+        organization_id=organization_id,
+        granted=tiers,
+        effective=sorted(effective),
+        reason=request.reason,
+        granted_by=principal.agent_id,
+        granted_at=granted_at,
+    )
+
+
 # ----------------------------------------------------------------- experience
 
 
@@ -429,6 +560,156 @@ async def get_experience(
     artifact = await ArtifactRepository(db).resolve(version_row.artifact_id)
     return _experience_response(
         experience, version_row, artifact.digest, await _evidence(db, version_row.id)
+    )
+
+
+async def _lineage_edges(db: DbSession, experience_ids: list[str]) -> list[tuple[str, str, str]]:
+    """(source, relation, target) for the latest version of each id given.
+
+    Only ever called with ids this caller has already been shown, so it needs
+    no visibility predicate of its own. The one that matters is in
+    `_visible_experiences`, which decides what a *target* resolves to.
+    """
+    if not experience_ids:
+        return []
+    rows = (
+        await db.execute(
+            select(ExperienceVersion.experience_id, ExperienceVersion.lineage)
+            .join(Experience, Experience.id == ExperienceVersion.experience_id)
+            .where(
+                ExperienceVersion.experience_id.in_(experience_ids),
+                ExperienceVersion.version == Experience.latest_version,
+            )
+        )
+    ).all()
+    lineages: dict[str, dict[str, Any]] = {source: dict(edges or {}) for source, edges in rows}
+    return [
+        (source, relation, str(lineages[source][relation]))
+        for source in experience_ids
+        if source in lineages
+        for relation in LINEAGE_RELATIONS
+        if lineages[source].get(relation)
+    ]
+
+
+async def _visible_experiences(
+    db: DbSession, principal: Principal, experience_ids: list[str]
+) -> dict[str, Experience]:
+    """The subset of those ids this principal may see.
+
+    `visibility_clause` is the same predicate recall filters on, reused rather
+    than restated: tenant isolation stays one thing to audit. Everything else
+    -- private to another organization, or simply never recorded -- is absent
+    from the result, and absent looks identical either way.
+    """
+    if experience_ids:
+        conditions: list[Any] = [
+            Experience.id.in_(experience_ids),
+            visibility_clause(principal),
+        ]
+        rows = (await db.execute(select(Experience).where(*conditions))).scalars().all()
+        return {row.id: row for row in rows}
+    return {}
+
+
+def _lineage_node(
+    source: str, relation: str, target: str, depth: int, row: Experience | None
+) -> LineageNode:
+    """One edge. An unresolvable target carries its id and nothing else."""
+    if row is None:
+        return LineageNode(
+            from_experience_id=source,
+            relation=relation,
+            experience_id=target,
+            depth=depth,
+            resolved=False,
+        )
+    return LineageNode(
+        from_experience_id=source,
+        relation=relation,
+        experience_id=target,
+        depth=depth,
+        resolved=True,
+        # A stranger's bytes, on their way into an agent's context window, for
+        # the same reason `_matches` neutralizes a recalled goal.
+        goal=untrusted.neutralize(row.goal_statement),
+        status=ExperienceStatus(row.status),
+        verification_level=VerificationLevel(row.verification_level),
+        latest_version=row.latest_version,
+    )
+
+
+@router.get("/experiences/{experience_id}/lineage", response_model_exclude_none=True)
+async def get_experience_lineage(
+    experience_id: str,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    depth: int = Query(default=3, ge=1, le=5, description="How many edges out to walk."),
+) -> LineageResponse:
+    """Walk what an Experience says it came from, and what it says it replaces.
+
+    `lineage` has been written on every version since the first migration and
+    read by nothing: six relations no response carried and no query traversed.
+    This resolves them into the two facts an agent actually acts on -- is there
+    something here that supersedes what I am about to run, and does the thing
+    it improves still have better evidence than it does.
+
+    **What a caller sees when an edge points somewhere they may not look.** A
+    lineage id is free text written by whoever recorded the version and nothing
+    validates it, so an edge can name another organization's private
+    Experience. Targets are resolved through `visibility_clause`, and a target
+    that does not come back -- private to someone else, or never recorded at
+    all -- yields the identical node: the id, `resolved: false`, and no goal,
+    no status, nothing. The two cases are indistinguishable on purpose. There
+    is a real difference between "this does not exist" and "you may not see
+    this", and answering it would make this endpoint an existence oracle for
+    ids a caller was never shown.
+
+    The id itself is not a leak: it appears in the `lineage` block of an
+    Experience the caller can already read, which is where it came from.
+
+    **Termination.** Breadth-first with a visited set, so each Experience
+    appears once, by its shortest path -- `A supersedes B supersedes A` is
+    writable today and stops after one node. `depth` is 1 to 5, default 3: the
+    relations describe a fork-and-improve chain, and three hops is already
+    further than any of them mean anything. Six relations per node makes depth
+    5 worth 7776 nodes in the worst case, so the real bound is a budget of 200
+    nodes, and `truncated` says when it ran out. Unresolved edges are never
+    expanded, which is also what keeps another tenant's graph unwalkable.
+
+    Not rate limited: it is authenticated, and it is at most ten small indexed
+    queries against ids the caller already holds -- cheaper than the five
+    recalls it takes to find them.
+    """
+    # The root is subject to the ordinary read rules: 404 if it is not there,
+    # 403 if it is not yours to see.
+    await ExperienceRepository(db).get(principal, experience_id)
+
+    nodes: list[LineageNode] = []
+    seen = {experience_id}
+    frontier = [experience_id]
+    truncated = False
+    for level in range(1, depth + 1):
+        if not frontier:
+            break
+        edges = [edge for edge in await _lineage_edges(db, frontier) if edge[2] not in seen]
+        visible = await _visible_experiences(db, principal, [target for _, _, target in edges])
+        frontier = []
+        for source, relation, target in edges:
+            if target in seen:
+                continue
+            if len(nodes) >= MAX_LINEAGE_NODES:
+                truncated = True
+                break
+            seen.add(target)
+            row = visible.get(target)
+            nodes.append(_lineage_node(source, relation, target, level, row))
+            if row is not None:
+                frontier.append(target)
+        if truncated:
+            break
+    return LineageResponse(
+        experience_id=experience_id, depth=depth, nodes=nodes, truncated=truncated
     )
 
 
@@ -779,6 +1060,15 @@ def _experience_response(
         visibility=Visibility(experience.visibility),
         artifact_digest=digest,
         evidence=evidence,
+        # As recorded, unresolved, and only the relations that were set -- five
+        # nulls on every experience read would cost every caller tokens to
+        # learn nothing. `GET .../lineage` is what turns these into detail, and
+        # it is the only thing that applies visibility to them.
+        lineage={
+            relation: untrusted.neutralize(str(value))
+            for relation in LINEAGE_RELATIONS
+            if (value := (version.lineage or {}).get(relation))
+        },
         created_at=experience.created_at,
     )
 

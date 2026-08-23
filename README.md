@@ -780,13 +780,15 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 | `POST` | `/v1/keys` | Mint a key with no signup. Returns the plaintext **once**, and a `key_id` |
 | `POST` | `/v1/keys/{key_id}/revoke` | Kill a key. Any key in the org may revoke the org's keys; `admin` reaches across orgs |
 | `POST` | `/v1/experiences` | **RECORD** |
-| `GET` | `/v1/experiences/{id}` | **DISCOVER** |
+| `GET` | `/v1/experiences/{id}` | **DISCOVER** — now carries the `lineage` block as recorded |
+| `GET` | `/v1/experiences/{id}/lineage` | Resolve those relations. Invisible and non-existent targets answer identically |
 | `POST` | `/v1/experiences/recall` | **RECALL** |
 | `GET` | `/v1/recall?q=…` | The same question in a URL, no key, no body — what `curl 80085.ai/recall` hits |
 | `POST` | `/v1/experiences/{id}/execute` | **EXECUTE** (202, or 200 with `wait_seconds`) |
 | `GET` | `/v1/executions/{id}` | Result, outputs, verdict |
 | `GET` | `/v1/executions/{id}/events` | The append-only event stream |
 | `POST` | `/v1/executions/{id}/verify` | **VERIFY** — turn an execution into evidence, or refuse to |
+| `POST` | `/v1/admin/organizations/{id}/execution-tiers` | `admin`-only. Approve one org for the longer tiers. The set you send is the set it gets |
 | `POST` | `/v1/worker/lease` | Worker-only. Claim the next queued execution, or get `{"job": null}` |
 | `POST` | `/v1/worker/executions/{id}/result` | Worker-only. Report the raw run; the API records it and verifies it |
 
@@ -1078,7 +1080,8 @@ Record → recall → execute → verify → evidence, proven by the cross-agent
   nothing, until an organization that is not ours runs one
 
 **Phase 2 — Depth**
-- 🧬 **Experience Graph** — the `lineage` fields already exist and are unused
+- 🧬 **Experience Graph** — the six `lineage` relations are readable and
+  traversable now (decision 52); ranking still ignores them
 - 🧩 **Composability** — Experiences that call Experiences
 - 🕵️ **Automatic extraction** — mine a solved task into a candidate Experience
 - ⏳ **Staleness sweeps** — re-verify on a schedule, quarantine what rots
