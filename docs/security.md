@@ -76,6 +76,16 @@ with the exact commands an operator needs to install the rules by hand. A
 control that switches itself off when it cannot run is not a control. Runs
 with `network: false` are unaffected and need none of this.
 
+**It is checked, not remembered.** The rules live on the host, so anything on
+the host can take them away -- `iptables -F`, a package upgrade, a firewall
+tool rewriting the table, a daemon restart that drops custom chains. The worker
+therefore re-verifies before **every** networked run rather than caching that
+it once succeeded, and refuses if the rules cannot be put back. There is no
+TTL: a cache with a window is a window during which the filter is gone and the
+worker is still saying it is there. `iptables -C` is idempotent and cheap --
+58 ms median for the twenty rules, plus one `docker network inspect` -- against
+a run that pulls an image and then executes for up to an hour.
+
 What it does **not** stop: which *public* hosts are reachable (spec section
 17's per-domain allowlist is still unbuilt), exfiltration through DNS to a
 public resolver, or a kernel-level bypass. It is IPv4 only -- the network is
@@ -210,6 +220,24 @@ serving it unsafely, and says to use the Docker runtime instead. E2B is still
 appropriate for artifacts that declare network access, where no isolation was
 promised in the first place.
 
+**And `network: true` on E2B has no destination filtering at all.** The
+filtered bridge described above is a Docker control: a dedicated interface plus
+`DROP` rules in the host's `DOCKER-USER` and `INPUT` chains. E2B sandboxes run
+on somebody else's infrastructure, on a network this worker does not own and
+cannot install rules in, and E2B's own knob (`allow_internet_access`) is a
+boolean -- there is no destination to name. So there is no equivalent and none
+is attempted. That is the asymmetry to weigh when choosing a runtime:
+
+| `constraints.network` | `BOOBS_RUNTIME=docker` | `BOOBS_RUNTIME=e2b` |
+|---|---|---|
+| `false` | `--network none`, enforced | **refused** -- it cannot be delivered |
+| `true` | filtered bridge; link-local, metadata, loopback and RFC1918 dropped, or the run is refused | unfiltered; whatever E2B's own network reaches, the artifact reaches |
+
+Nothing about E2B's network is under this worker's control, so a networked
+artifact there is bounded by E2B's infrastructure and by nothing we can point
+at. Read that row before picking `e2b` for a corpus of public artifacts whose
+authors set the network flag themselves.
+
 Four Docker limits also have no E2B equivalent and are not enforced there:
 `cpu`, `memory_mb`, `tmpfs_mb` and `pids`. The wall clock is enforced on both.
 
@@ -254,6 +282,24 @@ it read as a section of our own page.
   neutralises the fence delimiter itself so a payload cannot close the block
   early. Ordinary prose passes through byte for byte — a sanitiser that mangles
   benign goal statements would cost recall quality for nothing.
+
+  **Prose is not the whole bar**, because a goal statement is rarely only
+  prose. It quotes a unified diff, a markdown table, a shebang, a Windows path,
+  the XML element the capability exists to extract. All of those now pass
+  through untouched. The rules that used to catch them are held to what
+  CommonMark actually treats as structure — a thematic break and a setext
+  underline are a line of *nothing but* `-`, `=` or `_`, and an ATX heading
+  needs the space after the hashes — and the role rules no longer fire on
+  `user`, `tool` or `function`, which name the caller's own side of a
+  conversation inside a block already labelled as the caller's untrusted text.
+  Nothing that can impersonate a section of our document was given up.
+
+  **What is still deliberately mangled**, because the alternative is worse: a
+  fenced code block gets its ` ``` ` escaped (an unbalanced fence would swallow
+  the rest of our page, and the code itself is intact); a line opening
+  `System:`, `Assistant:`, `Human:` or `Developer:` gets one backslash, so
+  `System: Ubuntu 22.04` in an environment description is marked; and a `>>>`
+  REPL prompt is escaped as a blockquote. See `DECISIONS.md` §48.
 * **Execution output gets the same treatment.** `run_experience` in the MCP
   server fences `stdout`, `stderr` and every output file. Those bytes were
   produced by a stranger's code; the fact that a sandbox contained the *process*

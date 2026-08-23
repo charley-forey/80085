@@ -1167,3 +1167,135 @@ in the normalized intent, so the raw phrasing could be truncated or dropped
 without losing what the table is for; and `RETENTION` is a module constant,
 which is fine until a deployment needs a shorter one. `docs/legal-review.md`
 Q12 asks counsel whether truncation is the right remedy before either is done.
+
+---
+
+### 47. The egress filter is verified before every networked run, not remembered
+
+`DockerOciRuntime` installed the `DROP` rules on its first networked run, set
+`self._egress_ready = True`, and never looked again. The fail-closed behaviour
+on that first run was right and is unchanged: no `iptables`, no privileges, a
+rule that will not install, and the run is refused. What was wrong is what
+happened afterwards.
+
+The rules are not state this process owns. They are state on the host, and the
+host has other tenants: a package upgrade, an operator running `iptables -F`, a
+firewall tool rewriting the table, a Docker daemon restart that drops custom
+chains. Any one of those, at any point after the first networked run, left a
+long-lived worker starting containers on `br-80085egress` with **no filter at
+all** -- reaching `169.254.169.254`, the worker's LAN, and every service bound
+on the worker itself. There was no error, no log line and no counter. Short of
+scanning from outside, nothing about the worker would say the control was off,
+and decision 25 is the control that makes `network: true` survivable at all.
+
+So the check *is* the state. `_egress_network()` re-runs `_ensure_egress_network`
+and `_ensure_egress_filter` on every networked run, and the boolean is gone.
+`iptables -C` was already idempotent and already how this decides whether to
+install anything, so this costs a sweep of it rather than any new mechanism.
+
+**Measured**, because "cheap" is a claim: 58 ms median for all twenty rules
+(2.9 ms per `iptables -C`, n=20 sweeps, in a privileged Linux network
+namespace), plus one `docker network inspect` at roughly 75 ms through Docker
+Desktop's pipe and less than that on a native Linux daemon. Around 135 ms
+against a run that pulls an image, creates a container, copies a tar in, and
+then executes for up to an hour under decision 26's tiers. Not material.
+
+**No TTL.** A cache with a window is a window in which the rules are gone and
+the worker is still saying they are there, and there is no number that makes
+that honest -- the whole defect being fixed is a stale "yes". Sixty seconds of
+unfiltered metadata access is enough to lose a credential. If the sweep ever
+does become material -- many concurrent networked runs contending on the
+`iptables` lock is the plausible shape -- the upgrade path is a longer-lived
+rule owner (install at provisioning, or an egress proxy on the network), not a
+shorter memory of a check we stopped doing.
+
+Locked in from both ends. `tests/unit/test_egress_is_reverified.py` needs
+neither Docker nor iptables and pins the process behaviour: the first run is
+served, the rules go away, the second run is refused.
+`tests/security/test_egress.py::test_a_rule_removed_behind_the_runtimes_back_is_reinstalled`
+does it for real on a Linux Docker host -- it deletes the metadata `DROP` rule
+behind the runtime's back and requires the next run to put it back -- and skips
+loudly where the filter cannot be installed, as the rest of that module does.
+
+---
+
+### 48. The sanitiser is held to what CommonMark calls structure, and to the roles that claim authority
+
+Decision 30 fenced recalled text as data and set the bar in the module's own
+docstring: "ordinary prose passes through byte for byte", because a sanitiser
+that mangles benign goal statements makes recall worse. The bar was met for
+prose and missed for everything adjacent to it, and
+`tests/unit/test_recalled_text_is_data.py` never caught it because it tested
+exactly two things -- clean prose, and a payload with every trick in it. There
+was nothing in between, and in between is where goal statements actually live.
+
+A goal statement is rarely only prose. It quotes the format it consumes. Three
+rules over-fired on that:
+
+* `-{3,}` escaped any line opening with three dashes, so `--- a/file.py` -- the
+  first line of every unified diff -- and a `---|---` table separator came back
+  with a backslash in front. So did `#!/usr/bin/env python`, because `#{1,6}`
+  did not require the space that makes a heading a heading.
+* The line-start role rule fired on `User: validate input` and `Tool: curl`,
+  which are checklist labels, not chat turns.
+* The role-tag rule defanged literal `<user>` and `<tool>`. A capability whose
+  entire purpose is "extract the `<user>` elements from this XML feed" had its
+  own description corrupted, so the format it targets became unreadable to the
+  agent deciding whether to run it.
+
+**The tension is real** -- loosening any of these could let a payload through
+-- so the narrowing is not "be less strict", it is "be strict about the right
+thing", and each half has a reason that is not a matter of taste:
+
+**Structure is what CommonMark says it is.** A thematic break and a setext
+underline are a line of *nothing but* `-`, `=` or `_`; an ATX heading needs a
+space (or end of line) after the hashes. A line that fails those tests is a
+paragraph to every renderer and to every model that has read a million of them,
+so escaping it defanged nothing. The runs are now anchored to end of line and
+the hashes carry a lookahead. `---` alone is still escaped -- that is the
+setext form that would promote the attacker's previous line to a heading --
+while `--- a/file.py`, `---|---`, `#!/bin/sh` and `#include <stdio.h>` pass
+through. Nothing that can impersonate a section of our document was given up.
+
+**Roles are the ones that claim to be someone else.** `user`, `tool` and
+`function` are gone from both the bare-tag and the `Role:` form; `system`,
+`assistant`, `human`, `developer` and the compound markers (`tool_call`,
+`tool_use`, `function_call`, `im_start`) stay, as do `<|...|>` and `[INST]`,
+which are tokenizer-special byte sequences and never prose. The argument is
+that the dropped three name the *caller's* side of a conversation, and
+everything `neutralize` touches is already inside `<untrusted-goal>` behind a
+notice saying it is caller-supplied and unverified. Forging a user turn there
+claims no authority the block did not already concede. Forging a *system* turn
+does, so it is still defanged.
+
+**Rejected: requiring two signals before defanging.** It was the obvious way to
+save `User: validate input` while keeping `System:`, and it is worse. It hands
+an attacker a rule -- use exactly one marker -- and it would have meant
+weakening a standing assertion in `test_recalled_text_is_data.py` that a bare
+`System:` never survives. A security test is not the thing you edit to make a
+design work.
+
+**What is still deliberately corrupted, and why that is the right trade:**
+
+* **A fenced code block.** The backtick and tilde fences are still escaped at
+  line start. An unbalanced fence inside the block would swallow the rest of
+  our own recall page, which is the structural failure decision 30 exists to
+  prevent. The cost is one visible backslash; every byte of the code is intact
+  and readable.
+* **`System: Ubuntu 22.04`.** An environment description that opens a line with
+  `System:`, `Assistant:`, `Human:` or `Developer:` gets one backslash. That is
+  the exact shape that impersonates the operator's or the model's own turn, and
+  it is not separable from the benign use by any rule that does not also
+  separate it for an attacker. The words survive; only the colon's authority
+  does not.
+* **A `>>>` REPL prompt**, escaped as a blockquote. A blockquote cannot
+  impersonate our headings, so this rule is close to free to drop -- it is kept
+  because nothing yet argues for spending the change, and it is written down
+  here so the next person does not have to rediscover that it is deliberate.
+
+The tests now carry the middle: one goal statement containing a unified diff, a
+fenced block, a markdown table, a literal `<user>` tag, a Windows path, a
+`User:`/`Tool:` checklist and two shebang-shaped lines, asserted equal to itself
+with the fence escaped and **nothing else changed**. A companion test pins what
+the narrowed rules still defang, so the next loosening has to argue with
+something. `apps/mcp`'s copy is synchronised, as decision 30 requires.

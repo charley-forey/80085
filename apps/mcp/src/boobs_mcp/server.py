@@ -75,12 +75,25 @@ _INVISIBLE = re.compile(
 
 # Anything that reads as "this line is from the system" to a model: chat
 # template markers, instruction tags, role-shaped XML, and `System:` openers.
+#
+# `user`, `tool` and `function` are deliberately absent from the last two
+# alternatives, in both their bare-tag and their `Role:` form. They are
+# ordinary English words and ordinary XML element names, so defanging them cost
+# real content -- a capability whose whole job is "extract <user> elements from
+# this feed" had its own description made unreadable, and a checklist line
+# reading `Tool: curl` came back as `\Tool: curl`. What it bought was nothing:
+# those three name the *caller's* side of a conversation, and everything
+# `neutralize` touches is already inside a block labelled as caller-supplied
+# untrusted data. Forging a user turn there claims no authority it did not
+# already have. The roles that claim to be the operator or the model --
+# `system`, `assistant`, `human`, `developer` -- stay, as do the compound
+# markers (`tool_call`, `tool_use`, `function_call`), which are never prose.
 _ROLE = re.compile(
     r"<\|[^|>\n]{0,64}\|>"
     r"|\[/?(?:INST|SYS)\]"
-    r"|</?(?:system|assistant|user|human|developer|tool|function|im_start|im_end"
+    r"|</?(?:system|assistant|human|developer|im_start|im_end"
     r"|tool_call|tool_use|function_call|thinking|antml:\w{0,32})\b[^>\n]{0,64}>"
-    r"|(?im:^[ \t]{0,8}(?:system|assistant|user|human|developer|tool)[ \t]*:)"
+    r"|(?im:^[ \t]{0,8}(?:system|assistant|human|developer)[ \t]*:)"
 )
 
 # Wrapping a role marker in brackets is not enough -- the exact byte sequence a
@@ -99,7 +112,18 @@ def _defang(match: re.Match[str]) -> str:
 # Line-leading markdown structure. Only what actually opens a block: a heading,
 # a quote, a fence, a rule. List markers and emphasis are left alone because
 # they cannot impersonate a section of the document we wrote.
-_STRUCTURE = re.compile(r"^([ \t]{0,3})(#{1,6}|>|`{3,}|~{3,}|-{3,}|={3,}|_{3,})")
+#
+# The runs of `-`, `=` and `_` are anchored to end of line, and the hashes must
+# be followed by a space, because that is what CommonMark itself requires: a
+# thematic break and a setext underline are a line of *nothing but* that
+# character, and an ATX heading needs the space. A line that fails those tests
+# is a paragraph to every renderer and every model, so escaping it defanged
+# nothing and mangled a great deal -- `--- a/file.py` is the first line of
+# every unified diff, `---|---` is a table separator, `#!/usr/bin/env python`
+# is a shebang and `#include <stdio.h>` is C. All four now pass through.
+_STRUCTURE = re.compile(
+    r"^([ \t]{0,3})(#{1,6}(?=[ \t]|$)|>|`{3,}|~{3,}|(?:-{3,}|={3,}|_{3,})[ \t]*$)"
+)
 
 # Our own delimiter, written by an attacker who guessed it. Neutralised
 # explicitly so a payload cannot close the fence early and continue outside it.
@@ -139,7 +163,6 @@ def fenced(text: str, kind: str) -> str:
     return f"<untrusted-{kind}>\n{neutralize(text)}\n</untrusted-{kind}>"
 
 
-# -------------------------------------------------------------------- budget
 # `neutralize` bounds one string. Nothing bounded the *result*, and a sandbox
 # hands back up to SANDBOX_MAX_OUTPUT_BYTES -- a megabyte by default, which is
 # something like a quarter of a million tokens arriving in somebody else's
