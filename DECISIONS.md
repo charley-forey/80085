@@ -545,3 +545,41 @@ the row is the receipt, and the receipt is written once.
 **Not done:** the MCP `run_experience` tool does not send one. An MCP retry is a
 fresh tool call the model chose to make, which is a decision to run again rather
 than a transport retry, and inventing a key on its behalf would suppress that.
+
+---
+
+### 27. E2B refuses a no-network artifact rather than pretending
+
+**Found by running it.** The E2B runtime shipped without ever having executed
+against the live service -- there was no key. Given one, the first smoke run
+failed on template build (`mkdir -p /work` is not root's to run there;
+`make_dir(..., user="root")` is the supported way), and then the security suite
+found something worse.
+
+`tests/security/test_e2b_runtime.py` asserts a sandbox cannot reach the
+network. It could. With `allow_internet_access=False`, a sandbox opened a TCP
+connection to `1.1.1.1:53` and exited 0. Setting `network={"deny_out":
+["0.0.0.0/0"]}` instead made no difference. Both were reproduced against the
+SDK directly, with none of our code in the path.
+
+What hid it is that DNS *is* refused under that flag. A resolver failure looks
+exactly like no network, right up until something dials an address rather than
+a name -- which is precisely what code trying to exfiltrate would do.
+
+`--network=none` is the first row of the table in `docs/security.md`. It is the
+control that stops exfiltration, C2 and mining, and this system's stated threat
+model is that every artifact is hostile. A runtime that cannot deliver it must
+not claim it, so `E2BRuntime` now refuses a request with `network=False` and
+names `BOOBS_RUNTIME=docker` in the error.
+
+This is a real reversal. E2B was chosen to end the dependency on one laptop
+being awake, because a Firecracker microVM is a stronger boundary than a shared
+kernel -- and it is, against kernel escape. But isolation is not one property,
+and the one this product needs most is the one E2B did not enforce. E2B remains
+useful for artifacts that legitimately declare network access, where nothing
+was promised.
+
+**Undo:** if E2B's egress controls start working, delete the guard and let
+`tests/security/test_e2b_runtime.py::test_a_no_network_artifact_is_refused_rather_than_run`
+fail -- that failure is the signal it is safe to remove.
+

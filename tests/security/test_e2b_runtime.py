@@ -68,7 +68,11 @@ async def run(image: str, code: str, **overrides: object) -> SandboxResult:
         "timeout_seconds": 30,
         "pids": 32,
         "max_output_bytes": 65536,
-        "network": False,
+        # True, because the runtime refuses the other mode outright: E2B was
+        # measured leaving outbound TCP open with internet access disabled, so
+        # a no-network run is rejected rather than served unsafely. Everything
+        # below therefore tests the isolation that survives WITH network.
+        "network": True,
     }
     request.update(overrides)
     return await E2BRuntime().execute(SandboxRequest(**request))  # type: ignore[arg-type]
@@ -81,18 +85,33 @@ async def test_the_sandbox_runs_the_command_at_all(image: str) -> None:
     assert result.stdout.strip() == b"alive"
 
 
-async def test_network_is_unreachable(image: str) -> None:
-    result = await run(
-        image,
-        "import socket; socket.create_connection(('1.1.1.1', 53), timeout=5)",
-    )
-    assert result.exit_code != 0
-    assert result.status is not ExecutionStatus.SUCCEEDED
+async def test_a_no_network_artifact_is_refused_rather_than_run(image: str) -> None:
+    """The isolated-network promise is not one this runtime can keep.
+
+    Measured against the live service, twice, with our code out of the way:
+    `allow_internet_access=False` and `network={"deny_out": ["0.0.0.0/0"]}`
+    both left a sandbox able to open a TCP connection to 1.1.1.1:53. Only DNS
+    is refused, which is what makes it look isolated -- a resolver failure
+    reads as "no network" right up until something dials an address directly.
+
+    `--network=none` is the first control in docs/security.md and the one that
+    stops exfiltration, C2 and mining. Refusing is the honest failure: a
+    hostile artifact told it has no network must not be handed the internet.
+    """
+    with pytest.raises(ExecutionFailed, match="cannot enforce an isolated network"):
+        await run(image, "print('should never run')", network=False)
 
 
-async def test_dns_resolution_fails_too(image: str) -> None:
+async def test_a_network_artifact_really_does_get_the_network(image: str) -> None:
+    """The mode this runtime does serve, asserted so it is not accidental.
+
+    Worth pinning because of how the missing isolation hid: under
+    `allow_internet_access=False` DNS failed while raw TCP succeeded, so a
+    resolver error read as "no network". Naming both halves keeps the next
+    person from drawing that conclusion again.
+    """
     result = await run(image, "import socket; socket.gethostbyname('example.com')")
-    assert result.exit_code != 0
+    assert result.exit_code == 0
 
 
 async def test_wall_clock_timeout_ends_the_run(image: str) -> None:

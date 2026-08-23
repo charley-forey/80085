@@ -129,6 +129,30 @@ class E2BRuntime:
                 "to the image entrypoint the way Docker does"
             )
 
+        # Measured, not assumed: with allow_internet_access=False, and again
+        # with network={"deny_out": ["0.0.0.0/0"]}, a sandbox on this account
+        # still opened a TCP connection to 1.1.1.1:53. DNS is refused, which
+        # hides it -- a resolver failure looks like no network until something
+        # dials an address directly.
+        #
+        # `--network=none` is the first row of the table in docs/security.md
+        # and the thing that stops exfiltration, C2 and mining. A runtime that
+        # cannot deliver it must not pretend to: an artifact is assumed
+        # hostile, and quietly handing a hostile artifact the internet because
+        # a vendor flag was ignored is the worst failure this system has.
+        #
+        # So refuse. E2B stays usable for artifacts that legitimately declare
+        # network access, where the guarantee was never claimed.
+        if not request.network:
+            raise ExecutionFailed(
+                "the E2B runtime cannot enforce an isolated network: "
+                "allow_internet_access=False and deny_out=0.0.0.0/0 were both "
+                "observed to leave outbound TCP open, so a no-network artifact "
+                "would run with the internet reachable. Use BOOBS_RUNTIME=docker "
+                "for these, which enforces --network=none and is covered by "
+                "tests/security/test_sandbox.py."
+            )
+
         inputs = {staged_name(name): blob for name, blob in request.input_files.items()}
         from e2b import AsyncSandbox  # imported lazily: a hosted runtime is optional
 
@@ -178,9 +202,14 @@ class E2BRuntime:
             built = await AsyncTemplate.build(
                 Template()
                 .from_image(image, username=user, password=password)
-                # The artifact contract promises /work owned by uid 65534;
-                # E2B commands run as `user`, so widen it rather than fight it.
-                .run_cmd(f"mkdir -p {self._workdir} && chmod 1777 {self._workdir}")
+                # The artifact contract promises a writable /work. Build steps
+                # do not run as root, so shelling out to mkdir got permission
+                # denied at `/` and failed the whole build; make_dir takes the
+                # user explicitly and says what it means. 1777 because the
+                # sandbox command runs as a different user again, and the
+                # sticky bit keeps that widening from being a way to clobber
+                # someone else's file.
+                .make_dir(self._workdir, mode=0o1777, user="root")
                 .set_workdir(self._workdir),
                 name=name,
                 api_key=api_key(),
