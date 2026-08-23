@@ -1,0 +1,100 @@
+{
+  "effective_closures": [
+    "2021-12-27",
+    "2021-12-31",
+    "2024-11-28",
+    "2024-11-29",
+    "2024-12-25",
+    "2027-12-24",
+    "2027-12-27"
+  ],
+  "holidays": [
+    "2021-12-27",
+    "2022-01-01",
+    "2024-11-28",
+    "2024-11-29",
+    "2024-12-25",
+    "2027-12-25",
+    "2027-12-26"
+  ],
+  "observe_weekend_holidays": true,
+  "observed_moves": [
+    {
+      "falls_on": "Saturday",
+      "holiday": "2022-01-01",
+      "observed": "2021-12-31"
+    },
+    {
+      "falls_on": "Saturday",
+      "holiday": "2027-12-25",
+      "observed": "2027-12-24"
+    },
+    {
+      "falls_on": "Sunday",
+      "holiday": "2027-12-26",
+      "observed": "2027-12-27"
+    }
+  ],
+  "queries": [
+    {
+      "calendar_last": "2024-11-30",
+      "date": "2024-11-27",
+      "kind": "last_business_day",
+      "skipped": [
+        "2024-11-28",
+        "2024-11-29",
+        "2024-11-30"
+      ],
+      "weekday": "Wednesday"
+    },
+    {
+      "calendar_last": "2021-12-31",
+      "date": "2021-12-30",
+      "kind": "last_business_day",
+      "skipped": [
+        "2021-12-31"
+      ],
+      "weekday": "Thursday"
+    },
+    {
+      "business_days_in_month": 19,
+      "date": "2024-11-05",
+      "kind": "nth_business_day",
+      "weekday": "Tuesday"
+    },
+    {
+      "date": "2024-12-04",
+      "days": 3,
+      "from": "2024-11-27",
+      "kind": "add_business_days",
+      "start_was_closed": false,
+      "weekday": "Wednesday"
+    },
+    {
+      "date": "2024-12-02",
+      "days": 0,
+      "from": "2024-11-30",
+      "kind": "add_business_days",
+      "start_was_closed": true,
+      "weekday": "Monday"
+    },
+    {
+      "count": 19,
+      "date": null,
+      "from": "2024-11-01",
+      "inclusive": true,
+      "kind": "count_business_days",
+      "to": "2024-11-30",
+      "weekday": null
+    }
+  ],
+  "sha256": "ebda6bf580b4ebd062be734358936ab63046ef8abed53aa8bd6215c627a267cc",
+  "weekend": [
+    5,
+    6
+  ],
+  "weekend_days": [
+    "Saturday",
+    "Sunday"
+  ]
+}

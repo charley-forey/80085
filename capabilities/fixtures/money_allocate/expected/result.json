@@ -1,0 +1,21 @@
+{
+  "allocations": [
+    "33.34",
+    "33.33",
+    "33.33"
+  ],
+  "currency": "USD",
+  "exact": true,
+  "exponent": 2,
+  "method": "largest remainder, ties to the earliest share",
+  "minor_units": 10000,
+  "redistributed_units": 1,
+  "sha256": "3b60ac1e532170d5cd2238be3a298f6157098c75bb82fe84188cfa0a9e9607ce",
+  "sum": "100.00",
+  "total": "100.00",
+  "weights": [
+    "1",
+    "1",
+    "1"
+  ]
+}

@@ -2168,3 +2168,137 @@ previously read `== 403` now read `== 404`: they were asserting the leak.
 move the scope check back below the `SELECT`. No migration, no schema, no
 stored data — this decision changes which of two refusals a caller receives and
 nothing else.
+
+---
+
+### 58. The corpus starts holding knowledge instead of code
+
+`docs/benchmarks.md` says the shipped tasks measure about 1.0x against writing
+the thing from scratch, and it is right about why: the control arm rebuilds a
+twenty-line stdlib script that is already correct. An agent asked to convert
+CSV to JSON writes it in ten seconds and never calls recall, so every trust
+mechanism this project has -- Wilson lower bounds, corroboration from a second
+organization, verifier strength -- is answering a question nobody asks about
+CSV to JSON.
+
+The question is asked about work that is expensive to get right and silent
+when it is wrong. Nine capabilities join the corpus on that basis, and each
+one is chosen because the *edge cases* are the artifact and the code is the
+cheap part:
+
+* `encoding_detect` -- the UTF-32LE BOM begins with the UTF-16LE BOM, so the
+  order of the checks is the bug; pure ASCII is evidence of nothing and is
+  reported as ambiguous rather than as UTF-8; cp1252's five undefined bytes
+  rule it out and their absence rules nothing in; from 0xA0 up cp1252 *is*
+  latin-1, so that distinction has no answer; and one legacy line in a UTF-8
+  file is a real thing that whole-file detection can only call "not UTF-8".
+* `mojibake_repair` -- the repair is only accepted where it provably reverses,
+  which is what makes it a no-op on clean text and safe to run on a corpus
+  that is only partly damaged. It repairs runs rather than documents, because
+  `encode("cp1252")` raises on the first emoji and a real file is mixed; it
+  tries latin-1 as well, because cp1252 cannot hold bytes that appear in
+  genuine UTF-8 continuation sequences; and it iterates, because text that
+  went through the wrong codec twice needs two passes.
+* `csv_dialect_sniff` -- `csv.Sniffer` decides from character frequency over a
+  sample and flips on quoted fields containing the rival delimiter, so every
+  candidate delimiter parses the whole file and is scored on field-count
+  consistency instead. It separates records from lines (a quoted newline makes
+  those different numbers), reads with `utf-8-sig` so the BOM is not glued to
+  the first column name, and names the semicolon-plus-comma-decimal export for
+  what it is.
+* `date_parse` -- `03/04/2024` has two meanings and the honest answer is both
+  of them. Ambiguity is reported rather than resolved, self-disambiguating
+  values are counted because they are what settles the convention for a whole
+  column, and the POSIX two-digit-year pivot is stated rather than applied
+  quietly.
+* `dst_shift` -- "tomorrow at 09:00" and "24 hours from now" are different
+  instants twice a year. Both are computed side by side with the elapsed
+  seconds, nonexistent local times are detected by round-tripping through UTC
+  and moved forward by the measured gap, and an ambiguous local time reports
+  both instants instead of silently taking one.
+* `recurrence_expand` -- a schedule expanded once into UTC and stored is an
+  hour wrong for half the year. Occurrences are generated in local time and
+  converted afterwards, and monthly recurrence anchors on the original day
+  rather than the clamped one, which is the bug that collapses a schedule
+  starting on the 31st onto the 28th forever.
+* `business_days` -- the last business day of a month is where payroll lives
+  and it is almost never `monthrange()[1]`. The observed-holiday rule is
+  derived rather than assumed, and the fixture proves the point: the last
+  business day of December 2021 is the 30th, because New Year's Day falls on a
+  Saturday and is taken on Friday the 31st.
+* `money_parse` -- `1,234` is a thousand in Chicago and one and a bit in
+  Cologne, and there is nothing in the string to settle it. Both readings are
+  returned with `ambiguous` set. Everything is `Decimal` from the first
+  character, and the three shapes of negative -- leading, trailing, and
+  accounting parentheses -- are all read, because a parser that knows only the
+  first turns a credit into a debit.
+* `money_allocate` -- largest-remainder allocation, in the currency's own
+  minor units, with ties broken by position so two runs cannot disagree. The
+  parts summing to the whole is asserted before the result is written.
+
+**Rejected as too thin to matter.** Anything a competent agent writes
+correctly on the first attempt does not need evidence attached to it, and
+publishing it costs the corpus more than it earns. `archive_extract` already
+covers hostile archives and is not duplicated. A `csv_normalize` was dropped
+because `delimiter_convert` plus this sniffer already answer it. So was every
+"detect and then just do the obvious thing" wrapper: if the value is one API
+call, an agent will make the call.
+
+**Still stdlib-only, and this is the part worth arguing.** `chardet` and
+`dateutil` exist and would have shortened two of these. They are not used, for
+three reasons that point the same way. First, a thin wrapper around a
+well-known library is the CSV-to-JSON trap one level up: an agent installs the
+library in ten seconds, and the artifact adds nothing that justifies recall.
+Second, `dateutil` in particular *guesses* the day/month order, which is the
+exact failure this corpus is here to encode against -- wrapping it would ship
+the bug with evidence attached. Third, `docs/security.md` says to assume every
+artifact is hostile, and a dependency puts a supply chain inside code other
+organizations execute; a capability with none has nothing to audit and no
+transitive tree to watch. What is irreducible here is not any library call: it
+is which cases exist, which are undecidable, and what to report when the right
+answer is "this input has two meanings".
+
+The one thing that is not code and is depended on is the IANA time zone
+database, which the base image already carries. Nothing is installed for it.
+That makes the answer pinned by the image digest, which is how artifacts are
+executed anyway -- and the caveat is honest: tz rules for past dates do change
+between releases, so two runs on different base images can legitimately
+differ, and only the digest says which database answered. `tzdata` is added to
+the *dev* group for the same reason it is not added to the artifact: Linux
+ships a zone database and Windows ships none, so without it these tests pass
+in CI and fail on half the machines that run them locally.
+
+**Verifiers follow decision 28 exactly**: `json_schema` over a self-describing
+`result.json`, never `sha256`. Every one of these takes caller data, so a
+digest pinned to the fixture would pass for whoever supplied the fixture and
+record a failure against the capability for everybody else -- evidence that
+punishes adoption. The schemas constrain the shape and the vocabulary (offsets
+match a pattern, weekday names are an enum, money matches a decimal pattern,
+`exact` is `const: true`) so they hold for any input and still say something.
+
+**Determinism, by construction.** Sorted keys and pinned separators through
+one `finish()` per capability; `newline="\n"` on every write, because two
+capabilities have already shipped CRLF-on-Windows bugs from omitting it;
+weekday names spelled out rather than taken from `calendar.day_name`, which
+formats through the ambient `LC_TIME` and answers in whatever language the
+host is set to; every note list sorted; ties in the money allocation broken by
+index; no clock read anywhere -- every date in every answer is derived from
+the input. All nine were built as images and run against their fixtures under
+the real sandbox flags (uid 65534, read-only root, `--network none`), and
+produce byte-identical output there and locally.
+
+The tests are the existing ones plus three that a fixture cannot express:
+`mojibake_repair` run on its own output must change nothing, `money_allocate`
+must sum to the total across six currency and weight shapes, and `date_parse`
+must refuse an ambiguous value and resolve it only when the caller supplies
+the convention. Both halves were checked by corrupting fixtures and confirming
+the failure.
+
+**Not done:** nothing is published. No image pushed, no Experience recorded --
+the same position decision 28 took, for the same reason. The publish commands
+are two, and they are in the pull request.
+
+**Undo:** delete the nine directories under `capabilities/examples` and
+`capabilities/fixtures`, their manifest entries, the three property tests, and
+the `tzdata` dev dependency. The corpus reverts to twenty-one converters and
+to measuring 1.0x.

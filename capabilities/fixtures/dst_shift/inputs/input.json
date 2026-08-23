@@ -1,0 +1,32 @@
+{
+  "shifts": [
+    {
+      "days": 1,
+      "mode": "wall"
+    },
+    {
+      "hours": 24,
+      "mode": "absolute"
+    },
+    {
+      "days": 2,
+      "mode": "wall"
+    },
+    {
+      "days": 2,
+      "mode": "absolute"
+    },
+    {
+      "days": 127,
+      "hours": 1,
+      "mode": "wall"
+    },
+    {
+      "days": 127,
+      "hours": 1,
+      "mode": "absolute"
+    }
+  ],
+  "start": "2024-11-02T01:30:00",
+  "zone": "America/New_York"
+}

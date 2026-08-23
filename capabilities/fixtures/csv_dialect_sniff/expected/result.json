@@ -1,0 +1,40 @@
+{
+  "bom": true,
+  "column_count": 4,
+  "columns": [
+    "kunde",
+    "betrag",
+    "betrag",
+    "anschrift"
+  ],
+  "decimal_comma_suspected": true,
+  "delimiter": ";",
+  "duplicate_columns": [
+    "betrag"
+  ],
+  "embedded_newline_fields": 1,
+  "empty_column_indexes": [],
+  "encoding": "utf-8-sig",
+  "has_header": true,
+  "line_terminator": "crlf",
+  "notes": [
+    "1 field(s) contain a newline inside quotes: records and lines are different counts here, and line-based reading would split records",
+    "a utf-8 BOM precedes the header; read with utf-8 rather than utf-8-sig the first column name carries a leading \\ufeff and every lookup of it fails",
+    "duplicate column name(s) ['betrag']: reading rows into a dict keeps only the last of each and loses the rest",
+    "only 75% of records have the modal width of 4; either rows are ragged or the delimiter is wrong",
+    "semicolon-delimited with comma decimals -- a European export. float('1.234,56') raises, and stripping the dot first silently multiplies the value by 1000"
+  ],
+  "physical_lines": 5,
+  "quotechar": "\"",
+  "ragged_count": 1,
+  "ragged_records": [
+    {
+      "fields": 3,
+      "record": 3
+    }
+  ],
+  "records": 4,
+  "sha256": "d16c711b700abae9d50adb77e618d2898abfa2ce778c90a876a5f84c050c388d",
+  "unbalanced_quotes": false,
+  "width_consistency": 0.75
+}

@@ -37,6 +37,10 @@ dev = [
     "mypy>=1.14",
     "alembic>=1.14",
     "types-jsonschema",
+    # The IANA time zone database. Linux ships one in /usr/share/zoneinfo and
+    # Windows ships none, so without this the timezone capability tests pass in
+    # CI and fail on half the machines that run them locally.
+    "tzdata>=2024.1",
 ]
 
 [tool.ruff]

@@ -1,0 +1,15 @@
+{
+  "bom_removed": true,
+  "changed": true,
+  "characters_after": 32,
+  "characters_before": 37,
+  "encoding": "utf-8",
+  "notes": [
+    "removed a utf-8 byte order mark; it is not part of the text",
+    "repaired 4 run(s) in 2 pass(es); every run was re-encoded to a legacy codec and decoded as valid utf-8, so each change is provably reversible"
+  ],
+  "output": "output.txt",
+  "passes": 2,
+  "repaired_runs": 4,
+  "sha256": "a2a321f181def7f28bf5890f00e8554bba700f11e1c8c80717791cb2e6e8e7d4"
+}
