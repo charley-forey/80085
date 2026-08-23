@@ -67,15 +67,61 @@ would produce a number we made up.
 demonstrates that the reuse path is complete, correct and not slower. Showing
 the real saving requires the agent-driven harness described below.
 
-To make these numbers mean more, in order of value:
+**Adding the hard capabilities to `TASKS` would not fix this, and it is worth
+saying why rather than doing it.** The control arm's cost is a `docker build`
+of an example that is already written and already correct. That is the same
+work for `mojibake_repair` as for `csv_to_json` — the difficulty of a
+capability lives in the edge cases someone already discovered, and the control
+arm never rediscovers them. Wiring nine hard capabilities into `TASKS` would
+multiply the row count and move the ratio by roughly nothing, while making the
+table *look* like it had been extended. The corpus grew from 3 to 30 and this
+number stayed at 3 tasks; the fix for that is the second benchmark below, not
+a longer table.
+
+To make the timing numbers mean more, in order of value:
 
 1. Drive both arms with a real coding agent and measure wall clock, tokens and
-   tool calls (§38's full metric set).
-2. Add tasks where the artifact is genuinely expensive to produce — OCR,
-   PDF layout extraction, a dependency-resolution loop — instead of three
-   stdlib converters.
-3. Measure the cold path: no base image cached, as a new environment would
+   tool calls (§38's full metric set). This is the only change that makes the
+   control arm include the part that actually costs anything.
+2. Measure the cold path: no base image cached, as a new environment would
    experience it.
+
+## The second benchmark: correctness, not time
+
+```bash
+uv run python benchmarks/correctness.py
+```
+
+For a capability whose value is accumulated edge cases, "faster than
+rebuilding" is the wrong claim. The claim that matters is **correct where a
+fresh implementation is subtly wrong** — so this benchmark times nothing.
+
+It runs the real capability and a *naive baseline* over the **same adversarial
+fixture**, and reports where they disagree. The baselines are not strawmen:
+each is what the standard library's own documentation nudges you toward.
+
+| Case | The naive answer | The real answer |
+|---|---|---|
+| `date_parse` — `03/04/2024` | `2024-03-04`, unambiguous | ambiguous; both readings named |
+| `encoding_detect` — mixed-encoding CSV | `latin-1`, unambiguous | `cp1252`, ambiguous, **mixed encoding** |
+| `business_days` — last business day of Dec 2021 | `2021-12-31` | `2021-12-30` |
+| `csv_dialect_sniff` — German export | `csv.Sniffer` answers `'\r'` | `';'` |
+
+All four diverge, and **each divergence is a plausible wrong answer rather than
+a crash** — which is the whole point. `try utf-8, except: latin-1` never
+raises, so a file that is genuinely half UTF-8 and half latin-1 decodes
+"successfully" into mojibake. `csv.Sniffer` picks the carriage return of the
+CRLF terminator over the real semicolon, and then `csv.reader` rejects its own
+sniffer's dialect. New Year's Day 2022 fell on a Saturday and was observed on
+Friday the 31st — a closure in neither the weekend rule nor the holiday list
+the caller supplied.
+
+A crash gets fixed. A plausible wrong answer gets shipped and believed.
+
+The script **exits non-zero if any case stops diverging**, and CI runs it. A
+case that agrees means either the capability regressed to the naive answer or
+the baseline was weakened, and both are findings. A benchmark whose claim
+nobody re-checks is how the site came to publish three different corpus sizes.
 
 ## Interpreting a run
 

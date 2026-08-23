@@ -72,6 +72,13 @@ jobs:
       - run: uv sync --all-extras --dev
       - run: uv run pytest tests/unit -q
 
+      # Pure stdlib, no containers -- it runs the capability sources directly
+      # over their own fixtures. It exits non-zero if a case stops diverging,
+      # which means either a capability regressed to the naive answer or the
+      # baseline went soft. Both are findings; neither should pass silently.
+      - name: Correctness benchmark
+        run: uv run python benchmarks/correctness.py
+
   integration:
     name: integration + sandbox + e2e
     runs-on: ubuntu-latest
