@@ -113,6 +113,14 @@ class Experience(Base):
     verification_level: Mapped[str] = mapped_column(
         String(32), nullable=False, default="unverified"
     )
+    # Why this is quarantined, who did it and when -- null unless it is.
+    # `quarantined` used to be a status nothing wrote, so the only way in was an
+    # operator's UPDATE and there was nowhere to say why. Kept on the row it
+    # justifies, the way decision 53 keeps a tier grant's reason, because a
+    # withdrawal nobody can explain is one nobody will confidently reverse.
+    # `manual` is the flag that stops an operator's judgement being undone by a
+    # lucky run of successes (DECISIONS 56).
+    quarantine: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     visibility: Mapped[str] = mapped_column(String(32), nullable=False, default="private")
     latest_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_by: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -269,7 +277,8 @@ class ExecutionStat(Base):
 
     Evidence is *derivable* from executions/verifications; this table exists so
     recall does not aggregate the whole history on every query. It is a cache:
-    scripts/rebuild_evidence.py regenerates it from the source rows.
+    `boobs_reputation.evidence.rebuild` regenerates it from the source rows,
+    and the scheduler's `evidence` job runs that on a clock.
     """
 
     __tablename__ = "execution_stats"
@@ -290,6 +299,13 @@ class ExecutionStat(Base):
     )
     failure_modes: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # How far the last computation read, plus the few things the columns above
+    # cannot carry forward: which organizations have proven it, a bounded
+    # sample of recent durations, and the recent win/lose outcomes the
+    # staleness policy reads. It exists so a new run costs the rows since the
+    # last one instead of the whole history (DECISIONS 57). Null means "no
+    # checkpoint", which is always safe: the next call rebuilds from source.
+    checkpoint: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

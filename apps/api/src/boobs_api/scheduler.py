@@ -38,9 +38,13 @@ import asyncio
 import sys
 from collections.abc import Awaitable, Callable
 
+from sqlalchemy import select
+
 from boobs_api import misses
 from boobs_observability import configure, logger
+from boobs_reputation.evidence import rebuild
 from boobs_schemas import db as database
+from boobs_schemas.tables import ExecutionStat
 
 log = logger(__name__)
 
@@ -60,12 +64,60 @@ async def retention() -> int:
     return removed
 
 
+async def evidence() -> int:
+    """Rebuild the least recently touched versions' evidence from source rows.
+
+    The reconciliation half of decision 57. `recompute` folds new runs on to a
+    stored checkpoint so a popular capability does not pay for its own history
+    twice per run, and that fold is exact -- but "exact" is a claim about code,
+    and decision 11 is a claim about the corpus. This is what keeps the second
+    one true independently of the first: every version comes round to a full
+    rescan of its immutable rows, and if a checkpoint had drifted for any
+    reason at all -- a lost update between two workers reporting at once, a bug
+    in the fold, a hand-written row -- the numbers are corrected without
+    anybody having to notice they were wrong.
+
+    It is also spec section 24's sweep. `recompute` re-evaluates quarantine, so
+    a version whose last runs failed is withdrawn from recall on this clock
+    even if nothing ever runs it again.
+
+    Least-recently-updated first and a batch cap, so the job is bounded whatever
+    the corpus grows to; `updated_at` is set by the rebuild, which makes the
+    ordering a round robin without a cursor to store. Overlap is safe for
+    retention's reason and one more: two of these compute the same answer from
+    the same immutable rows.
+    """
+    async with database.session() as session:
+        stale = (
+            (
+                await session.execute(
+                    select(ExecutionStat.experience_version_id)
+                    .order_by(ExecutionStat.updated_at)
+                    .limit(REBUILD_BATCH)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for version_id in stale:
+            await rebuild(session, version_id)
+        await session.commit()
+    return len(stale)
+
+
+# How many versions one tick rebuilds. Small enough that a tick is short even
+# when every version has a long history, large enough that a corpus of a few
+# thousand versions comes all the way round in a day of hourly ticks. Raise it
+# or add a second schedule before reaching for concurrency.
+REBUILD_BATCH = 500
+
 # Jobs are invoked by name and nothing else. Adding one is a line here and a
-# second Railway service with its own schedule -- staleness sweeps (spec 24)
-# and re-verification (26/27) are the named next two, and both are "read some
+# second Railway service with its own schedule -- re-verification (spec 26/27),
+# which actually re-runs artifacts, is the named next one, and it is "read some
 # rows, do a thing, exit", which is the shape this already is.
 JOBS: dict[str, Callable[[], Awaitable[int]]] = {
     "retention": retention,
+    "evidence": evidence,
 }
 
 

@@ -35,7 +35,7 @@ from boobs_domain.enums import (
     Visibility,
 )
 from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
-from boobs_reputation.evidence import recompute
+from boobs_reputation.evidence import quarantine, recompute
 from boobs_retrieval.embedding import active_embedder
 from boobs_retrieval.pipeline import RecallOutcome, visibility_clause
 from boobs_schemas import db as database
@@ -51,6 +51,8 @@ from boobs_schemas.api import (
     LineageIn,
     LineageNode,
     LineageResponse,
+    QuarantineRequest,
+    QuarantineResponse,
     RecallMatch,
     RecallMissesResponse,
     RecallMissOut,
@@ -524,6 +526,80 @@ async def grant_execution_tiers(
     )
 
 
+@router.post("/admin/experiences/{experience_id}/quarantine")
+async def set_quarantine(
+    experience_id: str,
+    request: QuarantineRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> QuarantineResponse:
+    """Withdraw one Experience from recall, or put it back.
+
+    `quarantined` has been a status two places read and nothing wrote:
+    `_promote` refuses to promote one and the recall pipeline hard-filters
+    them, so the only way in was an operator typing an UPDATE against
+    production. Decision 56 gives it two writers -- the evidence path, which
+    acts on runs, and this one, which acts on everything runs cannot see.
+
+    **Why a person still needs this** when `recompute` quarantines what rots:
+    the reasons an Experience should stop being recommended are not all
+    failures. An artifact with a credential baked into it works perfectly. So
+    does one whose licence turns out to be wrong, or one that is doing
+    something nobody wants done. No amount of run history detects any of that,
+    and every one of them is urgent.
+
+    `policy.authorize(principal, "admin.quarantine")` **with no resource**,
+    following decision 39's revocation route and decision 53's grant route
+    exactly: it is a `MUTATING_ACTION`, so passing the row would make the
+    engine demand an ownership a cross-tenant admin action cannot have.
+
+    **Both directions, one endpoint**, for the reason a tier grant is a set
+    rather than a delta: `{"quarantined": false}` is how a withdrawal is taken
+    back, so there is a way out that is not another hand-typed UPDATE.
+    Releasing lands the Experience on `candidate`, never straight back on
+    `verified` -- corroboration is re-earned through `recompute` like anything
+    else, because a status restored by hand is exactly the self-attestation
+    decision 41 exists to prevent.
+
+    **Auditable**: `reason` is required and stored on the row next to the agent
+    that decided and the time, the same way decision 53 stores a grant's. It
+    also carries `manual`, which is load-bearing rather than decorative:
+    `recompute` releases its own quarantines when the runs recover and never
+    touches one a person imposed, so an operator's judgement cannot be undone
+    by a lucky afternoon.
+    """
+    # Cheap to serve and already behind ADMIN, so this is not protecting the
+    # database. It bounds what a leaked admin key can do in an hour, and this
+    # is the write that takes capabilities away from every agent asking for
+    # them -- the most damaging thing on the admin surface.
+    await limits.QUARANTINE.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "admin.quarantine")
+
+    experience = (
+        await db.execute(select(Experience).where(Experience.id == experience_id))
+    ).scalar_one_or_none()
+    if experience is None:
+        raise NotFound(f"experience {experience_id} not found")
+
+    if request.quarantined:
+        quarantine(experience, reason=request.reason, by=principal.agent_id, manual=True)
+    else:
+        experience.status = ExperienceStatus.CANDIDATE
+        experience.quarantine = None
+        experience.updated_at = now()
+    await db.flush()
+    # Committed before the answer goes out, for the same reason a revocation
+    # is: an operator told a capability is withdrawn must not watch it come
+    # back in the next recall.
+    await release(db)
+    return QuarantineResponse(
+        experience_id=experience.id,
+        status=str(experience.status),
+        quarantine=experience.quarantine,
+    )
+
+
 # ----------------------------------------------------------------- experience
 
 
@@ -681,8 +757,11 @@ async def get_experience_lineage(
     queries against ids the caller already holds -- cheaper than the five
     recalls it takes to find them.
     """
-    # The root is subject to the ordinary read rules: 404 if it is not there,
-    # 403 if it is not yours to see.
+    # The root is subject to the ordinary read rules, which decision 55 made
+    # say less: another organization's Experience and one that was never
+    # recorded are both 404, because the difference between them is exactly the
+    # existence oracle the unresolved-edge rule above refuses to be. A 403 is
+    # still possible, but only inside the caller's own organization.
     await ExperienceRepository(db).get(principal, experience_id)
 
     nodes: list[LineageNode] = []

@@ -61,6 +61,13 @@ def test_a_job_that_works_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     assert scheduler.main() == 0
 
 
+def test_the_evidence_sweep_is_a_registered_job() -> None:
+    """Spec section 24's other half. `recompute` withdraws what rots when a run
+    is reported; this is what withdraws it when nothing is ever run again --
+    and what keeps decision 11 true independently of the fold."""
+    assert "evidence" in scheduler.JOBS
+
+
 def test_retention_is_a_registered_job() -> None:
     """The name in `infrastructure/railway/scheduler.md` and in the start
     command is this string; a rename that misses one of them is a cron that

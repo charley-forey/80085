@@ -65,7 +65,7 @@ rests on.
 | `packages/retrieval` | Intent normalization, hard filters, hybrid retrieval, ranking. |
 | `packages/execution` | `ExecutionRuntime` protocol, `DockerOciRuntime`, `E2BRuntime`, result cache. |
 | `packages/verification` | `Verifier` protocol + verifier registry. |
-| `packages/reputation` | Evidence recomputed from immutable rows. |
+| `packages/reputation` | Evidence, always rederivable from immutable rows. |
 | `packages/security` | API keys, scopes, `PolicyEngine`, tenant visibility. |
 | `packages/observability` | OTel tracing, structlog JSON logs, product metrics. |
 | `packages/common` | ids, clock, config, errors, object storage. |
