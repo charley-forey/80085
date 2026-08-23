@@ -148,6 +148,11 @@ VERIFY = Window(30, 3600, "verifications")
 # this is not protecting the database -- it is bounding how fast a leaked admin
 # key can page through every gap in the corpus.
 MISSES = Window(60, 3600, "reading recall misses")
+# The one admin write. Same reasoning as MISSES and a tighter number: granting
+# a tier is not a thing anybody does twenty times an hour, and `extended` is an
+# hour of compute per execution -- so this bounds how much a leaked admin key
+# can hand out before somebody notices.
+GRANT = Window(20, 3600, "granting execution tiers")
 
 
 def client_ip(request: Request) -> str:

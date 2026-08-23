@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from boobs_common.config import ExecutionTier
 from boobs_domain.entities import Evidence
 from boobs_domain.enums import (
     Compatibility,
@@ -123,7 +124,73 @@ class ExperienceResponse(Strict):
     visibility: Visibility
     artifact_digest: str
     evidence: Evidence
+    # A sparse map rather than `LineageIn`, so five unset relations do not cost
+    # five nulls on every experience read. It is what was recorded, verbatim
+    # and unresolved: nothing validates a lineage id at write time, so an entry
+    # here is a claim about provenance, not a promise that the id exists or
+    # that this caller may see it. `GET .../lineage` is what resolves them.
+    lineage: dict[str, str] = Field(
+        default_factory=dict, description="Relation -> experience id, as recorded."
+    )
     created_at: datetime
+
+
+class LineageNode(Strict):
+    """One lineage edge, resolved as far as this caller is allowed to see.
+
+    An edge whose target is another organization's private Experience and an
+    edge whose target was never recorded produce the *same* node: the id, and
+    `resolved: false`. That is deliberate -- distinguishing them would turn
+    traversal into an oracle for whether an id exists, which is exactly what
+    the visibility rules exist to prevent.
+    """
+
+    from_experience_id: str
+    relation: str
+    experience_id: str
+    depth: int
+    resolved: bool
+    goal: str | None = None
+    status: ExperienceStatus | None = None
+    verification_level: VerificationLevel | None = None
+    latest_version: int | None = None
+
+
+class LineageResponse(Strict):
+    experience_id: str
+    depth: int
+    nodes: list[LineageNode] = Field(
+        description="Breadth-first, nearest edges first. Each Experience appears once, "
+        "by its shortest path, which is what makes a cycle terminate."
+    )
+    truncated: bool = Field(
+        default=False, description="True when the node budget ran out before the graph did."
+    )
+
+
+class GrantExecutionTiersRequest(Strict):
+    """Which execution tiers one organization may ask for.
+
+    A set, not a delta: what you send is what the row ends up saying, so
+    `{"tiers": []}` is how a grant is taken back. `reason` is required and
+    stored, because the row is the whole audit trail -- an hour of compute
+    approved with no stated cause is indistinguishable from a leaked admin key.
+    """
+
+    tiers: list[ExecutionTier] = Field(max_length=len(ExecutionTier))
+    reason: str = Field(min_length=8, max_length=500)
+
+
+class ExecutionTiersResponse(Strict):
+    organization_id: str
+    granted: list[str] = Field(description="What this grant row now says.")
+    effective: list[str] = Field(
+        description="What the organization can actually ask for, across every policy row. "
+        "Differs from `granted` only when an operator inserted a row by hand."
+    )
+    reason: str
+    granted_by: str
+    granted_at: datetime
 
 
 class RecallContext(Strict):

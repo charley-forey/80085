@@ -37,10 +37,22 @@ ACTION_SCOPES: Final[dict[str, str]] = {
     # would make that list a lie. Not a MUTATING_ACTION: it is a read, and it
     # is called with no resource because the rows span every tenant.
     "admin.misses": Scope.ADMIN,
+    # Approving one organization for the longer execution tiers. Its own name,
+    # for the same reason `admin.misses` has one: this list is the audit
+    # surface for which actions exist, and `extended` is an hour of compute per
+    # execution -- the most expensive thing any action here can hand out.
+    "admin.execution_tiers": Scope.ADMIN,
 }
 
 # Actions that change an object. These require ownership, never visibility.
-MUTATING_ACTIONS: Final[frozenset[str]] = frozenset({"experience.record", "admin.keys"})
+MUTATING_ACTIONS: Final[frozenset[str]] = frozenset(
+    {"experience.record", "admin.keys", "admin.execution_tiers"}
+)
+
+# The policy row the grant endpoint owns. An operator's hand-written `INSERT`
+# under any other name still grants -- `granted_tiers` unions every row -- which
+# is why the endpoint answers with the effective set and not merely its own.
+TIER_GRANT_POLICY: Final = "execution-tiers"
 
 # Verifiers that check what the run produced, not merely that it exited zero.
 # `exit_code` is the floor: an artifact that mines for an hour and exits 0

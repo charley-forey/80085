@@ -1692,3 +1692,218 @@ done here: that is a separate blast radius, and retention does not need it.
 Railway service, and leave `BOOBS_MISS_SWEEP_ON_WRITE` unset. The write path
 sweeps again and nothing else moves — which is the property the fallback was
 kept for.
+
+---
+
+### 52. Lineage becomes readable, and an unresolvable edge says nothing about why
+
+`Lineage` has carried six relations — `derived_from`, `forked_from`,
+`improves`, `replaces`, `supersedes`, `failed_variant_of` — on every
+`experience_versions` row since the first migration. The MCP tool asks for
+them, `repositories.py` writes them, and **nothing has ever read one**. No
+response model carried them, so a caller could not read back the lineage of
+their own Experience; no query traversed them; no ranking consulted them. This
+document called them "the foundation of the future Experience Graph". Six
+relations of dead weight is what they were.
+
+Two reads, and deliberately nothing else:
+
+* `GET /v1/experiences/{id}` now carries `lineage` — a **sparse map** of
+  relation to id, exactly as recorded. Sparse because five nulls on every
+  experience read cost every caller tokens to learn nothing, and this API is
+  read by agents that pay per field.
+* `GET /v1/experiences/{id}/lineage` resolves those ids into what an agent
+  actually acts on: is there something here that supersedes what I am about to
+  run, and does the thing it improves still look better than it does.
+
+Ranking still ignores lineage. That is the next argument, not this one.
+
+**An edge is a claim, not a fact.** A lineage id is free text written by
+whoever recorded the version, validated by nothing. It may name an Experience
+that never existed, one that has since been deprecated, or — and this is the
+one that matters — **another organization's private Experience**.
+
+#### Tenancy: absent, and absent for no stated reason
+
+Targets are resolved through `visibility_clause`, the same SQL predicate recall
+filters on, reused rather than restated so tenant isolation stays one thing to
+audit. A target that does not come back yields a node carrying the id,
+`resolved: false`, and nothing else: no goal, no status, no version.
+
+The design decision is what happens in the two failure cases, and the answer is
+that **there is only one failure case**. An edge naming another organization's
+private Experience and an edge naming an id that was never recorded produce
+byte-identical output. Not a null in one case and an id-with-no-detail in the
+other — identical. There is a real difference between "this does not exist" and
+"you may not see this", and answering it would turn this endpoint into an
+existence oracle for arbitrary ids: record one Experience whose `improves` is
+the id you want to test, ask, and read the answer off the shape of the reply.
+Private ids are not guessable, but they do not have to be guessed — they are
+handed to their owner in plain text at record, and they travel in logs, tickets
+and prompts. The only question left is whether we will confirm one. We will
+not.
+
+Returning the id itself is not a leak: it appears in the `lineage` block of an
+Experience the caller can already read, which is where the traversal got it.
+What is withheld is every fact about the target — including whether there is
+one.
+
+An unresolved edge is never expanded, which is the same rule stated as a walk:
+another tenant's graph is not reachable by going around a private node.
+
+**One oracle this does not close, and does not open.** The traversal root goes
+through the ordinary read path, which answers 403 for an Experience that exists
+and is not visible and 404 for one that does not. That distinction predates
+this change — `GET /v1/experiences/{id}` has always made it, on decision 39's
+reasoning that ids are `uuid4` and a 403 tells a confused operator the truth.
+It lives in `repositories.py`. It is worth revisiting, because an *edge* is
+attacker-supplied in bulk in a way a path parameter is not, but that is a
+change to DISCOVER and belongs in its own review.
+
+#### Termination: breadth-first, a visited set, and a budget
+
+`A supersedes B supersedes A` is writable today. Versions are append-only, so
+the second edge can always be added once the first id exists — no ordering
+trick prevents it, and nothing at write time refuses it.
+
+The walk is breadth-first with a visited set, so **each Experience appears
+once, by its shortest path**, and the cycle above ends after one node because
+B's edge back to A has already been seen. The frontier empties; the depth limit
+is not what stops it.
+
+`depth` is 1 to 5, default 3. Three is chosen because the relations describe a
+fork-and-improve chain and three hops is already further out than any of them
+mean much; five is the ceiling because the walk costs one pair of indexed
+queries per level and there is no reason to buy more.
+
+Depth is the wrong bound on its own: six relations per node makes depth 5 worth
+7776 nodes in the worst case. The real bound is a **budget of 200 nodes**, and
+`truncated` says when it ran out rather than silently returning a prefix.
+
+#### Write-time validation: no, and for a reason that is not laziness
+
+Should recording `improves: exp_does_not_exist` be refused? The case for
+refusing is real — `experience_versions` is append-only, so a dangling edge is
+noise that can never be cleaned.
+
+It is not refused, because **validating a lineage id at write time is the same
+oracle, moved**. To reject an unknown id the write path must answer "does this
+id exist", and to reject only ids the recorder may see it must answer "does
+this id exist and may you see it" — which is precisely the question the read
+path was just built not to answer. A 422 on record is a cheaper oracle than the
+traversal would have been: one request, no lineage read at all.
+
+Restricting the check to ids the caller can already see does not save it
+either. It would refuse the honest case this feature exists for: forking a
+public Experience whose owner later makes it private, or recording provenance
+for something recalled through an organization the recorder has since left.
+Lineage is a claim about where work came from. A registry that will only let
+you claim descent from things it can currently show you is recording a
+different, smaller fact.
+
+So lineage stays permissive, dangling edges are permitted, and they cost
+exactly one unresolved line — the same line another tenant's private
+Experience costs. Noise and privacy are the same mechanism, which is why the
+mechanism is worth having.
+
+**Follow-up, not built here** (the write path is `repositories.py`, owned
+elsewhere this wave): a *syntactic* check on the way in — `exp_` prefix, right
+length — would kill the typo class without asking the database anything, and
+therefore without being an oracle. It is the only validation that is safe here,
+and it is a small change to `LineageIn`.
+
+**Not rate limited.** It is authenticated, and it is at most ten small indexed
+queries against ids the caller already holds — cheaper than the recalls it took
+to find them. The router-wide checks in `tests/unit/test_open_access.py` ask
+about POSTs and about `/v1/admin`; this is neither.
+
+Locked in by `tests/unit/test_lineage.py` (cycles, self-edges, depth, the
+budget, and that the two unresolvable cases are indistinguishable) and
+`tests/integration/test_lineage.py`, which asserts the leak case against a real
+database with a real private row — a claim about a `WHERE` clause does not
+survive being mocked.
+
+**Undo:** delete the route, the two response models and the `lineage` field on
+`ExperienceResponse`. The column and everything written to it are untouched;
+this decision adds no writes and no migration.
+
+---
+
+### 53. An execution tier is granted by an endpoint now, and the endpoint cannot be asked
+
+Decision 26 shipped three execution tiers and no way to grant one. A tier above
+`quick` came from a `policies` row that no endpoint wrote — an operator typed
+an `INSERT` — on the explicit grounds that **approval an endpoint can perform
+is approval an attacker can request**. It named an admin-scoped endpoint as the
+obvious next step, and left it there.
+
+`POST /v1/admin/organizations/{organization_id}/execution-tiers`.
+
+The sentence that justified the `INSERT` survives intact, because nothing here
+lets a caller ask for a tier. The only caller who can grant one holds `admin`,
+and `admin` is not something a self-serve key can mint itself into.
+
+`policy.authorize(principal, "admin.execution_tiers")` **with no resource**,
+following decision 39's revocation route exactly: it is a `MUTATING_ACTION`, so
+passing the target organization would make the engine demand an ownership a
+cross-tenant admin action cannot have. Its own action name rather than a reuse
+of `admin.keys`, for decision 50's reason — `ACTION_SCOPES` is the audit
+surface for which actions exist, and this is the most expensive thing on it.
+
+**What it can hand out, and what it cannot.** `extended` is an hour of compute
+per execution, which is why it was never self-serve. This endpoint grants
+*eligibility*, not an hour: `resolve_execution_tier` still refuses `extended`
+to any version whose verifier does not check what the run produced, because
+`exit_code` passes for an artifact that mines for an hour and exits 0. That
+second gate is per version, it is unchanged, and an admin grant cannot wave it
+through.
+
+Three properties, each of which cost a line and buys a class of accident:
+
+* **Scoped to one organization.** Named in the path, and it has to exist — a
+  typo is a 404, not a policy row nothing will ever read. There is no
+  parameter that widens the grant, which is the same shape decision 50 used to
+  keep a report from growing a tenant filter.
+* **Deliberate.** The body is the exact set of tiers the organization ends up
+  with, not a delta. Repeating a request cannot accumulate anything, and
+  `{"tiers": []}` is how a grant is taken back — an hour of compute must be
+  revocable without an operator typing `DELETE` against production.
+* **Auditable.** `reason` is required, minimum eight characters, and stored on
+  the row next to the granting agent and the time. An hour of compute approved
+  with no stated cause is indistinguishable from a leaked admin key, and the
+  row is the only place anybody would look.
+
+**The answer carries `effective` as well as `granted`**, because `granted_tiers`
+unions *every* policy row for an organization: the hand-written rows decision 26
+created are still there and still grant. This endpoint owns exactly one row,
+named `execution-tiers`, and where the two lists differ `effective` is the
+truth. Without that field, revoking through this endpoint would look like it
+worked while an older row kept granting.
+
+**Rate limited** at 20/hour, which is not protecting the database — it is one
+indexed lookup behind `admin`. It bounds what a leaked admin key can hand out
+before somebody notices, and it satisfies both router-wide checks in
+`tests/unit/test_open_access.py` (every POST, and everything under `/v1/admin`)
+rather than being added to their exemption list.
+
+**ponytail: read-then-write, not an upsert.** There is no unique index on
+(`organization_id`, `name`) and adding one is a migration, which this change
+does not take. Two admins granting the same organization in the same instant
+can leave two rows; that over-grants rather than under-grants, because
+`granted_tiers` unions them — and `effective` says so in the reply. Ceiling:
+one admin at a time. Upgrade path is the unique index plus `ON CONFLICT`.
+
+**Deliberately not built:** an expiry on a grant. It is the right feature — an
+hour of compute should lapse rather than persist until someone remembers — but
+enforcing it belongs at lease time, in code this change does not own. A grant
+today is until it is replaced.
+
+Locked in by `tests/unit/test_execution_tier_grants.py` (the refusals, and that
+a refused grant writes nothing) and
+`tests/integration/test_execution_tier_grants.py`, which asserts the row makes
+the round trip through JSONB and comes back out of the same function the lease
+reads — a 200 that changes nothing at lease time is the failure worth catching.
+
+**Undo:** delete the route, the two models, the `admin.execution_tiers` entry
+and the window. Grants revert to the `INSERT` decision 26 described, and rows
+this wrote keep working, because they are that same row.
