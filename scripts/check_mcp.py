@@ -55,9 +55,7 @@ async def check(url: str, key: str, task: str) -> int:
             )
 
             result = unwrap(
-                await session.call_tool(
-                    "recall_experience", {"task": task, "runtime": "python"}
-                )
+                await session.call_tool("recall_experience", {"task": task, "runtime": "python"})
             )
             if "error" in result:
                 report("recall_experience", False, str(result)[:300])

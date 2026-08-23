@@ -1,0 +1,114 @@
+name: CI
+
+# The swarm opens many PRs in parallel. Without a required check they land on
+# main unverified, and the sandbox-escape suite -- the one that decides whether
+# this project is safe to operate at all -- never runs.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Never let CI silently pass on the non-semantic stand-in: a recall-quality
+  # test that "passes" on hash vectors is proving nothing. `fastembed` makes
+  # the fallback in embedding.py raise instead of degrade.
+  BOOBS_EMBEDDER: fastembed
+
+jobs:
+  static:
+    name: lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy packages apps
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-${{ runner.os }}-bge-small-en-v1.5
+      - run: uv sync --all-extras --dev
+      - run: uv run pytest tests/unit -q
+
+  integration:
+    name: integration + sandbox + e2e
+    runs-on: ubuntu-latest
+    # The sandbox suite starts real containers and the e2e test drives a real
+    # worker; both are slower than unit tests and both are the point.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-${{ runner.os }}-bge-small-en-v1.5
+
+      # docker-compose.yml is the same file used for local development, so CI
+      # and a laptop agree on what "the services are up" means. Postgres must
+      # be the pgvector image; a plain postgres answers SELECT 1 while every
+      # recall 500s (DECISIONS.md 18).
+      - name: Start services
+        run: docker compose up -d postgres minio registry
+
+      - run: uv sync --all-extras --dev
+
+      - name: Wait for postgres
+        run: |
+          for _ in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U boobs; then exit 0; fi
+            sleep 2
+          done
+          echo "postgres never became ready"; docker compose logs postgres; exit 1
+
+      # Integration and e2e tests skip themselves without these digests, and a
+      # green run made of skips is the failure mode this workflow exists to
+      # prevent.
+      - name: Build example capabilities
+        env:
+          ARTIFACT_REGISTRY: localhost:5000
+        run: uv run python scripts/build_capabilities.py
+
+      - name: Integration tests
+        run: uv run pytest tests/integration -q
+
+      - name: Sandbox isolation tests
+        # If one of these fails, fix the sandbox. Never relax the test.
+        run: uv run pytest tests/security -v
+
+      - name: Cross-agent reuse (the acceptance criterion)
+        run: uv run pytest tests/e2e -v
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Test process logs on failure
+        if: failure()
+        run: |
+          for f in .test-api.log .test-worker.log; do
+            [ -f "$f" ] && { echo "===== $f ====="; tail -200 "$f"; }
+          done
+          exit 0

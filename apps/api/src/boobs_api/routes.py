@@ -203,9 +203,7 @@ async def mint_key(
 
     name = (label or "anonymous").strip()[:200] or "anonymous"
     org = Organization(id=ids.new_id(ids.ORGANIZATION), name=f"self-serve:{name}", created_at=now())
-    agent_row = Agent(
-        id=ids.new_id(ids.AGENT), organization_id=org.id, name=name, created_at=now()
-    )
+    agent_row = Agent(id=ids.new_id(ids.AGENT), organization_id=org.id, name=name, created_at=now())
     plaintext, key_hash = generate()
     # Read, write and run -- but never admin, and never the worker scope.
     granted = sorted({Scope.EXPERIENCES_READ, Scope.EXPERIENCES_WRITE, Scope.EXECUTIONS_RUN})
@@ -227,8 +225,7 @@ async def mint_key(
         "agent_id": agent_row.id,
         "scopes": granted,
         "note": (
-            "Store this now. It is not recoverable, and there is no "
-            "account to recover it into."
+            "Store this now. It is not recoverable, and there is no account to recover it into."
         ),
     }
 
@@ -316,9 +313,7 @@ async def recall_via_url(
     because that is what a language model reads best; JSON on request.
     """
     limits.RECALL.check(limits.client_ip(http))
-    candidates = await ExperienceRepository(db).search(
-        principal, RecallQuery(task=q, limit=limit)
-    )
+    candidates = await ExperienceRepository(db).search(principal, RecallQuery(task=q, limit=limit))
     matches = [RecallMatch(**candidate.model_dump()) for candidate in candidates]
 
     if "application/json" in http.headers.get("accept", ""):
@@ -347,7 +342,7 @@ async def recall_via_url(
             f"- compatibility: {m.compatibility}",
             f"- experience_id: `{m.experience_id}` (version {m.version})",
             "",
-            f"Run it: `run_experience(experience_id=\"{m.experience_id}\")`",
+            f'Run it: `run_experience(experience_id="{m.experience_id}")`',
             "",
         ]
     return PlainTextResponse("\n".join(lines), media_type="text/markdown; charset=utf-8")

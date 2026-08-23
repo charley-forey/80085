@@ -213,11 +213,35 @@ async def test_recorded_versions_cannot_be_rewritten(api: httpx.AsyncClient, db:
     await db.rollback()
 
 
-async def test_authentication_is_required_and_bad_keys_are_refused(
+async def test_recall_is_open_but_a_bad_key_is_still_refused(
     api: httpx.AsyncClient,
 ) -> None:
-    assert (await api.post("/v1/experiences/recall", json={"task": "anything"})).status_code == 401
+    """Absent credentials read as nobody; broken ones are refused.
+
+    Recall deliberately needs no key -- a shared brain nobody can query is not
+    shared. But only an *absent* credential is anonymous. A forged, malformed
+    or revoked key still fails, because silently downgrading a bad key to
+    anonymous would turn a caller's expired credential into a permission change
+    they never asked for (see get_principal_or_anonymous).
+    """
+    open_recall = await api.post("/v1/experiences/recall", json={"task": "anything"})
+    assert open_recall.status_code == 200
+
     forged = auth("sk_80085_" + "a" * 40)
     assert (
         await api.post("/v1/experiences/recall", headers=forged, json={"task": "anything"})
     ).status_code == 401
+
+
+async def test_writing_and_reading_an_execution_still_require_a_key(
+    api: httpx.AsyncClient,
+) -> None:
+    """Opening recall opened recall, and nothing else.
+
+    An execution may contain the caller's own data, so it is never readable
+    without a credential -- the anonymous principal carries EXPERIENCES_READ
+    and nothing more.
+    """
+    assert (await api.get("/v1/executions/exe_missing")).status_code == 401
+    forged = auth("sk_80085_" + "a" * 40)
+    assert (await api.get("/v1/executions/exe_missing", headers=forged)).status_code == 401
