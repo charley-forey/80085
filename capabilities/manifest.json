@@ -555,6 +555,1126 @@
           }
         }
       }
+    },
+    "encoding_detect": {
+      "goal": {
+        "statement": "Detect the character encoding of a text file, reporting BOM, ambiguity and mixed-encoding damage",
+        "intent": "detect_encoding",
+        "tags": [
+          "encoding",
+          "unicode",
+          "utf-8",
+          "bom",
+          "cp1252",
+          "latin-1",
+          "detection"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.txt"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "encoding",
+              "confidence",
+              "ambiguous",
+              "decodable",
+              "bytes",
+              "sha256",
+              "mojibake_suspected",
+              "mixed_encoding",
+              "notes"
+            ],
+            "properties": {
+              "encoding": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bom": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "confidence": {
+                "enum": [
+                  "certain",
+                  "high",
+                  "low"
+                ]
+              },
+              "ambiguous": {
+                "type": "boolean"
+              },
+              "alternatives": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "decodable": {
+                "type": "boolean"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "mojibake_suspected": {
+                "type": "boolean"
+              },
+              "mixed_encoding": {
+                "type": "boolean"
+              },
+              "undecodable_lines": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "mojibake_repair": {
+      "goal": {
+        "statement": "Repair mojibake: UTF-8 text that was decoded as cp1252 or latin-1 and saved again as UTF-8",
+        "intent": "repair_mojibake",
+        "tags": [
+          "encoding",
+          "mojibake",
+          "unicode",
+          "utf-8",
+          "cp1252",
+          "repair",
+          "text"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.txt",
+        "output.txt"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "output",
+              "sha256",
+              "passes",
+              "repaired_runs",
+              "characters_before",
+              "characters_after",
+              "encoding",
+              "bom_removed",
+              "changed",
+              "notes"
+            ],
+            "properties": {
+              "output": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "repaired_runs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "characters_before": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "characters_after": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "encoding": {
+                "enum": [
+                  "utf-8",
+                  "cp1252",
+                  "latin-1"
+                ]
+              },
+              "bom_removed": {
+                "type": "boolean"
+              },
+              "changed": {
+                "type": "boolean"
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csv_dialect_sniff": {
+      "goal": {
+        "statement": "Detect the delimiter, quoting, header and structural damage of a real-world CSV file",
+        "intent": "sniff_csv_dialect",
+        "tags": [
+          "csv",
+          "dialect",
+          "delimiter",
+          "detection",
+          "tabular",
+          "encoding"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "delimiter",
+              "quotechar",
+              "records",
+              "physical_lines",
+              "column_count",
+              "has_header",
+              "encoding",
+              "bom",
+              "ragged_count",
+              "sha256",
+              "notes"
+            ],
+            "properties": {
+              "delimiter": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1
+              },
+              "quotechar": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1
+              },
+              "records": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "physical_lines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "column_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "duplicate_columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "has_header": {
+                "type": "boolean"
+              },
+              "encoding": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bom": {
+                "type": "boolean"
+              },
+              "line_terminator": {
+                "enum": [
+                  "lf",
+                  "crlf",
+                  "cr",
+                  "mixed",
+                  "none"
+                ]
+              },
+              "decimal_comma_suspected": {
+                "type": "boolean"
+              },
+              "unbalanced_quotes": {
+                "type": "boolean"
+              },
+              "embedded_newline_fields": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ragged_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ragged_records": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "record",
+                    "fields"
+                  ],
+                  "properties": {
+                    "record": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "fields": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              },
+              "width_consistency": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "date_parse": {
+      "goal": {
+        "statement": "Parse dates and report day/month and century ambiguity explicitly instead of guessing",
+        "intent": "parse_dates",
+        "tags": [
+          "date",
+          "parsing",
+          "ambiguity",
+          "iso8601",
+          "validation"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "prefer",
+              "count",
+              "ambiguous_count",
+              "unparsed_count",
+              "values",
+              "sha256"
+            ],
+            "properties": {
+              "prefer": {
+                "enum": [
+                  "none",
+                  "dmy",
+                  "mdy"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ambiguous_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unparsed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "self_disambiguating_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "input",
+                    "iso",
+                    "kind",
+                    "ambiguous",
+                    "interpretations",
+                    "has_offset",
+                    "reason",
+                    "notes"
+                  ],
+                  "properties": {
+                    "input": {
+                      "type": "string"
+                    },
+                    "iso": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "enum": [
+                        "date",
+                        "datetime",
+                        null
+                      ]
+                    },
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "has_offset": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "interpretations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "order",
+                          "date"
+                        ],
+                        "properties": {
+                          "order": {
+                            "enum": [
+                              "iso",
+                              "ymd",
+                              "dmy",
+                              "mdy",
+                              "either",
+                              "textual"
+                            ]
+                          },
+                          "date": {
+                            "type": "string",
+                            "minLength": 10
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dst_shift": {
+      "goal": {
+        "statement": "Shift a local time across a daylight saving transition, separating wall-clock arithmetic from elapsed time",
+        "intent": "shift_local_time",
+        "tags": [
+          "timezone",
+          "dst",
+          "datetime",
+          "zoneinfo",
+          "arithmetic"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "zone",
+              "start",
+              "shifts",
+              "crossed_transition",
+              "sha256"
+            ],
+            "properties": {
+              "zone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "crossed_transition": {
+                "type": "boolean"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "start": {
+                "type": "object",
+                "required": [
+                  "local",
+                  "utc",
+                  "offset",
+                  "nonexistent",
+                  "ambiguous"
+                ],
+                "properties": {
+                  "local": {
+                    "type": "string",
+                    "minLength": 19
+                  },
+                  "utc": {
+                    "type": "string",
+                    "minLength": 19
+                  },
+                  "offset": {
+                    "type": "string",
+                    "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
+                  },
+                  "nonexistent": {
+                    "type": "boolean"
+                  },
+                  "ambiguous": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "shifts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "mode",
+                    "local",
+                    "utc",
+                    "offset",
+                    "elapsed_seconds",
+                    "elapsed_matches_request",
+                    "nonexistent",
+                    "ambiguous",
+                    "resolution"
+                  ],
+                  "properties": {
+                    "mode": {
+                      "enum": [
+                        "wall",
+                        "absolute"
+                      ]
+                    },
+                    "local": {
+                      "type": "string",
+                      "minLength": 19
+                    },
+                    "utc": {
+                      "type": "string",
+                      "minLength": 19
+                    },
+                    "offset": {
+                      "type": "string",
+                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
+                    },
+                    "elapsed_seconds": {
+                      "type": "integer"
+                    },
+                    "elapsed_matches_request": {
+                      "type": "boolean"
+                    },
+                    "nonexistent": {
+                      "type": "boolean"
+                    },
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "resolution": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "recurrence_expand": {
+      "goal": {
+        "statement": "Expand a recurring local appointment into the UTC instants it happens at across DST transitions",
+        "intent": "expand_recurrence",
+        "tags": [
+          "timezone",
+          "dst",
+          "recurrence",
+          "schedule",
+          "zoneinfo",
+          "calendar"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "zone",
+              "rule",
+              "interval",
+              "count",
+              "anchor_day",
+              "occurrences",
+              "utc_shifts",
+              "sha256",
+              "notes"
+            ],
+            "properties": {
+              "zone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rule": {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ]
+              },
+              "interval": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "anchor_day": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31
+              },
+              "utc_shifts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "index",
+                    "local",
+                    "utc",
+                    "offset",
+                    "weekday",
+                    "nonexistent",
+                    "ambiguous",
+                    "clamped",
+                    "utc_shifted",
+                    "adjustment"
+                  ],
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "local": {
+                      "type": "string",
+                      "minLength": 19
+                    },
+                    "utc": {
+                      "type": "string",
+                      "minLength": 19
+                    },
+                    "offset": {
+                      "type": "string",
+                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
+                    },
+                    "weekday": {
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ]
+                    },
+                    "nonexistent": {
+                      "type": "boolean"
+                    },
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "clamped": {
+                      "type": "boolean"
+                    },
+                    "utc_shifted": {
+                      "type": "boolean"
+                    },
+                    "adjustment": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "business_days": {
+      "goal": {
+        "statement": "Business-day arithmetic with holidays and the observed-holiday rule: last business day of a month, the Nth, and N business days from a date",
+        "intent": "business_day_arithmetic",
+        "tags": [
+          "calendar",
+          "business-days",
+          "holidays",
+          "payroll",
+          "date",
+          "arithmetic"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "weekend",
+              "weekend_days",
+              "holidays",
+              "observe_weekend_holidays",
+              "observed_moves",
+              "effective_closures",
+              "queries",
+              "sha256"
+            ],
+            "properties": {
+              "weekend": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                }
+              },
+              "weekend_days": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "holidays": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "effective_closures": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "observe_weekend_holidays": {
+                "type": "boolean"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "observed_moves": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "holiday",
+                    "falls_on",
+                    "observed"
+                  ],
+                  "properties": {
+                    "holiday": {
+                      "type": "string",
+                      "minLength": 10
+                    },
+                    "falls_on": {
+                      "type": "string",
+                      "minLength": 6
+                    },
+                    "observed": {
+                      "type": "string",
+                      "minLength": 10
+                    }
+                  }
+                }
+              },
+              "queries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "date"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "last_business_day",
+                        "nth_business_day",
+                        "add_business_days",
+                        "count_business_days"
+                      ]
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "weekday": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "money_parse": {
+      "goal": {
+        "statement": "Parse money written in any locale into an exact decimal, reporting values whose thousands separator and decimal point cannot be told apart",
+        "intent": "parse_money",
+        "tags": [
+          "money",
+          "currency",
+          "decimal",
+          "locale",
+          "parsing",
+          "ambiguity"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "hint",
+              "count",
+              "ambiguous_count",
+              "unparsed_count",
+              "values",
+              "sha256"
+            ],
+            "properties": {
+              "hint": {
+                "enum": [
+                  "none",
+                  "us",
+                  "eu"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ambiguous_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unparsed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "input",
+                    "value",
+                    "scale",
+                    "negative",
+                    "currency",
+                    "ambiguous",
+                    "interpretations",
+                    "reason",
+                    "notes"
+                  ],
+                  "properties": {
+                    "input": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "negative": {
+                      "type": "boolean"
+                    },
+                    "currency": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "interpretations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "style",
+                          "value"
+                        ],
+                        "properties": {
+                          "style": {
+                            "enum": [
+                              "us",
+                              "eu",
+                              "plain",
+                              "grouped"
+                            ]
+                          },
+                          "value": {
+                            "type": "string",
+                            "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "money_allocate": {
+      "goal": {
+        "statement": "Split a money amount into weighted shares that add back up to exactly the total, in the currency's own minor units",
+        "intent": "allocate_money",
+        "tags": [
+          "money",
+          "currency",
+          "decimal",
+          "rounding",
+          "allocation",
+          "accounting"
+        ]
+      },
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
+      "verification": {
+        "verifier": "json_schema",
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "exponent",
+              "total",
+              "weights",
+              "allocations",
+              "sum",
+              "exact",
+              "method",
+              "minor_units",
+              "redistributed_units",
+              "sha256"
+            ],
+            "properties": {
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "exponent": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              "sum": {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              "weights": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "allocations": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                }
+              },
+              "exact": {
+                "const": true
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minor_units": {
+                "type": "integer"
+              },
+              "redistributed_units": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

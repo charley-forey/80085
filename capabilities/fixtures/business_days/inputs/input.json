@@ -1,0 +1,46 @@
+{
+  "holidays": [
+    "2021-12-27",
+    "2022-01-01",
+    "2024-11-28",
+    "2024-11-29",
+    "2024-12-25",
+    "2027-12-25",
+    "2027-12-26"
+  ],
+  "observe_weekend_holidays": true,
+  "queries": [
+    {
+      "kind": "last_business_day",
+      "month": "2024-11"
+    },
+    {
+      "kind": "last_business_day",
+      "month": "2021-12"
+    },
+    {
+      "kind": "nth_business_day",
+      "month": "2024-11",
+      "n": 3
+    },
+    {
+      "days": 3,
+      "from": "2024-11-27",
+      "kind": "add_business_days"
+    },
+    {
+      "days": 0,
+      "from": "2024-11-30",
+      "kind": "add_business_days"
+    },
+    {
+      "from": "2024-11-01",
+      "kind": "count_business_days",
+      "to": "2024-11-30"
+    }
+  ],
+  "weekend": [
+    5,
+    6
+  ]
+}

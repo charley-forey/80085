@@ -1,0 +1,21 @@
+{
+  "alternatives": [
+    "latin-1"
+  ],
+  "ambiguous": true,
+  "bom": null,
+  "bytes": 38,
+  "confidence": "low",
+  "decodable": true,
+  "encoding": "cp1252",
+  "mixed_encoding": true,
+  "mojibake_suspected": false,
+  "notes": [
+    "1 line(s) are genuine multi-byte utf-8 and 1 do not decode at all: this file is not in one encoding, and no single answer is right for it",
+    "only bytes >= 0xa0 are used, where cp1252 and latin-1 are the same table: the two decode this file identically and the distinction is not decidable"
+  ],
+  "sha256": "f413627c748b5e883cf3b743c2dfe3853b380a7a03ab14395ccf354ac095a0a5",
+  "undecodable_lines": [
+    3
+  ]
+}

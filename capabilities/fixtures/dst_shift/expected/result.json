@@ -1,0 +1,125 @@
+{
+  "crossed_transition": true,
+  "sha256": "833de38998434c17bde3d47885acc2492a0710502edd7fd10fd9dfc7250b9b2e",
+  "shifts": [
+    {
+      "abbreviation": "EDT",
+      "ambiguous": true,
+      "ambiguous_alternate_utc": "2024-11-03T06:30:00+00:00",
+      "elapsed_matches_request": true,
+      "elapsed_seconds": 86400,
+      "local": "2024-11-03T01:30:00-04:00",
+      "mode": "wall",
+      "nonexistent": false,
+      "offset": "-04:00",
+      "requested": {
+        "days": 1,
+        "hours": 0,
+        "minutes": 0
+      },
+      "resolution": "ambiguous local time; took the first pass (fold=0)",
+      "utc": "2024-11-03T05:30:00+00:00"
+    },
+    {
+      "abbreviation": "EDT",
+      "ambiguous": true,
+      "ambiguous_alternate_utc": "2024-11-03T06:30:00+00:00",
+      "elapsed_matches_request": true,
+      "elapsed_seconds": 86400,
+      "local": "2024-11-03T01:30:00-04:00",
+      "mode": "absolute",
+      "nonexistent": false,
+      "offset": "-04:00",
+      "requested": {
+        "days": 0,
+        "hours": 24,
+        "minutes": 0
+      },
+      "resolution": "none",
+      "utc": "2024-11-03T05:30:00+00:00"
+    },
+    {
+      "abbreviation": "EST",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "elapsed_matches_request": false,
+      "elapsed_seconds": 176400,
+      "local": "2024-11-04T01:30:00-05:00",
+      "mode": "wall",
+      "nonexistent": false,
+      "offset": "-05:00",
+      "requested": {
+        "days": 2,
+        "hours": 0,
+        "minutes": 0
+      },
+      "resolution": "none",
+      "utc": "2024-11-04T06:30:00+00:00"
+    },
+    {
+      "abbreviation": "EST",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "elapsed_matches_request": true,
+      "elapsed_seconds": 172800,
+      "local": "2024-11-04T00:30:00-05:00",
+      "mode": "absolute",
+      "nonexistent": false,
+      "offset": "-05:00",
+      "requested": {
+        "days": 2,
+        "hours": 0,
+        "minutes": 0
+      },
+      "resolution": "none",
+      "utc": "2024-11-04T05:30:00+00:00"
+    },
+    {
+      "abbreviation": "EDT",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "elapsed_matches_request": false,
+      "elapsed_seconds": 10980000,
+      "local": "2025-03-09T03:30:00-04:00",
+      "mode": "wall",
+      "nonexistent": true,
+      "offset": "-04:00",
+      "requested": {
+        "days": 127,
+        "hours": 1,
+        "minutes": 0
+      },
+      "resolution": "nonexistent local time; moved forward by the 1:00:00 gap",
+      "utc": "2025-03-09T07:30:00+00:00"
+    },
+    {
+      "abbreviation": "EST",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "elapsed_matches_request": true,
+      "elapsed_seconds": 10976400,
+      "local": "2025-03-09T01:30:00-05:00",
+      "mode": "absolute",
+      "nonexistent": false,
+      "offset": "-05:00",
+      "requested": {
+        "days": 127,
+        "hours": 1,
+        "minutes": 0
+      },
+      "resolution": "none",
+      "utc": "2025-03-09T06:30:00+00:00"
+    }
+  ],
+  "start": {
+    "abbreviation": "EDT",
+    "ambiguous": false,
+    "ambiguous_alternate_utc": null,
+    "local": "2024-11-02T01:30:00-04:00",
+    "nonexistent": false,
+    "offset": "-04:00",
+    "resolution": "none",
+    "utc": "2024-11-02T05:30:00+00:00"
+  },
+  "zone": "America/New_York"
+}

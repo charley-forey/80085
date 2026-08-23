@@ -1,0 +1,250 @@
+{
+  "ambiguous_count": 3,
+  "count": 15,
+  "prefer": "none",
+  "self_disambiguating_count": 1,
+  "sha256": "34378f57c775a23c3b30e0a3863bb1682ddf9b36af4d286aa64d0f12d9452e7a",
+  "unparsed_count": 3,
+  "values": [
+    {
+      "ambiguous": true,
+      "has_offset": false,
+      "input": "03/04/2024",
+      "interpretations": [
+        {
+          "date": "2024-04-03",
+          "order": "dmy"
+        },
+        {
+          "date": "2024-03-04",
+          "order": "mdy"
+        }
+      ],
+      "iso": null,
+      "kind": "date",
+      "notes": [
+        "both day-first and month-first name a real date, so this value has two meanings and the file does not say which. Pass prefer, or settle it from the whole column"
+      ],
+      "reason": "ambiguous day/month order"
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "13/04/2024",
+      "interpretations": [
+        {
+          "date": "2024-04-13",
+          "order": "dmy"
+        }
+      ],
+      "iso": "2024-04-13",
+      "kind": "date",
+      "notes": [
+        "unambiguous only because the first number exceeds 12; other values in the same column will not be, so the convention has to be settled for the file"
+      ],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "05/05/2024",
+      "interpretations": [
+        {
+          "date": "2024-05-05",
+          "order": "either"
+        }
+      ],
+      "iso": "2024-05-05",
+      "kind": "date",
+      "notes": [
+        "day and month are the same number here, so both conventions agree; the next value in this column may not be so forgiving"
+      ],
+      "reason": null
+    },
+    {
+      "ambiguous": true,
+      "has_offset": false,
+      "input": "03/04/24",
+      "interpretations": [
+        {
+          "date": "2024-04-03",
+          "order": "dmy"
+        },
+        {
+          "date": "2024-03-04",
+          "order": "mdy"
+        }
+      ],
+      "iso": null,
+      "kind": "date",
+      "notes": [
+        "both day-first and month-first name a real date, so this value has two meanings and the file does not say which. Pass prefer, or settle it from the whole column",
+        "two-digit year 24 read as 2024 by the POSIX pivot (69-99 -> 19xx); a file that means the other century cannot be recovered from the value alone"
+      ],
+      "reason": "ambiguous day/month order"
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "2024-02-30",
+      "interpretations": [],
+      "iso": null,
+      "kind": null,
+      "notes": [],
+      "reason": "day 30 is out of range for month 02 of 2024"
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "2023-02-29",
+      "interpretations": [],
+      "iso": null,
+      "kind": null,
+      "notes": [],
+      "reason": "day 29 is out of range for month 02 of 2023 (2023 is not a leap year)"
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "2021-W01-1",
+      "interpretations": [
+        {
+          "date": "2021-01-04",
+          "order": "iso"
+        }
+      ],
+      "iso": "2021-01-04",
+      "kind": "date",
+      "notes": [
+        "ISO week dates do not line up with the calendar year: week 1 is the week holding the first Thursday, so 2021-W01-1 is 2021-01-04"
+      ],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "2024-03-10T02:30:00",
+      "interpretations": [
+        {
+          "date": "2024-03-10",
+          "order": "iso"
+        }
+      ],
+      "iso": "2024-03-10T02:30:00",
+      "kind": "datetime",
+      "notes": [
+        "no UTC offset: this is a wall-clock reading, not an instant. Turning it into one needs the zone it was written in"
+      ],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": true,
+      "input": "2024-06-01T12:00:00+02:00",
+      "interpretations": [
+        {
+          "date": "2024-06-01",
+          "order": "iso"
+        }
+      ],
+      "iso": "2024-06-01T12:00:00+02:00",
+      "kind": "datetime",
+      "notes": [],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "2024-3-4",
+      "interpretations": [
+        {
+          "date": "2024-03-04",
+          "order": "ymd"
+        }
+      ],
+      "iso": "2024-03-04",
+      "kind": "date",
+      "notes": [],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "4 March 2024",
+      "interpretations": [
+        {
+          "date": "2024-03-04",
+          "order": "textual"
+        }
+      ],
+      "iso": "2024-03-04",
+      "kind": "date",
+      "notes": [],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "Mar 4, 2024",
+      "interpretations": [
+        {
+          "date": "2024-03-04",
+          "order": "textual"
+        }
+      ],
+      "iso": "2024-03-04",
+      "kind": "date",
+      "notes": [],
+      "reason": null
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "\ufeff2024-01-02\ufeff",
+      "interpretations": [
+        {
+          "date": "2024-01-02",
+          "order": "iso"
+        }
+      ],
+      "iso": "2024-01-02",
+      "kind": "date",
+      "notes": [
+        "the value is padded with a zero-width no-break space or similar; Python's str.strip() leaves U+FEFF in place, and most other languages' trim() leaves the no-break space too, so the comparison downstream fails on invisible bytes"
+      ],
+      "reason": null
+    },
+    {
+      "ambiguous": true,
+      "has_offset": false,
+      "input": "01/02/2024 14:30",
+      "interpretations": [
+        {
+          "date": "2024-02-01T14:30:00",
+          "order": "dmy"
+        },
+        {
+          "date": "2024-01-02T14:30:00",
+          "order": "mdy"
+        }
+      ],
+      "iso": null,
+      "kind": "datetime",
+      "notes": [
+        "both day-first and month-first name a real date, so this value has two meanings and the file does not say which. Pass prefer, or settle it from the whole column",
+        "no UTC offset: this is a wall-clock reading, not an instant. Turning it into one needs the zone it was written in"
+      ],
+      "reason": "ambiguous day/month order"
+    },
+    {
+      "ambiguous": false,
+      "has_offset": false,
+      "input": "next tuesday",
+      "interpretations": [],
+      "iso": null,
+      "kind": null,
+      "notes": [],
+      "reason": "not a recognised date format"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "anchor_day": 31,
+  "count": 4,
+  "interval": 1,
+  "notes": [
+    "1 occurrence(s) keep the same local time and change UTC instant: a schedule expanded once into UTC and stored would be an hour out from there on",
+    "an occurrence fell in the hour the clocks skipped; it was moved forward rather than given the previous day's offset",
+    "day 31 does not exist in every month; those occurrences are clamped to the last day, and each following month is still computed from day 31 rather than from the clamped date"
+  ],
+  "occurrences": [
+    {
+      "abbreviation": "GMT",
+      "adjustment": "none",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "clamped": false,
+      "index": 0,
+      "local": "2024-01-31T01:30:00+00:00",
+      "nonexistent": false,
+      "offset": "+00:00",
+      "utc": "2024-01-31T01:30:00+00:00",
+      "utc_shifted": false,
+      "weekday": "Wednesday"
+    },
+    {
+      "abbreviation": "GMT",
+      "adjustment": "none",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "clamped": true,
+      "index": 1,
+      "local": "2024-02-29T01:30:00+00:00",
+      "nonexistent": false,
+      "offset": "+00:00",
+      "utc": "2024-02-29T01:30:00+00:00",
+      "utc_shifted": false,
+      "weekday": "Thursday"
+    },
+    {
+      "abbreviation": "BST",
+      "adjustment": "local time does not exist; moved forward by 1:00:00",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "clamped": false,
+      "index": 2,
+      "local": "2024-03-31T02:30:00+01:00",
+      "nonexistent": true,
+      "offset": "+01:00",
+      "utc": "2024-03-31T01:30:00+00:00",
+      "utc_shifted": true,
+      "weekday": "Sunday"
+    },
+    {
+      "abbreviation": "BST",
+      "adjustment": "none",
+      "ambiguous": false,
+      "ambiguous_alternate_utc": null,
+      "clamped": true,
+      "index": 3,
+      "local": "2024-04-30T01:30:00+01:00",
+      "nonexistent": false,
+      "offset": "+01:00",
+      "utc": "2024-04-30T00:30:00+00:00",
+      "utc_shifted": false,
+      "weekday": "Tuesday"
+    }
+  ],
+  "rule": "monthly",
+  "sha256": "5e6783cc8c99d838390d3ab35cd147ddc6ba10721240fcd07e48e26d613d9568",
+  "utc_shifts": 1,
+  "zone": "Europe/London"
+}

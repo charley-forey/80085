@@ -1,0 +1,260 @@
+{
+  "ambiguous_count": 2,
+  "count": 15,
+  "hint": "none",
+  "sha256": "7058cfe9c1da7afa154e64fbde1beefb9aeac32fde58d42b300da8c10b9a269e",
+  "unparsed_count": 2,
+  "values": [
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1.234,56",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "1234.56"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "1234.56"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1,234.56",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "1234.56"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "1234.56"
+    },
+    {
+      "ambiguous": true,
+      "currency": null,
+      "input": "1,234",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "1234"
+        },
+        {
+          "style": "eu",
+          "value": "1.234"
+        }
+      ],
+      "negative": false,
+      "notes": [
+        "',' with exactly three digits after it is a thousands separator in one convention and a decimal point in the other; the value has two readings that differ by 1000x, and '.' does not appear to settle it"
+      ],
+      "reason": "two readings differing by 1000x",
+      "scale": null,
+      "value": null
+    },
+    {
+      "ambiguous": true,
+      "currency": null,
+      "input": "1.234",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "1234"
+        },
+        {
+          "style": "us",
+          "value": "1.234"
+        }
+      ],
+      "negative": false,
+      "notes": [
+        "'.' with exactly three digits after it is a thousands separator in one convention and a decimal point in the other; the value has two readings that differ by 1000x, and ',' does not appear to settle it"
+      ],
+      "reason": "two readings differing by 1000x",
+      "scale": null,
+      "value": null
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "(1,234.56)",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "-1234.56"
+        }
+      ],
+      "negative": true,
+      "notes": [
+        "parentheses are an accounting negative; read as a positive this is a sign error"
+      ],
+      "reason": null,
+      "scale": 2,
+      "value": "-1234.56"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1234,5",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "1234.5"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 1,
+      "value": "1234.5"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1\u00a0234,56",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "1234.56"
+        }
+      ],
+      "negative": false,
+      "notes": [
+        "spaces group the digits; '1 234' has only one reading, unlike '1,234'",
+        "the group separator is a no-break or thin space, not U+0020: a strip() or a split on ' ' leaves it in place and the value then fails to parse"
+      ],
+      "reason": null,
+      "scale": 2,
+      "value": "1234.56"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1,23,456.78",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "123456.78"
+        }
+      ],
+      "negative": false,
+      "notes": [
+        "grouped 2-2-3, which is the Indian convention: a validator that insists on groups of three rejects this number"
+      ],
+      "reason": null,
+      "scale": 2,
+      "value": "123456.78"
+    },
+    {
+      "ambiguous": false,
+      "currency": "USD",
+      "input": "USD 1.234,00",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "1234.00"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "1234.00"
+    },
+    {
+      "ambiguous": false,
+      "currency": "$",
+      "input": "$1,234.56",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "1234.56"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "1234.56"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1234.56-",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "-1234.56"
+        }
+      ],
+      "negative": true,
+      "notes": [
+        "a trailing minus is a negative; mainframe and SAP exports write them this way"
+      ],
+      "reason": null,
+      "scale": 2,
+      "value": "-1234.56"
+    },
+    {
+      "ambiguous": false,
+      "currency": "\u20ac",
+      "input": "-\u20ac 99,90",
+      "interpretations": [
+        {
+          "style": "eu",
+          "value": "-99.90"
+        }
+      ],
+      "negative": true,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "-99.90"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "12.34.56",
+      "interpretations": [],
+      "negative": false,
+      "notes": [],
+      "reason": "the separators are not a legal grouping in either convention",
+      "scale": null,
+      "value": null
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "1.50",
+      "interpretations": [
+        {
+          "style": "us",
+          "value": "1.50"
+        }
+      ],
+      "negative": false,
+      "notes": [],
+      "reason": null,
+      "scale": 2,
+      "value": "1.50"
+    },
+    {
+      "ambiguous": false,
+      "currency": null,
+      "input": "abc",
+      "interpretations": [],
+      "negative": false,
+      "notes": [],
+      "reason": "not a number once the currency and sign were removed",
+      "scale": null,
+      "value": null
+    }
+  ]
+}
