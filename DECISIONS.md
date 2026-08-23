@@ -1137,3 +1137,33 @@ a passing row. `VerifyRequest` is now an empty `extra="forbid"` model: changing
 how something is verified is a change to the Experience and needs a new
 version. Only scope configuration was preventing this, and a coincidence is not
 a defence.
+
+---
+
+### 45. The terms name what recall keeps, because the code kept it first
+
+`recall_misses` shipped storing the caller's raw task text, and `TERMS.md` was
+not touched. It still read as though recall were a stateless query, which meant
+the product had begun retaining user-supplied free text without telling anyone
+in the document that exists to tell them. `docs/security.md` described it
+accurately the whole time; that is the right place for the field list and the
+wrong place for it to be the only place.
+
+`TERMS.md` §7 now says it: the raw text is stored as sent, this happens to
+keyless callers with no account attached to the row, it is kept 90 days from
+last occurrence, and it is deleted by a sweep that runs when the next miss is
+written. The section is inserted at §7 rather than appended, beside §6, so that
+the data we take sits next to the data you give; §8-§10 shifted up by one and
+the one stale cross-reference in `docs/legal-review.md` moved with them.
+
+Three things it deliberately does **not** claim, because the code does not do
+them: that the text is anonymized, that anything can be deleted on request, or
+that a scheduler enforces the 90 days. All three are stated as gaps instead. A
+terms document that promises a process nobody built is worse than one that
+admits the process is a person running a `DELETE`.
+
+**Follow-ups this raises in the code, not taken here:** the demand signal lives
+in the normalized intent, so the raw phrasing could be truncated or dropped
+without losing what the table is for; and `RETENTION` is a module constant,
+which is fine until a deployment needs a shorter one. `docs/legal-review.md`
+Q12 asks counsel whether truncation is the right remedy before either is done.
