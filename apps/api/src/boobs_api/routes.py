@@ -9,12 +9,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Body, Query, Response, status
+from fastapi import APIRouter, Query, Response, status
 from sqlalchemy import select
 
-from boobs_api import queue
+from boobs_api import leases
 from boobs_api.deps import CurrentPrincipal, DbSession
 from boobs_api.repositories import (
     ArtifactRepository,
@@ -36,6 +36,7 @@ from boobs_domain.protocols import Principal, RecallQuery, SandboxResult
 from boobs_reputation.evidence import recompute
 from boobs_schemas import db as database
 from boobs_schemas.api import (
+    BootstrapRequest,
     EventResponse,
     ExecuteRequest,
     ExecutionResponse,
@@ -85,13 +86,14 @@ async def health() -> dict[str, str]:
 async def ready(db: DbSession, response: Response) -> dict[str, Any]:
     checks = {
         "database": await _db_healthy(db),
-        "redis": await queue.healthy(),
         "object_storage": await storage.healthy(),
     }
     ok = all(checks.values())
     if not ok:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    return {"ready": ok, "checks": checks}
+    # Queue depth is reported, not checked: a backlog means no worker is
+    # attached, which is an operational fact rather than an unhealthy API.
+    return {"ready": ok, "checks": checks, "queued_executions": await leases.depth(db)}
 
 
 async def _db_healthy(db: DbSession) -> bool:
@@ -106,45 +108,40 @@ async def _db_healthy(db: DbSession) -> bool:
 
 
 @router.post("/bootstrap", status_code=status.HTTP_201_CREATED)
-async def bootstrap(
-    db: DbSession,
-    organization: str = Body(embed=True),
-    agent: str = Body(embed=True),
-    token: str = Body(embed=True),
-    scopes: Annotated[list[str] | None, Body(embed=True)] = None,
-) -> dict[str, Any]:
+async def bootstrap(request: BootstrapRequest, db: DbSession) -> dict[str, Any]:
     """Create an organization, an agent and its first API key.
 
     Guarded by BOOBS_BOOTSTRAP_TOKEN because it mints credentials. This is
     the MVP's account creation; a real signup flow replaces it.
 
-    `scopes` narrows the key below the default of everything. The website's
-    public recall proxy needs a key that can read and nothing else, and a
-    credential that can only be minted at full privilege is a credential that
-    cannot be safely exposed anywhere.
+    `scopes` defaults to the ordinary agent scopes. Pass ["worker:execute"] to
+    mint a worker key -- a worker should be able to lease and report, and
+    nothing else.
     """
     import os
 
     expected = os.environ.get("BOOBS_BOOTSTRAP_TOKEN", "")
-    if not expected or token != expected:
+    if not expected or request.token != expected:
         raise Forbidden("invalid bootstrap token")
 
-    granted = sorted(Scope.ALL) if scopes is None else sorted(set(scopes))
-    if not set(granted) <= Scope.ALL:
-        raise ValidationError(f"unknown scopes: {sorted(set(granted) - Scope.ALL)}")
-    if not granted:
-        raise ValidationError("a key with no scopes can do nothing")
+    granted = sorted(set(request.scopes)) if request.scopes else sorted(Scope.ALL)
+    unknown = set(granted) - set(Scope.KNOWN)
+    if unknown:
+        raise ValidationError(f"unknown scopes: {sorted(unknown)}")
 
-    org = Organization(id=ids.new_id(ids.ORGANIZATION), name=organization, created_at=now())
+    org = Organization(id=ids.new_id(ids.ORGANIZATION), name=request.organization, created_at=now())
     agent_row = Agent(
-        id=ids.new_id(ids.AGENT), organization_id=org.id, name=agent, created_at=now()
+        id=ids.new_id(ids.AGENT),
+        organization_id=org.id,
+        name=request.agent,
+        created_at=now(),
     )
     plaintext, key_hash = generate()
     key = ApiKey(
         id=ids.new_id(ids.API_KEY),
         organization_id=org.id,
         agent_id=agent_row.id,
-        name=f"{agent} default",
+        name=f"{request.agent} default",
         key_hash=key_hash,
         scopes=granted,
         created_at=now(),
@@ -259,8 +256,9 @@ async def execute_experience(
             {name: base64.b64encode(blob).decode() for name, blob in inputs.items()},
         )
 
-    await db.commit()  # the worker must be able to see the row it is sent
-    await queue.enqueue_execution(execution.id)
+    # Committing is the enqueue: the executions table is the queue, and a
+    # worker claims rows from it with SELECT ... FOR UPDATE SKIP LOCKED.
+    await db.commit()
 
     if request.wait_seconds:
         await _await_terminal(execution.id, request.wait_seconds)

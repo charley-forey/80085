@@ -1,13 +1,26 @@
 """MCP server (spec sections 13 and 14).
 
 MCP is the easiest path for an agent to use 80085, so the tool surface is
-deliberately tiny: ask, run, contribute. The server is an HTTP client of the
-API like any other caller -- it has no database access and no privileged path.
+deliberately tiny: ask, run, contribute.
 
 The integration instruction it exists to make true:
 
     Before solving a non-trivial task from scratch, ask 80085 whether a
     verified executable Experience already exists.
+
+## Credentials
+
+This server holds no API key of its own. It runs in one of two modes:
+
+* **hosted** (`streamable-http`) -- each caller sends its own 80085 API key as
+  `Authorization: Bearer sk_80085_...`, and the server forwards it. One
+  deployment serves every tenant, nobody shares a credential, and the API
+  stays the single authority on who may do what. The header is never treated
+  as an identity assertion here; it is passed through and the API decides.
+* **local** (`stdio`) -- one user, key from `BOOBS_API_KEY`.
+
+A hosted server with a single shared key would let any caller act as its
+owner, which is why that is not an option.
 """
 
 from __future__ import annotations
@@ -17,7 +30,7 @@ import os
 from typing import Any
 
 import httpx
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 
 # This package deliberately depends on nothing from the workspace. An agent
 # installs it straight from the repo with
@@ -35,29 +48,53 @@ mcp = MCPServer(
     ),
 )
 
+TRANSPORTS = ("stdio", "sse", "streamable-http")
 
-def _client() -> httpx.AsyncClient:
+
+class MissingKey(RuntimeError):
+    """Raised when neither the caller nor the environment supplied a key."""
+
+
+def _api_key(ctx: Context | None) -> str:
+    """The caller's key if this is a hosted request, else the local one."""
+    headers = getattr(ctx, "headers", None) if ctx is not None else None
+    if headers:
+        supplied = headers.get("authorization") or headers.get("Authorization")
+        if supplied:
+            return supplied if supplied.lower().startswith("bearer ") else f"Bearer {supplied}"
+
     key = os.environ.get("BOOBS_API_KEY", "")
     if not key:
-        raise RuntimeError("BOOBS_API_KEY is not set; the MCP server cannot call the API")
+        raise MissingKey(
+            "No 80085 API key. Send 'Authorization: Bearer sk_80085_...' with the "
+            "request, or set BOOBS_API_KEY when running this server locally."
+        )
+    return f"Bearer {key}"
+
+
+def _client(ctx: Context | None) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=os.environ.get("BOOBS_API_URL", DEFAULT_API_URL),
-        headers={"Authorization": f"Bearer {key}"},
-        timeout=httpx.Timeout(120.0),
+        headers={"Authorization": _api_key(ctx)},
+        timeout=httpx.Timeout(300.0),
     )
 
 
-async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    async with _client() as client:
-        response = await client.post(path, json=payload)
-        if response.status_code >= 400:
-            return {"error": response.status_code, "detail": response.text[:1000]}
-        return dict(response.json())
+async def _post(ctx: Context | None, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        async with _client(ctx) as client:
+            response = await client.post(path, json=payload)
+    except MissingKey as exc:
+        return {"error": "unauthenticated", "detail": str(exc)}
+    if response.status_code >= 400:
+        return {"error": response.status_code, "detail": response.text[:1000]}
+    return dict(response.json())
 
 
 @mcp.tool()
 async def recall_experience(
     task: str,
+    ctx: Context,
     runtime: str | None = None,
     runtime_version: str | None = None,
     os_name: str = "linux",
@@ -70,9 +107,11 @@ async def recall_experience(
     Call this BEFORE solving a non-trivial task from scratch. Returns ranked
     matches with evidence: success rate, verified run count, and whether the
     artifact is compatible with your environment. A `recommendation` of "use"
-    means running it is very likely cheaper than rebuilding it.
+    means running it is very likely cheaper than rebuilding it. An empty list
+    means no verified solution exists -- solve the task yourself, then record it.
     """
     return await _post(
+        ctx,
         "/v1/experiences/recall",
         {
             "task": task,
@@ -91,6 +130,7 @@ async def recall_experience(
 @mcp.tool()
 async def run_experience(
     experience_id: str,
+    ctx: Context,
     inputs: dict[str, str] | None = None,
     version: int | None = None,
     wait_seconds: int = 120,
@@ -106,6 +146,7 @@ async def run_experience(
         for name, content in (inputs or {}).items()
     }
     result = await _post(
+        ctx,
         f"/v1/experiences/{experience_id}/execute",
         {"inputs": encoded, "version": version, "wait_seconds": wait_seconds},
     )
@@ -122,6 +163,7 @@ async def record_experience(
     goal: str,
     intent: str,
     artifact_reference: str,
+    ctx: Context,
     command: list[str] | None = None,
     verifier: str | None = None,
     verifier_config: dict[str, Any] | None = None,
@@ -151,22 +193,25 @@ async def record_experience(
     }
     if verifier:
         payload["verification"] = {"verifier": verifier, "config": verifier_config or {}}
-    return await _post("/v1/experiences", payload)
-
-
-TRANSPORTS = ("stdio", "sse", "streamable-http")
+    return await _post(ctx, "/v1/experiences", payload)
 
 
 def main() -> None:
     transport = os.environ.get("BOOBS_MCP_TRANSPORT", "stdio")
     if transport not in TRANSPORTS:
         raise SystemExit(f"BOOBS_MCP_TRANSPORT must be one of {TRANSPORTS}, got {transport!r}")
-    if transport == "sse":
-        mcp.run(transport="sse")
-    elif transport == "streamable-http":
-        mcp.run(transport="streamable-http")
-    else:
+
+    if transport == "stdio":
         mcp.run(transport="stdio")
+        return
+
+    # Hosted: bind what the platform gives us.
+    host = os.environ.get("HOST", "0.0.0.0")  # noqa: S104 - a container must bind all interfaces
+    port = int(os.environ.get("PORT", "8080"))
+    if transport == "sse":
+        mcp.run(transport="sse", host=host, port=port)
+    else:
+        mcp.run(transport="streamable-http", host=host, port=port, stateless_http=True)
 
 
 if __name__ == "__main__":

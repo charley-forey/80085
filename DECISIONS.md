@@ -102,14 +102,29 @@ and there was no reason to ship the wrong one first.
 
 ---
 
-### 8. Queue is arq
+### 8. Queue is Postgres, not Redis  *(superseded decision 8: arq)*
+
+The queue was arq on Redis until the worker moved off-platform. It is now the
+`executions` table itself, claimed with `SELECT ... FOR UPDATE SKIP LOCKED`:
+exactly one worker gets each row, concurrent claimers step over locked rows
+rather than blocking, and the queue cannot drift from the execution history
+because they are the same rows.
+
+Redis is gone entirely. It was carrying one thing, and Postgres was already
+there.
+
+Historical note -- the arq design said:
 
 Async-native and Redis-backed. Celery is sync-first and heavy for three job
 types.
 
-A job naming an execution row that does not exist returns `"abandoned"`
-instead of raising: retrying can never succeed, and five retries per poison
-job starve the worker of slots. `max_tries = 2` for everything else.
+> Async-native and Redis-backed. Celery is sync-first and heavy for three job
+> types. A job naming an execution row that does not exist returns
+> `"abandoned"` instead of raising.
+
+The same failure mode is now handled by lease expiry: a claim that is never
+reported expires, the row returns to `queued`, and after `MAX_ATTEMPTS` it is
+failed with a reason rather than retried forever.
 
 ---
 
@@ -155,8 +170,8 @@ the host socket would undo the isolation the sandbox exists to provide. The
 spec's own infrastructure line is "Railway + Vercel + **local computer** +
 MCP".
 
-API, Postgres, Redis and object storage are hosted; the worker runs where
-Docker is.
+API, Postgres and object storage are hosted; the worker runs where Docker is,
+and reaches the platform over HTTPS only (decision 17).
 
 **Undo:** implement `ExecutionRuntime` against Fly Machines, E2B, Modal, or a
 hardened Kubernetes sandbox. Nothing above the protocol changes.
@@ -232,3 +247,41 @@ runtimes (§43).
 Each has a named seam in the code — `lineage` on every version, the
 `Verifier`/`ExecutionRuntime` protocols, the append-only event stream — but no
 speculative implementation.
+
+---
+
+### 17. The worker speaks HTTPS, and never touches a datastore
+
+**Found by trying to deploy.** With the worker off-platform, it needed to
+reach Postgres and Redis. Railway's TCP proxy accepted connections at the edge
+but never forwarded them to either container, so the datastores were
+unreachable — and the design that required exposing them was the wrong design
+anyway.
+
+A worker is now an HTTPS client of the API:
+
+```
+POST /v1/worker/lease                      claim the oldest queued execution
+POST /v1/worker/executions/{id}/result     report what happened
+```
+
+What this bought, beyond unblocking the deployment:
+
+* **A worker holds one narrow key.** `worker:execute` and nothing else — it
+  cannot recall, cannot record, cannot read another tenant's experiences. A
+  leaked worker key does not expose the registry.
+* **No datastore is on the internet.** Postgres and object storage stay
+  private to the platform. The public surface is one API.
+* **A worker cannot vote on its own evidence.** It reports the raw result —
+  exit code, stdout, output bytes — and *the API* runs the verifier. Under the
+  old design the worker verified its own run and wrote the verdict to the
+  database, which meant a compromised or buggy worker could manufacture
+  evidence. That is precisely the thing this product sells, so it does not
+  belong on the untrusted side of the boundary.
+
+Locked in by `tests/integration/test_worker_protocol.py`, including a worker
+that reports success while producing output the verifier rejects.
+
+**Undo:** none wanted. This is better than what it replaced on every axis
+except one — a worker now polls rather than being pushed to, which costs a few
+seconds of latency on an idle queue.

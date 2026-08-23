@@ -21,6 +21,8 @@ import json
 import httpx
 import pytest
 
+from tests.helpers import auth, bootstrap
+
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("docker", "worker")]
 
 INPUT_CSV = b"track,bpm,key\nAcid Trax,128,Am\nStrings of Life,122,Fm\nPhuture,130,Gm\n"
@@ -32,19 +34,6 @@ TASK_A = "Convert a CSV file into a normalized JSON array of objects"
 TASK_B = "I need to turn tabular comma-separated data into JSON records"
 # Agent C's words, different again.
 TASK_C = "parse a csv export and give me json"
-
-
-async def bootstrap(api: httpx.AsyncClient, organization: str, agent: str) -> str:
-    response = await api.post(
-        "/v1/bootstrap",
-        json={"organization": organization, "agent": agent, "token": "test-bootstrap"},
-    )
-    assert response.status_code == 201, response.text
-    return str(response.json()["api_key"])
-
-
-def auth(key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {key}"}
 
 
 async def test_agent_b_reuses_agent_a_solution_without_agent_a(

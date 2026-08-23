@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from boobs_api import queue
 from boobs_api.routes import router
+from boobs_api.worker_routes import router as worker_router
 from boobs_common import storage
 from boobs_common.errors import (
     Conflict,
@@ -45,8 +47,28 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 - startup must not depend on S3
         log.warning("object_storage_unavailable_at_startup", error=str(exc))
     yield
-    await queue.close()
     await dispose()
+
+
+def _web_root() -> Path | None:
+    """Locate apps/web, whether running from a checkout or the container."""
+    here = Path(__file__).resolve()
+    candidates = [Path.cwd() / "apps" / "web", *(p / "apps" / "web" for p in here.parents)]
+    return next((path for path in candidates if (path / "index.html").is_file()), None)
+
+
+def _mount_discovery_surface(app: FastAPI) -> None:
+    """Serve the landing page and llms.txt from the API itself.
+
+    Discovery is a product feature (spec section 14), and an agent that has the
+    API host has everything: /llms.txt, /openapi.json and /docs all sit on one
+    origin. Mounted last so it can never shadow a /v1 route.
+    """
+    root = _web_root()
+    if root is None:
+        log.info("discovery_surface_not_found", searched="apps/web")
+        return
+    app.mount("/", StaticFiles(directory=str(root), html=True), name="web")
 
 
 def create_app() -> FastAPI:
@@ -57,6 +79,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(router)
+    app.include_router(worker_router)
+    _mount_discovery_surface(app)
 
     @app.exception_handler(EightyKError)
     async def domain_error(_: Request, exc: EightyKError) -> JSONResponse:

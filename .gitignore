@@ -15,3 +15,7 @@ node_modules/
 capabilities/digests.json
 *.log
 benchmarks/results.json
+.claude/
+
+# Live credentials for the deployed environment.
+DEPLOYMENT.md

@@ -9,5 +9,4 @@ tests
 benchmarks
 docs
 capabilities/digests.json
-*.md
 .env

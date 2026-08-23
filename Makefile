@@ -4,7 +4,7 @@ up:            ; docker compose up -d
 down:          ; docker compose down
 dev: up migrate ; @echo "services up + migrated. run 'make api' and 'make worker' in separate shells."
 api:           ; uv run uvicorn boobs_api.main:app --reload --port 8000
-worker:        ; uv run arq boobs_worker.main.WorkerSettings
+worker:        ; uv run 80085-worker
 migrate:       ; uv run alembic upgrade head
 seed:          ; uv run python scripts/seed.py
 capabilities:  ; uv run python scripts/build_capabilities.py

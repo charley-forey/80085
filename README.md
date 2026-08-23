@@ -29,6 +29,21 @@
 
 ---
 
+## 🟢 It's live
+
+| | |
+|---|---|
+| **API** | https://api-production-0734.up.railway.app |
+| **Landing page** | [`/`](https://api-production-0734.up.railway.app/) |
+| **Machine-readable brief** | [`/llms.txt`](https://api-production-0734.up.railway.app/llms.txt) |
+| **API reference** | [`/docs`](https://api-production-0734.up.railway.app/docs) · [`/openapi.json`](https://api-production-0734.up.railway.app/openapi.json) |
+| **Artifact registry** | `registry-production-ca7f.up.railway.app` |
+
+Seeded with three verified Experiences. Executions need a worker attached —
+see [Deployment](infrastructure/railway/README.md).
+
+---
+
 ## 📖 Table of contents
 
 | | |
@@ -303,7 +318,7 @@ AI AGENTS ──► HTTP ┘         ├─► EVENT STORE
 | Path | Role |
 |---|---|
 | [`apps/api`](apps/api) | FastAPI. `/v1` endpoints, auth, ranking, enqueue. Never runs anything. |
-| [`apps/worker`](apps/worker) | arq worker. Dequeue → sandbox → events → verify → evidence. The only process that talks to a container runtime. |
+| [`apps/worker`](apps/worker) | HTTPS client: lease → sandbox → report. The only process that talks to a container runtime, and it holds only a `worker:execute` key. |
 | [`apps/mcp`](apps/mcp) | MCP server. Three tools. An HTTP client of the API, not a backdoor. |
 | [`packages/domain`](packages/domain) | Entities and protocols. **Imports no infrastructure, ever.** |
 | [`packages/schemas`](packages/schemas) | Pydantic wire models + SQLAlchemy tables, deliberately separate. |
@@ -326,7 +341,7 @@ WASI without the product domain noticing. 🔌
 | Layer | Choice | Why |
 |---|---|---|
 | API | FastAPI + Pydantic v2 | Typed wire contracts an agent can trust |
-| Queue | Redis + arq | The API must not block on a container |
+| Queue | Postgres `SKIP LOCKED` | One source of truth: the queue *is* the execution history |
 | Database | Postgres 16 + **pgvector** | Lexical `tsvector` **and** vector search in one place, with triggers doing the enforcing |
 | Objects | S3 / MinIO | Execution outputs and logs |
 | Embeddings | fastembed · `BAAI/bge-small-en-v1.5` (384d) | Local ONNX. No API key, no network at query time, deterministic in CI |
@@ -576,7 +591,7 @@ Tenant isolation is one file to audit:
 Python 3.12+.
 
 ```bash
-# 1. services: postgres(+pgvector), redis, minio, local registry
+# 1. services: postgres(+pgvector), minio, local registry
 docker compose up -d
 
 # 2. install the workspace
@@ -590,7 +605,8 @@ uv run python scripts/build_capabilities.py
 
 # 5. two terminals
 make api        # terminal 1 — uvicorn on :8000
-make worker     # terminal 2 — MUST run on a host with Docker
+uv run python scripts/create_worker_key.py       # mint a worker key
+BOOBS_API_KEY=sk_80085_… make worker            # terminal 2 — MUST have Docker
 
 # 6. two orgs + the example Experiences
 uv run python scripts/seed.py
@@ -613,7 +629,7 @@ Then open <http://localhost:8000/docs> and poke it. 🕹️
 | `make up` / `make down` | Compose services |
 | `make dev` | `up` + `migrate` |
 | `make api` | uvicorn, reload, :8000 |
-| `make worker` | arq worker on the `80085:executions` queue |
+| `make worker` | execution worker; needs `BOOBS_API_KEY` with the `worker:execute` scope |
 | `make migrate` / `make seed` / `make capabilities` | Schema · demo data · build+push the examples |
 | `make test` | unit + integration |
 | `make test-security` / `make test-e2e` | Real containers · the cross-agent loop |
@@ -665,7 +681,7 @@ Base path `/v1`. Auth is `Authorization: Bearer sk_80085_…`.
 
 | Method | Path | Verb it serves |
 |---|---|---|
-| `GET` | `/v1/health` · `/v1/ready` | Liveness · readiness (db, redis, object storage) |
+| `GET` | `/v1/health` · `/v1/ready` | Liveness · readiness (db, object storage, queue depth) |
 | `POST` | `/v1/bootstrap` | Mint an org + agent + first key (guarded by `BOOBS_BOOTSTRAP_TOKEN`) |
 | `POST` | `/v1/experiences` | **RECORD** |
 | `GET` | `/v1/experiences/{id}` | **DISCOVER** |
@@ -880,7 +896,7 @@ which is the joke the brand is built on. Everything user-facing reads `80085`.
 | Distributions | `80085-api`, `80085-domain`, … |
 | Imports | `boobs_api`, `boobs_domain`, … |
 | Env vars | `BOOBS_API_KEY`, `BOOBS_BOOTSTRAP_TOKEN`, … |
-| Queue | `80085:executions` |
+| Queue | the `executions` table (Postgres) |
 | Registry repos | `<registry>/80085/<capability>` |
 | Containers | `80085-<execution_id>` |
 
@@ -894,7 +910,6 @@ during a demo. Yes, that is the price of admission. 🎟️😌
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres DSN (`postgresql+asyncpg://…`) |
-| `REDIS_URL` | Queue |
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Execution outputs and logs |
 | `ARTIFACT_REGISTRY` | Registry that `scripts/build_capabilities.py` pushes to |
 | `SANDBOX_CPU`, `SANDBOX_MEMORY_MB`, `SANDBOX_TMPFS_MB`, `SANDBOX_TIMEOUT_SECONDS`, `SANDBOX_PIDS`, `SANDBOX_MAX_OUTPUT_BYTES` | Sandbox policy defaults, overridable per Experience |

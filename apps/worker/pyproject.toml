@@ -4,18 +4,15 @@ version = "0.1.0"
 description = "80085 execution worker"
 requires-python = ">=3.12"
 dependencies = [
-    "arq>=0.26",
-    "asyncpg>=0.30",
-    "sqlalchemy[asyncio]>=2.0.36",
-    "aioboto3>=13.2",
+    "httpx>=0.28",
     "80085-common",
     "80085-domain",
-    "80085-schemas",
     "80085-execution",
-    "80085-verification",
-    "80085-reputation",
     "80085-observability",
 ]
+
+[project.scripts]
+"80085-worker" = "boobs_worker.main:main"
 
 [build-system]
 requires = ["hatchling"]
