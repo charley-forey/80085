@@ -15,6 +15,7 @@
 | Service | Where | Why |
 |---|---|---|
 | `api` | Railway | Stateless HTTP. Serves `/v1`, the landing page and `llms.txt`. Never touches a container runtime. |
+| `mcp` | Railway | Hosted MCP endpoint (streamable-http). Holds no key; forwards each caller's own. |
 | `Postgres` | Railway | System of record **and** the execution queue (`SELECT ... FOR UPDATE SKIP LOCKED`). |
 | `minio` | Railway + volume | Execution outputs and logs. |
 | `registry` | Railway + volume | The project's own OCI artifact registry, digest-addressed and authenticated. |
@@ -69,8 +70,14 @@ BOOBS_BOOTSTRAP_TOKEN  (secret — this endpoint mints API keys)
 BOOBS_EMBEDDER         fastembed
 ```
 
-Migrations run as a pre-deploy step: `alembic upgrade head`. Postgres needs
-pgvector; the initial migration issues `CREATE EXTENSION IF NOT EXISTS vector`.
+Migrations run as a pre-deploy step: `alembic upgrade head`.
+
+**The Postgres image must ship pgvector.** Use
+`ghcr.io/railwayapp-templates/postgres-ssl:18`; plain `postgres:*` does not
+include it. Swapping to an image without pgvector leaves the extension
+registered in the catalog but its shared library missing, so `SELECT 1` still
+answers while every recall returns 500. `/v1/ready` now reports `pgvector`
+separately for exactly this reason — check it after any database change.
 
 ## Publishing an artifact
 

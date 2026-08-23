@@ -285,3 +285,25 @@ that reports success while producing output the verifier rejects.
 **Undo:** none wanted. This is better than what it replaced on every axis
 except one — a worker now polls rather than being pushed to, which costs a few
 seconds of latency on an idle queue.
+
+---
+
+### 18. Readiness proves pgvector works, not that it exists
+
+**Found in production.** A Postgres image was swapped for one without
+pgvector. The extension stayed registered in the catalog, `SELECT 1` kept
+answering, `/v1/ready` kept reporting `database: true` — and every recall
+returned 500, because the extension's shared library was gone.
+
+`/v1/ready` now casts a vector literal. That touches the library, so the probe
+fails when recall would fail rather than after someone reports it.
+
+The general rule this is an instance of: **a health check must exercise the
+dependency the way the product does.** Checking that a connection opens tells
+you almost nothing about whether queries work.
+
+Locked in by `tests/integration/test_readiness.py`.
+
+**Postgres image:** `ghcr.io/railwayapp-templates/postgres-ssl:18`, which ships
+pgvector. Plain `postgres:*` does not. Anything replacing it must carry
+pgvector or the registry loses semantic recall.

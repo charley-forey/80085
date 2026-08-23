@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from boobs_api import leases
 from boobs_api.deps import CurrentPrincipal, DbSession
@@ -86,6 +86,9 @@ async def health() -> dict[str, str]:
 async def ready(db: DbSession, response: Response) -> dict[str, Any]:
     checks = {
         "database": await _db_healthy(db),
+        # Checked separately because it failed separately: a Postgres image
+        # without pgvector answers SELECT 1 happily while every recall 500s.
+        "pgvector": await _pgvector_healthy(db),
         "object_storage": await storage.healthy(),
     }
     ok = all(checks.values())
@@ -101,6 +104,23 @@ async def _db_healthy(db: DbSession) -> bool:
         await db.execute(select(1))
         return True
     except Exception:  # noqa: BLE001 - readiness reports, never raises
+        return False
+
+
+async def _pgvector_healthy(db: DbSession) -> bool:
+    """Prove the vector type actually works, not merely that it is registered.
+
+    The extension can be present in the catalog while its shared library is
+    missing from the image -- swapping a Postgres image for one without
+    pgvector does exactly that. Casting a literal touches the library, so this
+    fails when recall would fail instead of after someone reports it.
+    """
+    try:
+        await db.rollback()
+        await db.execute(text("SELECT '[1,0,0]'::vector"))
+        return True
+    except Exception:  # noqa: BLE001 - readiness reports, never raises
+        await db.rollback()
         return False
 
 
