@@ -196,3 +196,26 @@ test('nothing negotiated is named index, which a static host treats as a directo
     );
   }
 });
+
+test('no crawler group invites a crawl of the corpus', () => {
+  // robots.txt has no inheritance: a named User-agent group replaces the "*"
+  // group rather than adding to it. A group carrying only "Allow: /" would be
+  // an explicit invitation to enumerate the corpus, which is exactly what
+  // TERMS.md forbids — and the first thing anyone would point at to argue the
+  // clause is unenforceable.
+  const txt = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), 'public', 'robots.txt'),
+    'utf8'
+  );
+  const groups = txt
+    .split(/(?=User-agent:)/)
+    .filter((b) => b.trim().startsWith('User-agent:'));
+
+  assert.ok(groups.length >= 6, `expected every crawler to have a group, got ${groups.length}`);
+  for (const g of groups) {
+    const ua = g.match(/User-agent:\s*(\S+)/)[1];
+    for (const path of ['/recall', '/v1/']) {
+      assert.ok(g.includes(`Disallow: ${path}`), `${ua} is not disallowed from ${path}`);
+    }
+  }
+});
