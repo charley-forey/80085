@@ -44,9 +44,7 @@ def test_anonymous_sees_public_experiences_and_nothing_else() -> None:
     and someone else's private work, so it is asserted directly rather than
     through a route.
     """
-    sql = str(
-        visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True})
-    )
+    sql = str(visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True}))
     # Public is allowed outright.
     assert f"visibility = '{Visibility.PUBLIC.value}'" in sql.replace('"', "")
     # Everything else is gated on owning the row, and nobody owns org_anonymous.
@@ -117,9 +115,7 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
     """The other half of public-by-default: opting out must actually work."""
     owner = Principal(organization_id="org_real", agent_id="agt_real")
     mine = str(visibility_clause(owner).compile(compile_kwargs={"literal_binds": True}))
-    theirs = str(
-        visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True})
-    )
+    theirs = str(visibility_clause(ANONYMOUS).compile(compile_kwargs={"literal_binds": True}))
     assert "org_real" in mine
     assert "org_real" not in theirs
 
@@ -159,3 +155,81 @@ def test_reading_is_the_most_generous_limit() -> None:
     per_second = lambda w: w.limit / w.seconds  # noqa: E731
     assert per_second(limits.RECALL) > per_second(limits.RECORD)
     assert per_second(limits.RECORD) > per_second(limits.EXECUTE)
+
+
+# ------------------------------------------------------- minting without asking
+
+# A write needs a key, and there is no signup to send anyone to, so the local
+# server mints one rather than stopping to ask a question with no answer. What
+# these pin down is where it must NOT do that.
+
+
+class _Ctx:
+    """Stands in for a hosted request, which arrives with headers."""
+
+    def __init__(self, **headers: str) -> None:
+        self.headers = headers
+
+
+@pytest.fixture()
+def mcp(tmp_path, monkeypatch):  # type: ignore[no-untyped-def]
+    from boobs_mcp import server
+
+    monkeypatch.setattr(server, "KEY_FILE", tmp_path / "key")
+    monkeypatch.delenv("BOOBS_API_KEY", raising=False)
+    minted: list[int] = []
+
+    async def fake_mint() -> str:
+        minted.append(1)
+        server.KEY_FILE.write_text("sk_80085_minted", encoding="utf-8")
+        return "sk_80085_minted"
+
+    monkeypatch.setattr(server, "_mint", fake_mint)
+    return server, minted
+
+
+async def test_a_reader_is_never_given_a_credential(mcp) -> None:  # type: ignore[no-untyped-def]
+    """The whole point of keyless recall: asking a question costs nothing."""
+    server, minted = mcp
+    assert await server._api_key(None, required=False) is None
+    assert minted == []
+
+
+async def test_a_local_write_mints_rather_than_asking(mcp) -> None:  # type: ignore[no-untyped-def]
+    server, minted = mcp
+    assert await server._api_key(None) == "Bearer sk_80085_minted"
+    assert minted == [1]
+
+
+async def test_it_only_mints_once(mcp) -> None:  # type: ignore[no-untyped-def]
+    """Remembered on disk, so contributing does not mint a key per call."""
+    server, minted = mcp
+    assert await server._api_key(None) == "Bearer sk_80085_minted"
+    assert await server._api_key(None) == "Bearer sk_80085_minted"
+    assert minted == [1]
+
+
+async def test_the_hosted_server_never_mints(mcp) -> None:  # type: ignore[no-untyped-def]
+    """It is multi-tenant: a key minted there would file every caller's
+    contributions under whoever connected first."""
+    server, minted = mcp
+    with pytest.raises(server.MissingKey):
+        await server._api_key(_Ctx(host="mcp.80085.ai"))
+    assert minted == []
+
+
+async def test_the_hosted_server_forwards_the_caller_key(mcp) -> None:  # type: ignore[no-untyped-def]
+    server, minted = mcp
+    ctx = _Ctx(authorization="Bearer sk_80085_theirs")
+    assert await server._api_key(ctx) == "Bearer sk_80085_theirs"
+    assert minted == []
+
+
+async def test_the_dead_end_tells_you_how_to_leave_it(mcp) -> None:  # type: ignore[no-untyped-def]
+    """An agent that reads this error can fix it without a human."""
+    server, _ = mcp
+    with pytest.raises(server.MissingKey) as caught:
+        await server._api_key(_Ctx(host="mcp.80085.ai"))
+    message = str(caught.value)
+    assert "/v1/keys" in message
+    assert "no signup" in message.lower()
