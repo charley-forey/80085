@@ -1,0 +1,50 @@
+# A worker that survives a reboot, a crash, and a closed laptop lid.
+#
+# Install:
+#   sudo cp 80085-worker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now 80085-worker
+#
+# Credentials live in /etc/80085/worker.env, mode 0600, root-owned. They are
+# deliberately not in this file: this file is in the repository and that one
+# is not.
+
+[Unit]
+Description=80085 execution worker
+Documentation=https://github.com/charley-forey/80085/blob/main/infrastructure/worker/README.md
+# Docker is the sandbox, not an optional accelerator. Starting without it
+# means leasing jobs we cannot run and burning attempts on them.
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+User=boobs
+Group=docker
+
+EnvironmentFile=/etc/80085/worker.env
+WorkingDirectory=/opt/80085
+ExecStart=/opt/80085/.venv/bin/80085-worker
+
+# The worker polls; if it dies it should come back, and it should keep coming
+# back. RestartSec is 5 rather than 0 so a credential mistake does not become
+# a tight loop against the API.
+Restart=always
+RestartSec=5
+
+# Journald already timestamps and rotates. The worker logs structured JSON, so
+# `journalctl -u 80085-worker -o cat | jq` reads it directly.
+StandardOutput=journal
+StandardError=journal
+
+# Hardening. Note what is NOT here: NoNewPrivileges and PrivateDevices would
+# be the obvious additions, and they break `docker run`. The isolation that
+# matters is applied to the sandbox container by the runtime, not to this
+# process -- see docs/security.md.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/80085
+
+[Install]
+WantedBy=multi-user.target
