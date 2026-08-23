@@ -1,10 +1,10 @@
 /**
  * Renders every representation of the site from content.js.
  *
- *   content.js ──> index.html      the browser page
- *              ──> index.md        Accept: text/markdown, AI crawlers
- *              ──> index.ansi      curl / wget / httpie
- *              ──> index.txt       Accept: text/plain, NO_COLOR
+ *   content.js ──> p/home.html     the browser page
+ *              ──> home.md         Accept: text/markdown, AI crawlers
+ *              ──> home.ansi       curl / wget / httpie
+ *              ──> home.txt        Accept: text/plain, NO_COLOR
  *              ──> install.*       the install guide, same three ways
  *              ──> llms.txt, llms-full.txt, agents.md, robots.txt,
  *                  sitemap.xml, .well-known/*.json, og.svg
@@ -681,9 +681,9 @@ const log = [];
  * unclaimed, so the rules actually run — and the last rule in each group is
  * the plain page. */
 log.push(write('p/home.html', page()));
-log.push(write('index.md', bothStates()));
-log.push(write('index.ansi', ansiHome(A)));
-log.push(write('index.txt', strip(ansiHome(PLAIN))));
+log.push(write('home.md', bothStates()));
+log.push(write('home.ansi', ansiHome(A)));
+log.push(write('home.txt', strip(ansiHome(PLAIN))));
 log.push(write('install.md', md(installBlock())));
 log.push(write('install.ansi', ansiInstall(A)));
 log.push(write('install.txt', strip(ansiInstall(PLAIN))));

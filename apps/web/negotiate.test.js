@@ -51,7 +51,7 @@ test('a browser gets HTML', () => {
 test('curl gets the ANSI response', () => {
   assert.equal(
     resolve('/', { headers: { 'user-agent': 'curl/8.4.0', accept: '*/*' } }),
-    '/index.ansi'
+    '/home.ansi'
   );
   assert.equal(
     resolve('/install', { headers: { 'user-agent': 'curl/8.4.0', accept: '*/*' } }),
@@ -61,7 +61,7 @@ test('curl gets the ANSI response', () => {
 
 test('wget and httpie get it too', () => {
   for (const ua of ['Wget/1.21.4', 'HTTPie/3.2.2']) {
-    assert.equal(resolve('/', { headers: { 'user-agent': ua, accept: '*/*' } }), '/index.ansi');
+    assert.equal(resolve('/', { headers: { 'user-agent': ua, accept: '*/*' } }), '/home.ansi');
   }
 });
 
@@ -85,7 +85,7 @@ test('every AI crawler in the spec gets markdown', () => {
   for (const ua of bots) {
     assert.equal(
       resolve('/', { headers: { 'user-agent': ua, accept: CHROME } }),
-      '/index.md',
+      '/home.md',
       `${ua} did not get markdown`
     );
   }
@@ -96,26 +96,26 @@ test('a crawler sending a browser Accept still gets markdown', () => {
   // advertises text/html must not be handed the HTML page.
   assert.equal(
     resolve('/', { headers: { 'user-agent': 'ClaudeBot/1.0', accept: CHROME } }),
-    '/index.md'
+    '/home.md'
   );
 });
 
 test('Accept: text/markdown gets markdown', () => {
-  assert.equal(resolve('/', { headers: { accept: 'text/markdown' } }), '/index.md');
+  assert.equal(resolve('/', { headers: { accept: 'text/markdown' } }), '/home.md');
 });
 
 test('Accept: text/plain gets plain text', () => {
-  assert.equal(resolve('/', { headers: { accept: 'text/plain' } }), '/index.txt');
+  assert.equal(resolve('/', { headers: { accept: 'text/plain' } }), '/home.txt');
 });
 
 test('?format overrides everything, including a browser', () => {
   assert.equal(
     resolve('/', { headers: { accept: CHROME, 'user-agent': 'Chrome' }, query: { format: 'md' } }),
-    '/index.md'
+    '/home.md'
   );
   assert.equal(
     resolve('/', { headers: { accept: CHROME }, query: { format: 'txt' } }),
-    '/index.txt'
+    '/home.txt'
   );
   // Terminal mode fetches this exact URL.
   assert.equal(resolve('/install', { query: { format: 'txt' } }), '/install.txt');
@@ -183,4 +183,16 @@ test('a negotiated URL is never cacheable', () => {
   assert.ok(rule, 'no cache rule covers the negotiated paths');
   const cc = rule.headers.find((h) => h.key === 'Cache-Control');
   assert.equal(cc?.value, 'no-store');
+});
+
+test('nothing negotiated is named index, which a static host treats as a directory index', () => {
+  // Once index.html moved to /p/, Vercel resolved "/" to index.md during its
+  // filesystem step and served markdown to browsers. The filesystem is
+  // consulted before rewrites, so no negotiated file may be called index.*
+  for (const rule of rewrites) {
+    assert.ok(
+      !/^\/index\./.test(rule.destination),
+      `${rule.destination} will be picked up as the directory index for "/"`
+    );
+  }
 });
