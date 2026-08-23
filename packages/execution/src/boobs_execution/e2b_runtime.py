@@ -43,6 +43,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, never imported at runtime
 
 WORKDIR = "/work"
 API_KEY_ENV = "E2B_API_KEY"
+# The artifact registry is authenticated, and E2B builds the template on its
+# own machines -- so the credential has to travel with the build request or
+# every pull of a private artifact fails with an unhelpful 401.
+REGISTRY_USER_ENV = "BOOBS_REGISTRY_USERNAME"
+REGISTRY_PASSWORD_ENV = "BOOBS_REGISTRY_PASSWORD"  # noqa: S105 - the variable name, not a password
 # The sandbox must outlive the command it runs, or E2B reclaims the VM while
 # we are still reading outputs out of it.
 LIFETIME_SLACK_SECONDS = 60
@@ -61,6 +66,24 @@ def api_key() -> str:
             "export it, or run with BOOBS_RUNTIME=docker to use local Docker."
         )
     return key
+
+
+def registry_credentials() -> tuple[str | None, str | None]:
+    """Registry username and password, or a pair of Nones for a public one.
+
+    Both or neither: a username with no password is a misconfiguration that
+    would otherwise surface as an authentication failure inside E2B's builder,
+    where nobody can see it. Read from the environment for the same reason the
+    E2B key is -- a credential in source is a credential in every clone.
+    """
+    user = os.environ.get(REGISTRY_USER_ENV, "").strip()
+    password = os.environ.get(REGISTRY_PASSWORD_ENV, "").strip()
+    if bool(user) != bool(password):
+        raise ExecutionFailed(
+            f"set both {REGISTRY_USER_ENV} and {REGISTRY_PASSWORD_ENV}, or neither: "
+            "half a credential cannot authenticate to the artifact registry."
+        )
+    return (user or None, password or None)
 
 
 def staged_name(name: str) -> str:
@@ -151,9 +174,10 @@ class E2BRuntime:
                 return known
             from e2b import AsyncTemplate, Template
 
+            user, password = registry_credentials()
             built = await AsyncTemplate.build(
                 Template()
-                .from_image(image)
+                .from_image(image, username=user, password=password)
                 # The artifact contract promises /work owned by uid 65534;
                 # E2B commands run as `user`, so widen it rather than fight it.
                 .run_cmd(f"mkdir -p {self._workdir} && chmod 1777 {self._workdir}")
