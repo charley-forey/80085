@@ -15,7 +15,7 @@
  * Node stdlib only. Run: node build.mjs
  */
 
-import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -644,8 +644,25 @@ ${[...'80085']
 
 // ------------------------------------------------------------------ main ---
 
+/* Wipe the output first. Everything here is generated and the committed
+ * inputs live in assets/, so there is nothing to preserve — and a stale file
+ * left behind by an earlier layout is not harmless: a leftover index.html
+ * would answer "/" from the filesystem and silently disable every
+ * negotiation rule again. */
+rmSync(OUT, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+
 const log = [];
-log.push(write('index.html', page()));
+
+/* The two negotiated pages live under /p/ rather than at the paths they are
+ * served from.
+ *
+ * Vercel applies `rewrites` only when no filesystem route already answers the
+ * request. An index.html at the root answers `/` during the filesystem step,
+ * so every negotiation rule below it is skipped and `curl 80085.ai` gets HTML.
+ * Moving the HTML somewhere the request never names leaves `/` and `/install`
+ * unclaimed, so the rules actually run — and the last rule in each group is
+ * the plain page. */
+log.push(write('p/home.html', page()));
 log.push(write('index.md', bothStates()));
 log.push(write('index.ansi', ansiHome(A)));
 log.push(write('index.txt', strip(ansiHome(PLAIN))));
@@ -654,7 +671,7 @@ log.push(write('install.ansi', ansiInstall(A)));
 log.push(write('install.txt', strip(ansiInstall(PLAIN))));
 log.push(
   write(
-    'install.html',
+    'p/install.html',
     shell({
       title: 'Install — 80085.ai',
       value: '1n5t4LL',

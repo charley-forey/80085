@@ -19,7 +19,7 @@ def pick(path: str = "/", accept: str = "", agent: str = "", fmt: str | None = N
 
 
 def test_a_browser_gets_the_page() -> None:
-    assert pick(accept=CHROME, agent="Mozilla/5.0 (Windows NT 10.0) Chrome/141") is None
+    assert pick(accept=CHROME, agent="Mozilla/5.0 (Windows NT 10.0) Chrome/141") == "/p/home.html"
 
 
 @pytest.mark.parametrize("agent", ["curl/8.4.0", "Wget/1.21.4", "HTTPie/3.2.2", "CURL/7.0"])
@@ -61,7 +61,7 @@ def test_format_query_overrides_everything() -> None:
 
 
 def test_an_unknown_format_is_ignored_rather_than_trusted() -> None:
-    assert pick(accept=CHROME, fmt="../../etc/passwd") is None
+    assert pick(accept=CHROME, fmt="../../etc/passwd") == "/p/home.html"
 
 
 def test_only_negotiable_paths_are_rewritten() -> None:
@@ -70,4 +70,16 @@ def test_only_negotiable_paths_are_rewritten() -> None:
 
 
 def test_a_bare_request_gets_the_page() -> None:
-    assert pick() is None
+    assert pick() == "/p/home.html"
+
+
+def test_the_page_never_lives_where_a_static_host_would_claim_it() -> None:
+    """The regression that made curl 80085.ai return HTML in production.
+
+    A static host answers "/" from index.html during its filesystem step,
+    before any rewrite runs. Serving the page from a path no request names
+    keeps "/" unclaimed so negotiation actually happens.
+    """
+    for served in [pick(accept=CHROME), pick(path="/install", accept=CHROME)]:
+        assert served is not None
+        assert served.startswith("/p/"), served

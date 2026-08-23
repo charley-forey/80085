@@ -16,16 +16,17 @@
     { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/index.md" },
     { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/install.md" },
 
-    { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/index.html" },
+    { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/p/home.html" },
     { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }], "destination": "/index.md" },
     { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/plain.*" }], "destination": "/index.txt" },
 
-    { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/install.html" },
+    { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/p/install.html" },
     { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }], "destination": "/install.md" },
     { "source": "/install", "has": [{ "type": "header", "key": "accept", "value": ".*text/plain.*" }], "destination": "/install.txt" },
-    { "source": "/install", "destination": "/install.html" },
+    { "source": "/install", "destination": "/p/install.html" },
 
-    { "source": "/58008", "destination": "/index.html" },
+    { "source": "/", "destination": "/p/home.html" },
+    { "source": "/58008", "destination": "/p/home.html" },
     { "source": "/openapi.json", "destination": "https://api.80085.ai/openapi.json" }
   ],
   "headers": [
