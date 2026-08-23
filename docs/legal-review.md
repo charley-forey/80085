@@ -6,6 +6,12 @@ Everything in this repo's licensing layer was drafted by an engineer, not a
 lawyer. This file exists so the review is cheap and targeted: what we did, why,
 and the specific questions we know we can't answer ourselves.
 
+**The "pending legal review" framing on `TERMS.md` still holds, and has more
+work to do than when it was written.** Nothing here has been reviewed, and the
+product has since begun retaining free text supplied by anonymous callers
+(Q12), which is a category of obligation this pack was not originally written
+to cover. The draft warning stays until counsel has actually read it.
+
 ## What's in place
 
 | File | Covers | Instrument |
@@ -92,6 +98,12 @@ done against a stale mental model:
    material crawled while the permissive version was live — and does the prior
    invitation weaken §4 against a party who relied on it at the time?
 
+4. **We started storing user-supplied free text.** Recall misses persist the
+   caller's own words, from callers with no key and no account. That is new
+   since this pack was written and is Q12 below. It is the one change that
+   moves us from "what protects our data" to "what obligations do we owe over
+   theirs", which is a different body of law than the rest of this file.
+
 Also worth a view: contributors now record **public by default**. Is
 `CONTRIBUTING.md` / `TERMS.md` §6 clear enough that a contributor understands
 their submission becomes world-readable, or does default-public need explicit
@@ -134,16 +146,62 @@ capability, personal data in execution logs. `TERMS.md` §6 and
 `CONTRIBUTING.md` push the warranty onto the contributor. Is that sufficient,
 and what's our takedown obligation once on notice?
 
+Note that Q12 is the same risk arriving through a path where that warranty
+cannot apply, because the person supplying the text is not a contributor and
+agreed to nothing.
+
 ### 10. We execute untrusted code on users' behalf
 The sandbox is hardened (no network, no root, read-only fs, and there's an
 escape-attempt suite), but the product's core loop is *running code a stranger
-wrote*. `TERMS.md` §8 disclaims liability. Does that disclaimer hold up, and
+wrote*. `TERMS.md` §9 disclaims liability. Does that disclaimer hold up, and
 does it need different wording for consumers vs. businesses?
 
 ### 11. Data protection
 If any execution trace or contributed capability contains personal data, GDPR /
-UK GDPR obligations attach. We don't currently have a privacy policy, a lawful
-basis, or a retention position. Is one needed before self-serve signup?
+UK GDPR obligations attach. We have no privacy policy and no stated lawful
+basis. We now do have a retention position, but only for one table — see Q12,
+which has overtaken this as the sharper version of the same question. Is a
+privacy policy needed before self-serve signup?
+
+### 12. We store free text typed by anonymous callers
+`recall_misses` records every recall that matches nothing, and the row includes
+**the caller's raw task string, stored as sent** — untruncated, unredacted —
+alongside the normalized intent, the filters, candidate counts, first/last seen
+and an occurrence counter. Retention is 90 days from last occurrence, swept
+when the next miss is written. This is now disclosed in `TERMS.md` §7 and
+documented field by field in [`security.md`](security.md); it was shipped
+before either said anything, which is the reason §7 exists.
+
+The engineering case for keeping it is genuine — unmet demand is the one
+dataset that cannot be backfilled — but the legal shape is the worst
+combination we have:
+
+- **No key, so no account, so no assent and no relationship.** This is Q2's
+  problem with the consequences reversed: there we worried that nothing binds
+  the caller, here nothing we can point to permits *us*. What is the lawful
+  basis for processing free text supplied by a person who was never shown a
+  term and holds no account? Is legitimate interest available, and does the
+  fact that the field is free-form — so its contents are entirely the caller's
+  choice — help or hurt?
+- **No subject access, no erasure, no way to find a row.** No endpoint returns
+  a miss, there is no deletion-on-request path, and for a keyless caller there
+  is nothing to authenticate such a request against. `TERMS.md` §7 says this
+  outright rather than implying a process. If a DSAR arrives naming a string,
+  can we answer it, and does the inability to identify a data subject help us
+  (Art. 11) or expose us?
+- **We can't tell whether any of it is personal data.** It is whatever an agent
+  typed. Most of it will be "convert a PDF to JSON"; some fraction will not be.
+  Does storing a field whose contents we cannot characterise change the
+  analysis, and is the honest answer to truncate or hash the raw text rather
+  than to keep drafting around it? Engineering's view is that the demand signal
+  lives in the normalized intent, not the raw phrasing, so truncation is
+  cheaper than it looks — we would like that confirmed as the right remedy
+  before doing it.
+
+Related: retention is enforced by a delete that runs when the next miss is
+recorded, so an idle deployment can hold expired rows past 90 days. Disclosed.
+Is "90 days, subject to the next write" a defensible retention position or does
+it need a scheduler behind it to be one?
 
 ---
 
