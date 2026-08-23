@@ -315,6 +315,54 @@ a {
   cursor: pointer;
 }
 
+/* The entire signup flow, visually. It should look like the most obvious
+ * thing on the page, because pressing it is the whole process. */
+.mint {
+  font: inherit;
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: opacity 120ms ease-out;
+}
+
+.mint:hover:not(:disabled) {
+  opacity: 0.75;
+}
+
+.mint:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* A prompt nobody can find is a prompt nobody uses, and terminal mode is the
+ * most convincing thing here. */
+.tryit {
+  display: block;
+  width: min(90vw, 420px);
+  margin: calc(var(--space) * -1) auto var(--space);
+  font: inherit;
+  font-size: var(--t-small);
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border: 1px dashed var(--ink);
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.tryit:hover,
+.tryit:focus-visible {
+  opacity: 1;
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .box {
   border: 1px solid currentColor;
   padding: var(--space);

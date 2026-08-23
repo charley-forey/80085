@@ -102,7 +102,12 @@ class RecordExperienceRequest(Strict):
     constraints: ConstraintsIn = ConstraintsIn()
     verification: VerificationSpecIn | None = None
     lineage: LineageIn = LineageIn()
-    visibility: Visibility = Visibility.PRIVATE
+    # Public by default, because a shared brain whose contributions default to
+    # invisible is not shared. This is only safe because recording is not the
+    # same as being recommended: ranking weights a Wilson lower bound over
+    # verified runs, so an unproven Experience is visible but never returned as
+    # "use". Pass visibility explicitly to keep something to yourself.
+    visibility: Visibility = Visibility.PUBLIC
     experience_id: str | None = Field(
         default=None, description="Set to add a new version to an existing Experience."
     )

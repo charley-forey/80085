@@ -14,7 +14,7 @@ from boobs_common.errors import Unauthorized
 from boobs_domain.protocols import Principal
 from boobs_schemas.db import session_factory
 from boobs_schemas.tables import ApiKey
-from boobs_security.keys import hash_key, looks_like_key
+from boobs_security.keys import Scope, hash_key, looks_like_key
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
@@ -61,3 +61,33 @@ async def get_principal(
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+# Reading is free. This principal belongs to no organization, and because
+# visibility_clause() scopes every search to PUBLIC or the caller's own org,
+# it can therefore see public Experiences and nothing else. The restriction is
+# the existing predicate rather than a second code path that could disagree
+# with it.
+ANONYMOUS = Principal(
+    organization_id="org_anonymous",
+    agent_id="agt_anonymous",
+    scopes=frozenset({Scope.EXPERIENCES_READ}),
+)
+
+
+async def get_principal_or_anonymous(
+    db: DbSession, authorization: Annotated[str | None, Header()] = None
+) -> Principal:
+    """Resolve a key if one was sent, otherwise read as nobody.
+
+    Only an *absent* credential is anonymous. A malformed, unknown or revoked
+    key still fails: silently downgrading a bad key to anonymous would turn a
+    caller's expired credential into a permission change they never asked for,
+    and would hide key rotation bugs from whoever has to debug them.
+    """
+    if authorization is None or not authorization.strip():
+        return ANONYMOUS
+    return await get_principal(db, authorization)
+
+
+MaybePrincipal = Annotated[Principal, Depends(get_principal_or_anonymous)]

@@ -11,11 +11,12 @@ import base64
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select, text
 
-from boobs_api import leases
-from boobs_api.deps import CurrentPrincipal, DbSession
+from boobs_api import leases, limits
+from boobs_api.deps import CurrentPrincipal, DbSession, MaybePrincipal
 from boobs_api.repositories import (
     ArtifactRepository,
     ExecutionRepository,
@@ -180,14 +181,67 @@ async def bootstrap(request: BootstrapRequest, db: DbSession) -> dict[str, Any]:
     }
 
 
+@router.post("/keys", status_code=status.HTTP_201_CREATED)
+async def mint_key(
+    http: Request, db: DbSession, label: str | None = Query(default=None)
+) -> dict[str, Any]:
+    """Mint a key with no signup, no email and no human in the loop.
+
+    Every credential we demand costs us a contributor, and contributors are
+    the product. So this asks for nothing: the key *is* the account.
+
+    What we get in exchange is attribution, not identity -- a stable id that
+    ties one actor's contributions together so they can be revoked as a set if
+    they turn out to be garbage. Knowing who someone is was never the point.
+
+    Recording is safe to open this wide because recording is not the same as
+    being recommended: ranking weights a Wilson lower bound over *verified*
+    runs, so an Experience nobody has successfully run is never returned as
+    "use", however many of them a spammer records.
+    """
+    limits.MINT.check(limits.client_ip(http))
+
+    name = (label or "anonymous").strip()[:200] or "anonymous"
+    org = Organization(id=ids.new_id(ids.ORGANIZATION), name=f"self-serve:{name}", created_at=now())
+    agent_row = Agent(
+        id=ids.new_id(ids.AGENT), organization_id=org.id, name=name, created_at=now()
+    )
+    plaintext, key_hash = generate()
+    # Read, write and run -- but never admin, and never the worker scope.
+    granted = sorted({Scope.EXPERIENCES_READ, Scope.EXPERIENCES_WRITE, Scope.EXECUTIONS_RUN})
+    key = ApiKey(
+        id=ids.new_id(ids.API_KEY),
+        organization_id=org.id,
+        agent_id=agent_row.id,
+        name=f"{name} self-serve",
+        key_hash=key_hash,
+        scopes=granted,
+        created_at=now(),
+    )
+    for row in (org, agent_row, key):
+        db.add(row)
+        await db.flush()
+    return {
+        "api_key": plaintext,  # the only time the plaintext exists anywhere
+        "organization_id": org.id,
+        "agent_id": agent_row.id,
+        "scopes": granted,
+        "note": (
+            "Store this now. It is not recoverable, and there is no "
+            "account to recover it into."
+        ),
+    }
+
+
 # ----------------------------------------------------------------- experience
 
 
 @router.post("/experiences", status_code=status.HTTP_201_CREATED)
 async def record_experience(
-    request: RecordExperienceRequest, db: DbSession, principal: CurrentPrincipal
+    request: RecordExperienceRequest, http: Request, db: DbSession, principal: CurrentPrincipal
 ) -> ExperienceResponse:
     """RECORD: an agent contributes a reusable capability."""
+    limits.RECORD.check(limits.client_ip(http))
     repository = ExperienceRepository(db)
     experience, version = await repository.create(principal, request)
     artifact = await ArtifactRepository(db).resolve(version.artifact_id)
@@ -212,9 +266,16 @@ async def get_experience(
 
 @router.post("/experiences/recall")
 async def recall_experiences(
-    request: RecallRequest, db: DbSession, principal: CurrentPrincipal
+    request: RecallRequest, http: Request, db: DbSession, principal: MaybePrincipal
 ) -> RecallResponse:
-    """RECALL: the question that has to be cheaper to ask than to reinvent."""
+    """RECALL: the question that has to be cheaper to ask than to reinvent.
+
+    The only operation that needs no credential. An agent that discovers this
+    API should be able to ask it something immediately -- a shared brain that
+    demands a signup before it will answer is just a database with a landing
+    page. Callers without a key see public Experiences only.
+    """
+    limits.RECALL.check(limits.client_ip(http))
     started = time.monotonic()
     query = RecallQuery(
         task=request.task,
@@ -239,6 +300,59 @@ async def recall_experiences(
     )
 
 
+@router.get("/recall")
+async def recall_via_url(
+    http: Request,
+    db: DbSession,
+    principal: MaybePrincipal,
+    q: str = Query(min_length=3, max_length=2000, description="The task, in your own words."),
+    limit: int = Query(default=5, ge=1, le=20),
+) -> Response:
+    """The same question, askable with nothing but a URL.
+
+    MCP is the good path, but it presumes a client and a config file. Plenty of
+    agents have only a fetch tool, and a product that cannot be tried with one
+    GET is a product most of them will never try. Returns markdown by default
+    because that is what a language model reads best; JSON on request.
+    """
+    limits.RECALL.check(limits.client_ip(http))
+    candidates = await ExperienceRepository(db).search(
+        principal, RecallQuery(task=q, limit=limit)
+    )
+    matches = [RecallMatch(**candidate.model_dump()) for candidate in candidates]
+
+    if "application/json" in http.headers.get("accept", ""):
+        return JSONResponse(
+            content={"query": q, "matches": [m.model_dump(mode="json") for m in matches]}
+        )
+
+    lines = [f"# recall: {q}", ""]
+    if not matches:
+        lines += [
+            "No verified Experience matches that yet.",
+            "",
+            "An empty answer is a correct answer: relevance is not evidence, and we",
+            "would rather tell you nothing than point you at something unproven.",
+            "",
+            "If you solve it yourself, record it and the next agent will find it.",
+            "Get a key with: curl -X POST https://api.80085.ai/v1/keys",
+        ]
+    for m in matches:
+        lines += [
+            f"## {m.goal}",
+            "",
+            f"- recommendation: **{m.recommendation}**",
+            f"- confidence: {m.confidence:.1%} (Wilson lower bound on verified runs)",
+            f"- verified runs: {m.successful_runs}",
+            f"- compatibility: {m.compatibility}",
+            f"- experience_id: `{m.experience_id}` (version {m.version})",
+            "",
+            f"Run it: `run_experience(experience_id=\"{m.experience_id}\")`",
+            "",
+        ]
+    return PlainTextResponse("\n".join(lines), media_type="text/markdown; charset=utf-8")
+
+
 # ------------------------------------------------------------------ execution
 
 
@@ -246,11 +360,16 @@ async def recall_experiences(
 async def execute_experience(
     experience_id: str,
     request: ExecuteRequest,
+    http: Request,
     db: DbSession,
     principal: CurrentPrincipal,
     response: Response,
 ) -> ExecutionResponse:
     """EXECUTE: run one exact, digest-pinned version. Never 'latest' bytes."""
+    # The only operation that spends real compute, so it gets the tightest
+    # limit of the four. The sandbox has no network and a 60s ceiling, which
+    # makes it close to useless as stolen compute even before this.
+    limits.EXECUTE.check(limits.client_ip(http))
     repository = ExperienceRepository(db)
     experience = await repository.get(principal, experience_id)
     await policy.authorize(principal, "execution.run", experience)
