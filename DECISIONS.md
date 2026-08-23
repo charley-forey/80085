@@ -1458,14 +1458,18 @@ The fingerprint stays, and is not returned by the endpoint. A sha256 over
 normalized text recovers nothing, but it does confirm a guess, and a demand
 report has no use for one.
 
-`docs/security.md`'s retention table and `TERMS.md` §7 both still describe the
-raw task column, accurately as of the commit before this one. Both are owned by
-other changes in flight and are not edited here; correcting them to `terms` —
-and dropping "do not put anything in a recall query you would not want retained
-for 90 days", which is no longer a caveat anyone needs — is the follow-up this
-decision owes them. `docs/legal-review.md` Q12 asks counsel whether truncation
-was the right remedy; the answer this takes is that truncation was never the
-remedy, because a customer name is short.
+**The prose that described the old column is corrected in the same commit**,
+because a terms document that overstates what we retain is still a terms
+document that is wrong. `TERMS.md` §7 said "the task string you sent, as you
+sent it — not truncated, not redacted, not summarised", and it now says the
+opposite and explains the fingerprint; `docs/security.md`'s retention table
+swaps the raw-text row for `terms` and names the endpoint that reads it;
+`docs/legal-review.md` Q12 gets a resolution note rather than a rewrite, since
+the record of what was asked is worth more than a tidy question. Q12 asked
+counsel whether truncation was the right remedy — the answer taken here is that
+truncation was never the remedy, because a customer name is short. What it
+leaves for counsel is smaller and stated there: whether a one-way hash of a
+string that may have contained personal data is itself personal data.
 
 **Undo:** the text is gone and cannot come back. `downgrade()` restores an
 empty column rather than inventing plausible task strings.

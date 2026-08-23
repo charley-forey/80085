@@ -327,25 +327,26 @@ run the digest-pinned artifact behind it.
 ## What recall retains, and for how long
 
 Recording what agents ask for and do not find is the one dataset this system
-cannot backfill, so `recall_misses` stores it — and because the task text is
-user-supplied, that is stated here rather than left to be discovered in a
-schema.
+cannot backfill, so `recall_misses` stores it. **It stores no free text.** It
+used to keep the raw task verbatim; it no longer does, and what replaced that
+is described below rather than left to be discovered in a schema.
 
 **Written only when a recall returns nothing** (no candidate cleared
 `MIN_SCORE`). A recall that matched writes no row.
 
 | Stored | Why |
 |---|---|
-| the raw task text | the demand signal, in the asker's own words |
 | the normalized canonical intent | what collapses paraphrases into one need |
+| `terms`: the action and format labels the intent parser recognized | names a gap `unknown` cannot — every value is a word from a fixed list in our own source |
 | the environment and constraint filters applied | a miss may be a compatibility gap, not a corpus gap |
 | candidates that survived retrieval, and how many cleared the threshold | separates "nothing close" from "nearly matched" |
 | the best score achieved | same |
 | first seen, last seen, occurrence count | how badly, and how persistently, it is wanted |
 | the requesting organization **where one exists** | recall is keyless, so this is null for most rows, and is never required |
 
-**Retention: 90 days from last occurrence**, swept on write. Nothing here is
-returned by any endpoint.
+**Retention: 90 days from last occurrence**, swept on write. Read only by
+`GET /v1/admin/recall-misses`, which needs the `admin` scope and returns the
+same fields, ranked by occurrence count.
 
 **Bounding.** Recall is keyless and public, which makes this table the only
 place an unauthenticated caller can cause a write — so it is an abuse target by
@@ -358,7 +359,11 @@ thousand rows; and the retention window above.
 its own session, inside a `try` that only logs. Telemetry that can fail the
 product it measures is worse than no telemetry.
 
-Do not put anything in a recall query you would not want retained for 90 days.
+**What you type is not what is kept.** The dedup fingerprint is a sha256 over
+the normalized intent and the filters, and everything else on the row is either
+a counter or a label from a closed vocabulary we wrote. A customer name typed
+into a task reaches no column. See `DECISIONS.md` §49 for why a truncated or
+stopword-stripped form of the raw text was rejected rather than adopted.
 
 ## Evidence is a trust boundary too
 

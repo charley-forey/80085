@@ -95,36 +95,43 @@ license.
 ## 7. What recall keeps when it finds nothing
 
 Recall is the one call that writes something down about the caller. If a query
-matches nothing in the corpus, we store the query.
+matches nothing in the corpus, we record that the need went unmet. **We do not
+record what you typed.**
 
-**What is stored.** One row per unmet need, holding: **the task string you
-sent, as you sent it** — not truncated, not redacted, not summarised — the
-normalized intent we derived from it, the environment and constraint filters
-you passed, how many candidates were considered and how many cleared the
-scoring threshold, the best score anything reached, when the need was first and
-last asked, how many times, and the organization id **if the call carried a
-key**. A recall that matches something writes nothing at all.
+**What is stored.** One row per unmet need, holding: the normalized intent we
+derived from your task, the action and format words our parser recognized in
+it, the environment and constraint filters you passed, how many candidates were
+considered and how many cleared the scoring threshold, the best score anything
+reached, when the need was first and last asked, how many times, and the
+organization id **if the call carried a key**. A recall that matches something
+writes nothing at all.
 
-The same need asked again collapses into the same row: later callers bump a
-counter and a timestamp. So the text kept is the first phrasing that opened the
-row, and it stays there for as long as the row does.
+**What is not stored is the task string itself.** Your text is read to derive
+the fields above and is then gone. The two fields that describe the need are
+drawn from a fixed vocabulary written in our own source code — words like
+`convert`, `pdf`, `json`, `validate` — so a word we do not recognize is a word
+we do not keep. If you type a customer name, a hostname or a file path into a
+task, it reaches no column. Earlier versions of this service did store the raw
+text and this section said so; the column has been dropped and the rows that
+held it were dropped with it.
 
-**Why we keep it.** Because it is the only thing here we cannot reconstruct
-later. Everything else in the corpus can be re-derived — capabilities can be
-re-recorded, evidence can be re-run. A capability nobody had on the day someone
-needed it leaves no other trace, and demand for what does not exist yet is the
-most direct signal available about what should be built next. Recording it is
-how the corpus learns; not recording it threw that away every day. We would
-rather say that plainly than dress it up as diagnostics.
+One field is derived from your full text and is not readable: a SHA-256
+fingerprint of the normalized query, which is what lets the same need asked a
+thousand ways be one row and a counter instead of a thousand rows. It is a
+one-way hash and we cannot recover your text from it.
+
+**Why we keep any of it.** Because it is the only thing here we cannot
+reconstruct later. Everything else in the corpus can be re-derived —
+capabilities can be re-recorded, evidence can be re-run. A capability nobody had
+on the day someone needed it leaves no other trace, and demand for what does not
+exist yet is the most direct signal available about what should be built next.
 
 **This applies to keyless callers, which is most of them.** Recall needs no key
 (§1), and for a keyless call the organization id is null — the row is retained
 with no account relationship of any kind. It carries no key id and no IP
-address. That is not anonymization and we will not call it that: the text is
-whatever you typed, so if you typed something that identifies you, something
-that identifies you is what is stored. Separately and independently, the rate
-limiter counts requests per client address in its own table, discarded an hour
-after the window closes; it holds no query text.
+address. Separately and independently, the rate limiter counts requests per
+client address in its own table, discarded an hour after the window closes; it
+holds no query text.
 
 **How long: 90 days from the last time that need was asked.** A need asked
 repeatedly expires 90 days after it stops being asked, not 90 days after it
@@ -132,20 +139,20 @@ first appeared. The deletion runs as part of writing the next miss, which means
 that if no recall ever misses again, expired rows sit until one does. That is a
 real gap and we would rather state it than let you assume a scheduler exists.
 
-**There is no endpoint that returns any of this, and no deletion on request.**
-You cannot look up your own rows, and there is no process for asking for one to
-be removed — for a keyless caller there is nothing to authenticate such a
-request against in the first place. We are not going to describe a data-subject
-process we have not built. If something needs removing, contact the maintainers
-(§10); today that is a person running a `DELETE`, not a feature.
+**Who can read it.** One endpoint returns these rows —
+`GET /v1/admin/recall-misses` — and it requires the `admin` scope, which no
+self-serve key is granted. It returns the fields listed above, ranked by how
+often a need was asked. It exists so that gaps in the corpus get filled. There
+is still no endpoint that returns *your* rows to *you*, and no deletion on
+request: for a keyless caller there is nothing to authenticate such a request
+against. If something needs removing, contact the maintainers (§10); today that
+is a person running a `DELETE`, not a feature.
 
-**So treat a task string as public, not as a private channel.** Do not put
-credentials, API keys, tokens, customer or patient names, personal data,
-internal hostnames, file paths, or anything under NDA into the text you send to
-recall. Describe the task, not the account it is for: *"convert a PDF invoice to
-JSON"*, not *"convert acme-corp's Q3 invoices from /mnt/finance to JSON"*. Both
-recall the same thing. Only one of them is still sitting in our database in
-three months.
+**Good practice, now that it costs you nothing.** Describe the task, not the
+account it is for: *"convert a PDF invoice to JSON"*, not *"convert acme-corp's
+Q3 invoices from /mnt/finance to JSON"*. Both recall the same thing, and neither
+is stored — but the first is also the one that finds the right answer, because
+the corpus is indexed on what a capability does.
 
 The implementation, field by field, is in
 [`docs/security.md`](docs/security.md) under *What recall retains, and for how

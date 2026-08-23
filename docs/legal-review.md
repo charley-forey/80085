@@ -160,11 +160,28 @@ does it need different wording for consumers vs. businesses?
 If any execution trace or contributed capability contains personal data, GDPR /
 UK GDPR obligations attach. We have no privacy policy and no stated lawful
 basis. We now do have a retention position, but only for one table — see Q12,
-which has overtaken this as the sharper version of the same question. Is a
-privacy policy needed before self-serve signup?
+which was the sharper version of the same question until the field that made it
+sharp was deleted. Is a privacy policy needed before self-serve signup?
 
 ### 12. We store free text typed by anonymous callers
-`recall_misses` records every recall that matches nothing, and the row includes
+**Resolved in engineering before counsel answered — the premise below no longer
+holds.** The raw task column has been dropped (`DECISIONS.md` §49). What remains
+is the normalized intent, a `terms` field drawn from a closed vocabulary written
+in our own source, the filters, counters and timestamps. No field on the row is
+supplied by the caller: the closest is a SHA-256 fingerprint of the normalized
+query, kept for deduplication. Truncation was considered and rejected — the
+question below asks whether truncation is the right remedy, and the answer we
+took is that it is not, because a customer name is short. `TERMS.md` §7 and
+[`security.md`](security.md) have been corrected to match.
+
+**What we would still like answered**, in shrunken form: is a one-way hash of a
+string that may have contained personal data itself personal data, given we
+cannot reverse it and hold nothing to correlate it against? And does the answer
+change the 90-day retention position, or make it moot? Everything below is kept
+as the record of what was asked, and is accurate as of the commit before that
+change.
+
+`recall_misses` records every recall that matches nothing, and the row included
 **the caller's raw task string, stored as sent** — untruncated, unredacted —
 alongside the normalized intent, the filters, candidate counts, first/last seen
 and an occurrence counter. Retention is 90 days from last occurrence, swept
