@@ -17,6 +17,18 @@ test('the default block points at the hosted endpoint, with nothing to install',
   assert.ok(!('command' in b), 'the default path must not require a local runtime');
 });
 
+test('without a key the block carries no credential at all', () => {
+  // Reading needs none, so the default install should not invent one.
+  const b = serverBlock();
+  assert.equal(b.url, DEFAULT_MCP);
+  assert.ok(!('headers' in b), 'an empty Authorization header is worse than none');
+});
+
+test('the endpoint keeps the /mcp path the server is mounted at', () => {
+  // A client pointed at the bare host gets a 404 and no useful explanation.
+  assert.ok(DEFAULT_MCP.endsWith('/mcp'), DEFAULT_MCP);
+});
+
 test('--local still yields a runnable, repo-pinned local server', () => {
   const b = localServerBlock('sk_80085_abc');
   assert.equal(b.command, 'uvx');
@@ -82,5 +94,5 @@ test('the install never asks the user for anything', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('./init.js', import.meta.url), 'utf8');
   assert.ok(!/rl\.question\(\s*['"`]\s*paste/i.test(src), 'it prompts for a key again');
-  assert.ok(src.includes('mintKey('), 'it no longer mints a key');
+  assert.ok(src.includes('args.contribute'), 'minting is no longer opt-in');
 });

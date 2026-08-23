@@ -4,12 +4,13 @@
  *
  * Wires the 80085 MCP server into whichever agent you actually use.
  *
- * One command, no questions. It finds the config, mints a key (no signup, no
- * email, nothing to fill in), backs the file up, writes it, and verifies the
- * API answers. Everything it did is printed, including the path it touched.
+ * One command, no questions. It finds the config, backs the file up, writes
+ * the server block, and verifies the API answers. Everything it did is
+ * printed, including the path it touched.
  *
- * It never opens a browser and never phones home beyond the one call that
- * mints the key and the one that checks health.
+ * No credential is involved unless you pass --contribute, because reading
+ * needs none. It never opens a browser and never phones home beyond the
+ * health check (and the mint call, if you asked for a key).
  */
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,7 +22,9 @@ import { pathToFileURL } from 'node:url';
 
 export const REPO = 'https://github.com/charley-forey/80085';
 export const DEFAULT_API = 'https://api.80085.ai';
-export const DEFAULT_MCP = 'https://mcp.80085.ai';
+// The path matters: the streamable-http server is mounted at /mcp, and a
+// client pointed at the bare host gets a 404 with no useful explanation.
+export const DEFAULT_MCP = 'https://mcp.80085.ai/mcp';
 const KEY_PREFIX = 'sk_80085_';
 
 /** Every config we know how to write, in the order we prefer them. */
@@ -45,12 +48,13 @@ export function targets(os = platform(), env = process.env, home = homedir()) {
 /**
  * The hosted endpoint, which is what almost everyone should use: there is
  * nothing to install and nothing to keep up to date.
+ *
+ * The key is optional because reading is. Recall answers callers with no
+ * credential at all, so the default install carries none -- minting one for
+ * somebody who only ever asks questions creates a credential nobody uses.
  */
 export function serverBlock(key, mcpUrl = DEFAULT_MCP) {
-  return {
-    url: mcpUrl,
-    headers: { Authorization: `Bearer ${key}` }
-  };
+  return key ? { url: mcpUrl, headers: { Authorization: `Bearer ${key}` } } : { url: mcpUrl };
 }
 
 /** The same server as a local process, for people who would rather it be one. */
@@ -114,7 +118,9 @@ const HELP = `
     npx @80085/cli init [options]
 
   Options
-    --key <sk_80085_...>   use this key (otherwise one is minted for you)
+    --contribute           mint a key so you can record Experiences too
+                           (reading needs none, so none is minted by default)
+    --key <sk_80085_...>   use a key you already have
     --local                run the server as a local process instead of
                            using the hosted endpoint
     --api-url <url>        default ${DEFAULT_API}
@@ -123,7 +129,7 @@ const HELP = `
     --dry-run              print what would change, write nothing
     --help                 this
 
-  No key? One is minted for you. There is no signup.
+  Reading needs no key. --contribute mints one, with no signup.
 `;
 
 function parseArgs(argv) {
@@ -134,6 +140,7 @@ function parseArgs(argv) {
     else if (a === '--all') args.all = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--local') args.local = true;
+    else if (a === '--contribute') args.contribute = true;
     else if (a === '--mcp-url') args.mcpUrl = argv[++i];
     else if (a === '--key') args.key = argv[++i];
     else if (a === '--api-url') args.apiUrl = argv[++i];
@@ -186,8 +193,12 @@ async function main(argv) {
     // Nothing is asked for here on purpose. A tool that stops to demand a
     // credential is a tool most people close, and there is nothing worth
     // learning about someone from making them fill in a form first.
+    //
+    // Nothing is minted here either, unless you ask for it: recall answers
+    // callers with no credential, so minting one for somebody who only reads
+    // would create a credential nobody ever uses.
     key = args.key || process.env.BOOBS_API_KEY || '';
-    if (!key) {
+    if (!key && args.contribute) {
       console.log(dim('\n  minting a key: no signup, no email, nothing to fill in'));
       try {
         key = await mintKey(apiUrl, 'cli');
@@ -198,7 +209,7 @@ async function main(argv) {
         return 1;
       }
     }
-    if (!key.startsWith(KEY_PREFIX)) {
+    if (key && !key.startsWith(KEY_PREFIX)) {
       console.log(bad(`that does not look like a key — they start with ${KEY_PREFIX}`));
       return 1;
     }
@@ -240,10 +251,16 @@ async function apply(chosen, key, apiUrl, args) {
     console.log(ok(`wrote       ${dim(t.path)}`));
   }
 
+  // Show exactly what was written, with the secret elided rather than a
+  // plausible-looking placeholder invented around it. Printing an env block
+  // for a keyless install would be a lie about the file on disk.
   console.log(dim('\n  the block written:\n'));
+  const shown = JSON.parse(JSON.stringify(block));
+  if (shown.headers?.Authorization) shown.headers.Authorization = `Bearer ${KEY_PREFIX}…`;
+  if (shown.env?.BOOBS_API_KEY) shown.env.BOOBS_API_KEY = `${KEY_PREFIX}…`;
   console.log(
     dim(
-      JSON.stringify({ mcpServers: { 80085: { ...block, env: { ...block.env, BOOBS_API_KEY: `${KEY_PREFIX}…` } } } }, null, 2)
+      JSON.stringify({ mcpServers: { 80085: shown } }, null, 2)
         .split('\n')
         .map((l) => '    ' + l)
         .join('\n')
@@ -261,12 +278,16 @@ async function apply(chosen, key, apiUrl, args) {
     console.log(bad(`could not reach ${apiUrl} — the config is written, the API is not answering.`));
   }
 
-  console.log(`\n  \x1b[1mRestart your agent.\x1b[0m There is no step three.\n`);
-  console.log(dim('  Then add this to its system prompt:'));
-  console.log(
-    dim('    "Before solving a non-trivial task from scratch, call recall_experience')
-  );
-  console.log(dim('     to check whether a verified executable solution already exists."\n'));
+  console.log(`\n  \x1b[1mRestart your agent.\x1b[0m There is no step two.\n`);
+  // Deliberately no system prompt to paste: the server sends its instructions
+  // in the MCP handshake, so the agent is told what the tools are for when it
+  // connects. Telling people to edit a prompt would be inventing a step.
+  console.log(dim('  Your agent is told what the tools are for when it connects.'));
+  if (!key) {
+    console.log(dim('  Reading needs no key. Run again with --contribute to record too.\n'));
+  } else {
+    console.log(dim('  You can record Experiences as well as read them.\n'));
+  }
   return 0;
 }
 

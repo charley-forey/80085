@@ -1,12 +1,17 @@
 {
   "name": "@80085/cli",
   "version": "0.1.0",
-  "description": "Wire the 80085 MCP server into your agent. Two steps, no step three.",
+  "description": "Wire the 80085 shared brain into your AI agent. One command, no signup.",
   "type": "module",
   "bin": {
     "80085": "./init.js"
   },
-  "files": ["init.js"],
+  "files": [
+    "init.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "license": "Elastic-2.0",
   "engines": {
     "node": ">=18"
   },
@@ -16,8 +21,22 @@
     "directory": "apps/cli"
   },
   "homepage": "https://80085.ai",
-  "keywords": ["mcp", "ai-agents", "claude", "cursor", "windsurf"],
+  "bugs": {
+    "url": "https://github.com/charley-forey/80085/issues"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agents",
+    "claude",
+    "cursor",
+    "windsurf",
+    "model-context-protocol"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../LICENSE','LICENSE')\""
   }
 }
