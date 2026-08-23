@@ -1070,3 +1070,70 @@ Locked in by `tests/unit/test_open_access.py` and
 sessions -- which is all a second replica is, from Postgres's point of view --
 and spends a spoofed address's budget without touching the address it claimed
 to be.
+### 31. Evidence must come from more than one organization
+
+**Found by audit, not in production, which is the only reason this is not a
+post-mortem.** Every link in the evidence chain was under one actor's control:
+whoever records an Experience declares its own verifier, `exit_code` is
+satisfied by any container that exits 0, and the first passing run promoted
+CANDIDATE to VERIFIED. `POST /v1/keys` mints an organization with no identity
+check. So: mint keys, publish an artifact that exits 0, run it a few times, and
+the registry starts telling every agent to use it.
+
+`distinct_organizations` was already computed, and then used for nothing but
+display. It is now the number that decides:
+
+* **promotion** requires `EVIDENCE_MIN_PROMOTION_ORGANIZATIONS` (default 2)
+  distinct organizations with a successful, verified run;
+* **`use`** requires the same threshold, as a gate in `recommend()` beside the
+  incompatibility gate — recall does not filter on status, so gating only
+  promotion would have left the recommendation itself forgeable;
+* **confidence** feeds Wilson at most `RUNS_PER_ORGANIZATION_CAP = 10`
+  successes per distinct organization, so one actor's runs saturate at 72.2%
+  instead of climbing toward 96.3%;
+* **corroboration** is 0.07 of quality in its own right, taken from `usage` —
+  breadth of agreement is not the same signal as volume.
+
+This is not identity and does not pretend to be: minting a second organization
+is still free. What it buys is that manufacturing a recommendation stops being
+a *side effect* of recording one and becomes something an attacker has to
+construct deliberately — while an honest Experience earns its second
+organization the first time anybody else reuses it, which is the behaviour the
+product exists to produce.
+
+**Cost:** an Experience genuinely used by one team stays at `consider` until
+someone else runs it. That is the right answer to "should a stranger trust
+this" and the wrong answer for a single-tenant deployment, which is what the
+setting is for.
+
+Locked in by `tests/unit/test_ranking.py`, `tests/unit/test_trust.py` and
+`tests/integration/test_promotion_requires_corroboration.py`.
+
+---
+
+### 32. Verifier strength is part of the maths, not just the marketing
+
+Three tiers of verification were documented, modelled as `VerificationLevel`,
+and then ignored: a trivial `exit_code` pass produced exactly the same Wilson
+score as a byte-exact `sha256` match, because ranking never asked which
+verifier proved anything.
+
+Each verifier now returns the level it can honestly support — `exit_code`, and
+"it parsed as JSON", are CLAIMED; a schema match and a digest match are PROVEN.
+Evidence records the strongest level that has actually passed for a version,
+and ranking multiplies confidence by `VERIFICATION_STRENGTH` (0.0 / 0.6 / 1.0).
+The level is recomputed from verification rows rather than read off the
+version's declared verifier: what a version *says* it verifies with is
+metadata, and only the rows are evidence.
+
+`wilson_lower_bound` is untouched — 1/0 is still 20.7%, 100/0 still 96.3%. What
+changed is what is fed into it and what is done with what comes out, both
+documented in the README.
+
+Relatedly, `POST /v1/executions/{id}/verify` no longer takes a verifier from
+the caller. It used `request.verifier or declared.verifier`, so the owner of an
+execution could re-verify their own run under something weaker and manufacture
+a passing row. `VerifyRequest` is now an empty `extra="forbid"` model: changing
+how something is verified is a change to the Experience and needs a new
+version. Only scope configuration was preventing this, and a coincidence is not
+a defence.

@@ -16,7 +16,7 @@ from sqlalchemy import Select, and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_domain.entities import Evidence, RecallCandidate
-from boobs_domain.enums import Compatibility, ExperienceStatus, Visibility
+from boobs_domain.enums import Compatibility, ExperienceStatus, VerificationLevel, Visibility
 from boobs_domain.protocols import Principal, RecallQuery
 from boobs_observability import counter, tracer
 from boobs_retrieval import ranking
@@ -276,6 +276,12 @@ async def _merge_and_rank(
             median_duration_ms=evidence.median_duration_ms,
             requires_network=version.requires_network,
             required_capabilities=tuple(version.required_capabilities or ()),
+            distinct_organizations=evidence.distinct_organizations,
+            verification_level=(
+                VerificationLevel(stat.verification_level)
+                if stat is not None
+                else VerificationLevel.UNVERIFIED
+            ),
         )
         final, confidence = ranking.score(signals)
         # Recorded before the threshold is applied: a miss that scored 0.29 is
@@ -298,7 +304,7 @@ async def _merge_and_rank(
                     compatibility=compat,
                     confidence=round(confidence, 4),
                     successful_runs=evidence.successful_runs,
-                    recommendation=ranking.recommend(final, compat),
+                    recommendation=ranking.recommend(final, signals),
                     evidence=evidence,
                     requires_network=version.requires_network,
                 ),

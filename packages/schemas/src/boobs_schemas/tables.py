@@ -274,6 +274,11 @@ class ExecutionStat(Base):
     success_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     distinct_organizations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Strongest verifier that has actually passed for this version. Ranking
+    # discounts confidence by it: an `exit 0` is not a sha256 match.
+    verification_level: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="unverified", server_default="unverified"
+    )
     failure_modes: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False, default=dict)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -314,6 +314,31 @@ product it measures is worse than no telemetry.
 
 Do not put anything in a recall query you would not want retained for 90 days.
 
+## Evidence is a trust boundary too
+
+The artifact is sandboxed; the *claim about the artifact* is a separate attack
+surface, and for a while it was the softer one. A single actor could declare
+`exit_code` as the verifier, ship an artifact that exits 0, run it, and have
+the registry promote it to VERIFIED and recommend it to everyone.
+
+Three things now stand in the way, all in `ranking.py` and
+`packages/reputation`:
+
+* **Promotion and `use` both require runs from
+  `EVIDENCE_MIN_PROMOTION_ORGANIZATIONS` distinct organizations** (default 2).
+* **Successes are capped per organization** before they reach Wilson, so
+  self-running saturates rather than accumulating.
+* **Confidence is scaled by verifier strength.** `exit_code` proves less than
+  `sha256`, and now scores less.
+
+`POST /v1/executions/{id}/verify` also refuses a caller-supplied verifier: the
+version's declared verifier is the only one that produces evidence, so an
+execution's owner cannot re-verify their own run under something weaker.
+
+**Known gap:** self-serve keys make organizations free, so this raises the cost
+of manufacturing evidence rather than eliminating it. Real identity — or
+reputation-weighted organizations — is the upgrade path.
+
 ## Known gaps
 
 * **Docker is not a security boundary against a kernel exploit.** It is

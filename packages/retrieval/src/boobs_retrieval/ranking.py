@@ -14,18 +14,41 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from boobs_common.clock import now
-from boobs_domain.enums import Compatibility, Recommendation
+from boobs_common.config import settings
+from boobs_domain.enums import Compatibility, Recommendation, VerificationLevel
 
 # Quality weights. These describe how *good* a match is once we already know
 # it is the right kind of thing; relevance is applied separately, as a gate.
 QUALITY_WEIGHTS: dict[str, float] = {
     "compatibility": 0.30,
     "confidence": 0.34,
-    "usage": 0.17,
+    "usage": 0.10,
+    "corroboration": 0.07,
     "recency": 0.12,
     "latency": 0.05,
     "risk": 0.02,
 }
+
+# How much a verdict is worth, by the strongest verifier that has passed.
+# A trivial `exit 0` and a byte-exact sha256 match are not the same claim, and
+# ranking used to treat them as identical -- so an artifact author could earn
+# full confidence from a verifier they themselves control the input to.
+VERIFICATION_STRENGTH: dict[VerificationLevel, float] = {
+    VerificationLevel.UNVERIFIED: 0.0,
+    VerificationLevel.CLAIMED: 0.6,
+    VerificationLevel.PROVEN: 1.0,
+}
+
+# The most successful runs one organization's evidence can be worth. Runs
+# beyond this are free to manufacture: the same actor pressing the same button
+# is one observation repeated, not many observations. Ten is deliberate --
+# Wilson puts 10/0 at 72.2%, so a single organization alone tops out at
+# "promising" and can never reach "yeah, run it" by itself.
+RUNS_PER_ORGANIZATION_CAP = 10
+
+# Breadth of corroboration saturates here: three independent organizations is
+# as good as thirty for the purpose of believing the thing works at all.
+CORROBORATION_SATURATION = 3.0
 
 # How much of the final score a merely-relevant match can earn before any
 # evidence exists. The remainder has to be earned by proven runs, which is why
@@ -73,6 +96,11 @@ class Signals:
     median_duration_ms: int | None
     requires_network: bool
     required_capabilities: tuple[str, ...] = ()
+    # How many organizations have independently proven this, and the strongest
+    # verifier that ever passed. Both default to "no corroboration, nothing
+    # proven": a caller that cannot say gets no credit for it.
+    distinct_organizations: int = 0
+    verification_level: VerificationLevel = VerificationLevel.UNVERIFIED
 
 
 def wilson_lower_bound(successes: int, failures: int, z: float = 1.96) -> float:
@@ -90,6 +118,52 @@ def wilson_lower_bound(successes: int, failures: int, z: float = 1.96) -> float:
     centre = phat + z * z / (2 * total)
     margin = z * math.sqrt((phat * (1 - phat) + z * z / (4 * total)) / total)
     return max(0.0, (centre - margin) / denominator)
+
+
+def corroborated_successes(successful_runs: int, distinct_organizations: int) -> int:
+    """Successes that more than one actor's say-so could have produced.
+
+    Wilson answers "how sure are we, given this many observations" and assumes
+    the observations are independent. A thousand runs by the organization that
+    wrote the artifact are one observation repeated a thousand times, so they
+    are capped instead of accumulating: the honest count is bounded by how
+    many organizations actually ran it.
+    """
+    return min(successful_runs, max(distinct_organizations, 1) * RUNS_PER_ORGANIZATION_CAP)
+
+
+def corroboration_score(distinct_organizations: int) -> float:
+    """Breadth of agreement, in [0, 1]. Distinct from usage: a hundred runs by
+    one org and a hundred runs across ten orgs are not the same evidence."""
+    return min(1.0, distinct_organizations / CORROBORATION_SATURATION)
+
+
+def confidence_score(
+    successful_runs: int,
+    failed_runs: int,
+    distinct_organizations: int,
+    verification_level: VerificationLevel,
+) -> float:
+    """The number an agent should act on, and the one stored as evidence.
+
+    Wilson itself is untouched -- 1/0 is still 20.7%, 100/0 still 96.3%. What
+    changed is what gets fed to it and what comes out of it: the successes are
+    capped per organization, and the result is scaled by how strong the proof
+    was. Both are discounts on the same claim, so both multiply.
+    """
+    proven = wilson_lower_bound(
+        corroborated_successes(successful_runs, distinct_organizations), failed_runs
+    )
+    return proven * VERIFICATION_STRENGTH[verification_level]
+
+
+def minimum_corroborating_organizations() -> int:
+    """The promotion threshold, read here so "use" and VERIFIED cannot disagree.
+
+    This is a trust policy rather than a ranking weight, which is why it is the
+    one number in this module that comes from configuration.
+    """
+    return settings().evidence.min_promotion_organizations
 
 
 def usage_score(successful_runs: int) -> float:
@@ -151,11 +225,17 @@ def score(signals: Signals) -> tuple[float, float]:
     that is already the right thing -- no amount of proven runs should let an
     Experience win a task it does not perform.
     """
-    confidence = wilson_lower_bound(signals.successful_runs, signals.failed_runs)
+    confidence = confidence_score(
+        signals.successful_runs,
+        signals.failed_runs,
+        signals.distinct_organizations,
+        signals.verification_level,
+    )
     parts = {
         "compatibility": COMPATIBILITY_SCORE[signals.compatibility],
         "confidence": confidence,
         "usage": usage_score(signals.successful_runs),
+        "corroboration": corroboration_score(signals.distinct_organizations),
         "recency": recency_score(signals.last_verified_at),
         "latency": latency_score(signals.median_duration_ms),
         "risk": 1.0 - risk_score(signals),
@@ -166,10 +246,20 @@ def score(signals: Signals) -> tuple[float, float]:
     return total, confidence
 
 
-def recommend(final_score: float, compatibility: Compatibility) -> Recommendation:
-    if compatibility is Compatibility.NONE:
+def recommend(final_score: float, signals: Signals) -> Recommendation:
+    """ "use" is the strongest thing this system says, so it has two conditions.
+
+    Score alone is not enough. Weights are continuous, and a continuous weight
+    cannot express "this has only ever been proven by the actor who published
+    it" -- no plausible weight both leaves an uncorroborated Experience below
+    0.70 and lets a corroborated one climb. So corroboration is a gate, exactly
+    like incompatibility: below the threshold the best available answer is
+    "consider", never "run it".
+    """
+    if signals.compatibility is Compatibility.NONE:
         return Recommendation.AVOID
-    if final_score >= USE_THRESHOLD:
+    corroborated = signals.distinct_organizations >= minimum_corroborating_organizations()
+    if final_score >= USE_THRESHOLD and corroborated:
         return Recommendation.USE
     if final_score >= CONSIDER_THRESHOLD:
         return Recommendation.CONSIDER

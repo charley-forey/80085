@@ -141,6 +141,7 @@ Treat every artifact as hostile.
 | `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Execution outputs and logs. |
 | `ARTIFACT_REGISTRY` | Registry that `scripts/build_capabilities.py` pushes to. |
 | `SANDBOX_*` | Policy defaults: cpu, memory_mb, tmpfs_mb, timeout_seconds, pids, max_output_bytes. |
+| `EVIDENCE_MIN_PROMOTION_ORGANIZATIONS` | Distinct organizations required before an Experience is VERIFIED or recommended as `use`. Default 2. |
 | `BOOBS_BOOTSTRAP_TOKEN` | Guards `/v1/bootstrap`, which mints API keys. |
 | `BOOBS_EMBEDDER` | `auto` (default), `fastembed`, or `hashing`. |
 | `BOOBS_RUNTIME` | `docker` (default) or `e2b`. Picks the worker's sandbox. |

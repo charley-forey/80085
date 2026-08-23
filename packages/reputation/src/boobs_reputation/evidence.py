@@ -19,8 +19,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common.clock import now
+from boobs_common.config import settings
 from boobs_domain.enums import ExecutionStatus, ExperienceStatus, VerificationLevel
-from boobs_retrieval.ranking import wilson_lower_bound
+from boobs_retrieval.ranking import VERIFICATION_STRENGTH, confidence_score
 from boobs_schemas.tables import Execution, ExecutionStat, Experience, Verification
 
 TERMINAL = (
@@ -29,6 +30,17 @@ TERMINAL = (
     ExecutionStatus.TIMEOUT,
     ExecutionStatus.REJECTED,
 )
+
+
+def corroborated(distinct_organizations: int) -> bool:
+    """Has anyone other than the author proven this?
+
+    Minting an organization costs nothing, so this is not identity and does not
+    pretend to be. What it does buy is that manufacturing a VERIFIED Experience
+    stops being a side effect of recording one: an artifact that exits 0 on
+    demand no longer promotes itself the first time its author runs it.
+    """
+    return distinct_organizations >= settings().evidence.min_promotion_organizations
 
 
 async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionStat:
@@ -85,6 +97,9 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
         )
     ).scalar_one_or_none()
 
+    strongest = await _strongest_level(db, experience_version_id, successful_ids)
+    distinct_organizations = len({row.organization_id for row in successful})
+
     total = len(successful) + len(failed)
     stat = {
         "experience_version_id": experience_version_id,
@@ -94,8 +109,11 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
         "median_duration_ms": _percentile(durations, 0.50),
         "p95_duration_ms": _percentile(durations, 0.95),
         "success_rate": (len(successful) / total) if total else 0.0,
-        "confidence": wilson_lower_bound(len(successful), len(failed)),
-        "distinct_organizations": len({row.organization_id for row in successful}),
+        "confidence": confidence_score(
+            len(successful), len(failed), distinct_organizations, strongest
+        ),
+        "distinct_organizations": distinct_organizations,
+        "verification_level": strongest,
         "failure_modes": failure_modes,
         "last_verified_at": last_verified,
         "updated_at": now(),
@@ -109,8 +127,8 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
         )
     )
 
-    if successful:
-        await _promote(db, str(stat["experience_id"]), last_verified)
+    if successful and corroborated(distinct_organizations):
+        await _promote(db, str(stat["experience_id"]), strongest, last_verified)
 
     return (
         await db.execute(
@@ -144,12 +162,55 @@ async def _experience_id(db: AsyncSession, experience_version_id: str) -> str:
     )
 
 
-async def _promote(db: AsyncSession, experience_id: str, last_verified: datetime | None) -> None:
-    """First proven execution moves an Experience from candidate to verified.
+async def _strongest_level(
+    db: AsyncSession, experience_version_id: str, successful_ids: set[str]
+) -> VerificationLevel:
+    """The best proof anyone has actually produced for this version.
 
-    Deliberately the whole of promotion for now (spec section 22 describes a
-    richer policy): one proven run is the difference between "someone claims
-    this works" and "this has worked".
+    Recomputed from the verification rows rather than read off the version's
+    declared verifier: what a version *says* it verifies with is metadata, and
+    only the rows are evidence.
+    """
+    if not successful_ids:
+        return VerificationLevel.UNVERIFIED
+    levels = (
+        (
+            await db.execute(
+                select(Verification.level)
+                .where(
+                    Verification.experience_version_id == experience_version_id,
+                    Verification.passed.is_(True),
+                    Verification.execution_id.in_(successful_ids),
+                )
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return max(
+        (VerificationLevel(level) for level in levels),
+        key=lambda level: VERIFICATION_STRENGTH[level],
+        default=VerificationLevel.UNVERIFIED,
+    )
+
+
+async def _promote(
+    db: AsyncSession,
+    experience_id: str,
+    level: VerificationLevel,
+    last_verified: datetime | None,
+) -> None:
+    """Independently corroborated executions move candidate to verified.
+
+    It used to be the first proven run, which meant whoever recorded an
+    Experience could also promote it: declare `exit_code` as the verifier, ship
+    an artifact that exits 0, run it once, and the registry started telling
+    every other agent to use it. Spec section 22 describes a richer policy;
+    this is the part of it that closes that door.
+
+    The level recorded is the strongest verifier that actually passed, so an
+    Experience corroborated only by exit codes reads "claimed", not "proven".
     """
     experience = (
         await db.execute(select(Experience).where(Experience.id == experience_id))
@@ -157,7 +218,7 @@ async def _promote(db: AsyncSession, experience_id: str, last_verified: datetime
     if experience is None or experience.status == ExperienceStatus.QUARANTINED:
         return
     experience.status = ExperienceStatus.VERIFIED
-    experience.verification_level = VerificationLevel.PROVEN
+    experience.verification_level = level
     experience.updated_at = last_verified or now()
 
 
