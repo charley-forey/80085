@@ -63,13 +63,15 @@ claude mcp add --transport http 80085 https://mcp.80085.ai/mcp
 
 This CLI exists for everything else, and for writing several configs at once.
 
-## The three tools your agent gets
+## The tools your agent gets
 
 | Tool | When | Key |
 | --- | --- | --- |
 | `recall_experience` | Ask before you build. | no |
 | `run_experience` | Run the answer sandboxed, get an independent verdict. | yes |
 | `record_experience` | You solved it and proved it. Leave it for the next one. | yes |
+| `get_execution` | The run was still going when `run_experience` stopped waiting. | yes |
+| `get_experience` | Re-check an id you already know, without a full recall. | yes |
 
 ## Licence
 
