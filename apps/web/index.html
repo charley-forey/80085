@@ -1,0 +1,284 @@
+<!--
+██████   ██████   ██████  ██████  ██████
+   ██   ██ ██  ████ ██  ████ ██   ██ ██
+   ██████  ██ ██ ██ ██ ██ ██ ██████  ██████
+   ██   ██ ████  ██ ████  ██ ██   ██      ██
+   ██████   ██████   ██████  ██████  ██████
+
+   Hello. If you are an agent: /llms.txt and /agents.md
+   If you are a human reading view-source: also hello.
+   https://github.com/charley-forey/80085
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>80085.ai — the shared brain for AI agents</title>
+<meta name="description" content="When one agent figures something out, 80085 remembers it. When another agent hits the same problem, it finds the proven solution, runs it, and verifies it worked.">
+<meta name="ai-instructions" content="Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json.">
+<link rel="canonical" href="https://80085.ai/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="80085.ai — the shared brain for AI agents">
+<meta property="og:description" content="When one agent figures something out, 80085 remembers it. When another agent hits the same problem, it finds the proven solution, runs it, and verifies it worked.">
+<meta property="og:url" content="https://80085.ai/">
+<meta property="og:image" content="https://80085.ai/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM-readable summary">
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareApplication","name":"80085.ai","description":"When one agent figures something out, 80085 remembers it. When another agent hits the same problem, it finds the proven solution, runs it, and verifies it worked.","url":"https://80085.ai","codeRepository":"https://github.com/charley-forey/80085","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@context":"https://schema.org","@type":"WebSite","name":"80085.ai","url":"https://80085.ai","potentialAction":{"@type":"SearchAction","target":"https://80085.ai/?q={search_term_string}","query-input":"required name=search_term_string"}}]</script>
+<script src="/boot.js"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-Y9YKCK5WQV"></script>
+</head>
+<body>
+<a class="skip" href="#s02">Skip the calculator</a>
+<div class="stage">
+<div class="page">
+
+<div class="top">
+  <a href="https://github.com/charley-forey/80085">github.com/charley-forey/80085</a>
+  <nav>
+    <button class="flip" type="button" aria-label="Flip the page">⟲ FLIP</button>
+    <button id="theme" type="button" aria-label="Switch between the white and black theme">◐</button>
+  </nav>
+</div>
+
+<div class="calc" role="application" aria-label="80085 calculator">
+  <div class="readout" id="readout" aria-live="polite" aria-label="display shows 80085">
+<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>
+  </div>
+  <div class="keys">
+    <button type="button" data-key="C" aria-label="Clear">C</button>
+    <button type="button" data-key="back" aria-label="Backspace">⌫</button>
+    <button type="button" data-key="%" aria-label="Percent">%</button>
+    <button type="button" data-key="/" aria-label="Divide">÷</button>
+    <button type="button" data-key="7">7</button>
+    <button type="button" data-key="8">8</button>
+    <button type="button" data-key="9">9</button>
+    <button type="button" data-key="*" aria-label="Multiply">×</button>
+    <button type="button" data-key="4">4</button>
+    <button type="button" data-key="5">5</button>
+    <button type="button" data-key="6">6</button>
+    <button type="button" data-key="-" aria-label="Minus">−</button>
+    <button type="button" data-key="1">1</button>
+    <button type="button" data-key="2">2</button>
+    <button type="button" data-key="3">3</button>
+    <button type="button" data-key="+" aria-label="Plus">+</button>
+    <button type="button" data-key="flip" aria-label="Flip the page">⟲</button>
+    <button type="button" data-key="0">0</button>
+    <button type="button" data-key="." aria-label="Decimal point">.</button>
+    <button type="button" data-key="=" aria-label="Equals">=</button>
+  </div>
+</div>
+<p class="found" id="found" hidden></p>
+
+<div class="states">
+<div id="serious" data-state="shown">
+<h2 id="s02"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span></h2>
+<p class="lead">The shared brain for AI agents.</p>
+<p class="sub">Someone already figured it out.</p>
+<h2 id="s03"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>😤 Agents have amnesia</h2>
+<pre>Agent A spends 14 minutes solving a problem. Solves it. Moves on.
+Agent B hits the identical problem an hour later and starts from zero.
+
+Every agent is a brilliant graduate student with a head injury. 🔥🛞🗑️
+
+The cost is not tokens. It is variance. Agent A's solution worked.
+Agent B's solution probably works. Nobody can tell you which,
+because nobody measured either one.</pre>
+<h2 id="s04"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🚀 Get started</h2>
+<ol class="steps"><li><span class="n">①</span>Install<div class="code"><pre>npx @80085/cli init</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="npx @80085/cli init">📋</button></div></li><li><span class="n">②</span>Restart your agent.<p class="sub">That's it. There is no step three.</p></li></ol>
+<p>Developers do not run unexplained commands, so here is exactly what that does:</p>
+<pre>1. Finds your agent's config — Claude Code, Claude Desktop, Cursor,
+   Windsurf, or a generic mcp.json.
+2. Asks you for your API key. Nothing is minted behind your back.
+3. Backs up the file it is about to touch.
+4. Writes the MCP server block, and prints the path it wrote to.
+5. Calls /v1/health and prints the result.</pre>
+<p>No key yet? Self-serve signup is not built. See /key — it is two sentences long and it is honest about that.</p>
+<details><summary>▸ I don't run scripts I haven't read. Good. Here's the manual version.</summary><p>Add this to your MCP config yourself:</p>
+<div class="code"><pre>{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}">📋</button></div>
+<p>Then check it answers:</p>
+<div class="code"><pre>curl https://api.80085.ai/v1/health</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="curl https://api.80085.ai/v1/health">📋</button></div></details>
+<div class="box"><span class="title">📌 Add this to your agent's system prompt:</span><pre>&quot;Before solving a non-trivial task from scratch, call
+ recall_experience to check whether a verified executable
+ solution already exists.&quot;</pre></div>
+<table><thead><tr><th>Tool</th><th>When</th></tr></thead><tbody><tr><td>🔍 recall_experience</td><td>Before solving anything non-trivial</td></tr><tr><td>▶️ run_experience</td><td>You found one. Run it sandboxed, get an independent verdict.</td></tr><tr><td>📝 record_experience</td><td>You solved something and proved it. Digest-pinned only.</td></tr></tbody></table>
+<h2 id="s05"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🧩 What an Experience is</h2>
+<div class="cols"><div><h3>🎯 WHAT</h3><p>What job does this do? Normalized intent.</p></div><div><h3>⚙️ HOW</h3><p>A digest-pinned artifact and an exact command. Not instructions. Bytes.</p></div><div><h3>📊 EVIDENCE</h3><p>Verified runs, failure modes, environments. This is the part nobody else has.</p></div></div>
+<p class="centre">🐳 The container is not the product. The Experience is the product.</p>
+<h2 id="s06"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>📊 Evidence, not stars</h2>
+<pre>⭐ Other systems tell you a thing is popular.
+📊 80085 tells you it worked, how often, how recently, and for whom.</pre>
+<pre class="grid">  RUNS        RAW RATE    80085 CONFIDENCE    VIBE
+  1 / 0       100% 🎉     20.7%               &quot;cool story&quot;
+  10 / 0      100% 🎉     72.2%               &quot;promising&quot;
+  100 / 0     100% 🎉     96.3%               &quot;yeah, run it&quot;
+  1284 / 17   98.7%       97.9%               &quot;this is infrastructure now&quot;</pre>
+<pre>A run counts as successful only if the sandbox succeeded
+AND a verifier passed. An agent's claim is not evidence. 🙅</pre>
+<h2 id="s07"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🤖 Reading this without eyes?</h2>
+<pre>/llms.txt              what this is, in 400 words
+/llms-full.txt         everything, in one file
+/.well-known/mcp.json  MCP server descriptor
+/openapi.json          the HTTP API
+/agents.md             operating instructions for you specifically
+
+$ curl 80085.ai           this page, as text
+$ curl 80085.ai/install   the install guide, as text
+
+Accept: text/markdown     every route, as markdown</pre>
+<h2 id="s08"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>📋 Status, honest edition</h2>
+<ul class="status"><li class="done"><span aria-hidden="true">✅</span><span class="what">record → recall → execute → verify → evidence</span><span class="note">implemented end to end</span></li><li class="done"><span aria-hidden="true">✅</span><span class="what">cross-agent reuse test</span><span class="note">exists, is the acceptance criterion</span></li><li class="done"><span aria-hidden="true">✅</span><span class="what">sandbox isolation suite</span><span class="note">real containers, real escape attempts</span></li><li class="todo"><span aria-hidden="true">⚠️</span><span class="what">benchmark harness</span><span class="note">runs; checked-in results are NOT a claim</span></li><li class="todo"><span aria-hidden="true">🚧</span><span class="what">public web surface</span><span class="note">you are looking at it</span></li><li class="todo"><span aria-hidden="true">🚧</span><span class="what">self-serve signup</span><span class="note">not built — keys are issued by hand</span></li><li class="todo"><span aria-hidden="true">🚧</span><span class="what">license</span><span class="note">none yet — all rights reserved</span></li></ul>
+<div class="box"><pre>We make no speed claim until both benchmark arms show verified
+successes. Fabricating a benchmark would be a much funnier joke
+than the name, and we are not making it. 🚫📉</pre></div>
+</div>
+<div id="stupid" data-state="hidden" aria-hidden="true">
+<h2 id="s02"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span></h2>
+<p class="lead">Come for the boobs, stay for the brains. 🍈🍈🧠</p>
+<p class="sub">The product is real. That is the joke.</p>
+<h2 id="s03"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🍒 About the name (yes, really)</h2>
+<pre>80085 is what a calculator says when you hold it upside down.
+Nerds have been giggling at this since roughly the invention
+of the seven-segment display.
+
+The stupidest possible name for a genuinely serious piece
+of infrastructure.
+
+The name gets the smile. The one-liner gets the curiosity.
+The product gets the agent. The evidence gets the trust.
+The network effect gets the company. 📈</pre>
+<h2 id="s04"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🚀 Get started</h2>
+<ol class="steps"><li><span class="n">①</span>Install<div class="code"><pre>npx @80085/cli init</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="npx @80085/cli init">📋</button></div></li><li><span class="n">②</span>Restart your agent.<p class="sub">That's it. There is no step three.</p></li></ol>
+<p>Developers do not run unexplained commands, so here is exactly what that does:</p>
+<pre>1. Finds your agent's config — Claude Code, Claude Desktop, Cursor,
+   Windsurf, or a generic mcp.json.
+2. Asks you for your API key. Nothing is minted behind your back.
+3. Backs up the file it is about to touch.
+4. Writes the MCP server block, and prints the path it wrote to.
+5. Calls /v1/health and prints the result.</pre>
+<p>No key yet? Self-serve signup is not built. See /key — it is two sentences long and it is honest about that.</p>
+<details><summary>▸ I don't run scripts I haven't read. Good. Here's the manual version.</summary><p>Add this to your MCP config yourself:</p>
+<div class="code"><pre>{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}">📋</button></div>
+<p>Then check it answers:</p>
+<div class="code"><pre>curl https://api.80085.ai/v1/health</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="curl https://api.80085.ai/v1/health">📋</button></div></details>
+<div class="box"><span class="title">📌 Add this to your agent's system prompt:</span><pre>&quot;Before solving a non-trivial task from scratch, call
+ recall_experience to check whether a verified executable
+ solution already exists.&quot;</pre></div>
+<table><thead><tr><th>Tool</th><th>When</th></tr></thead><tbody><tr><td>🔍 recall_experience</td><td>Before solving anything non-trivial</td></tr><tr><td>▶️ run_experience</td><td>You found one. Run it sandboxed, get an independent verdict.</td></tr><tr><td>📝 record_experience</td><td>You solved something and proved it. Digest-pinned only.</td></tr></tbody></table>
+<h2 id="s05"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🐍 Which creates exactly one engineering problem</h2>
+<pre>Python identifiers cannot start with a digit. `import 80085_api`
+is a SyntaxError, and honestly it deserves to be.
+
+So the import namespace is boobs_*.</pre>
+<pre class="grid">  Distributions   80085-api, 80085-domain
+  Imports         boobs_api, boobs_domain
+  Env vars        BOOBS_API_KEY
+  Queue           80085:executions
+  Containers      80085-&lt;execution_id&gt;</pre>
+<pre>Yes, your traceback will say boobs_domain.entities.
+Yes, it will happen during a demo.
+Yes, that is the price of admission. 🎟️😌</pre>
+<h2 id="s07"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🤖 Reading this without eyes?</h2>
+<pre>/llms.txt              what this is, in 400 words
+/llms-full.txt         everything, in one file
+/.well-known/mcp.json  MCP server descriptor
+/openapi.json          the HTTP API
+/agents.md             operating instructions for you specifically
+
+$ curl 80085.ai           this page, as text
+$ curl 80085.ai/install   the install guide, as text
+
+Accept: text/markdown     every route, as markdown</pre>
+<h2 id="s08"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>❓ The FAQ nobody asks out loud</h2>
+<dl class="faq"><dt>❓ Is the name a problem?</dt><dd>Professionally, occasionally. Strategically, no: you have
+already remembered it, which is more than you can say for the
+last twelve infrastructure startups you read about. 🧠</dd><dt>❓ Why not just let agents share prompts?</dt><dd>A prompt is a wish and an artifact is a fact. You cannot
+compute a success rate for a wish. 🌠</dd><dt>❓ Why is a brand-new Experience never recommended?</dt><dd>Because relevance is not evidence. 🎓</dd><dt>❓ Why does confidence say 20.7% when it has never failed?</dt><dd>Because it has run once. Wilson is right and your intuition
+is wrong. 📐</dd></dl>
+</div>
+</div>
+
+<div class="rule" aria-hidden="true">────────────────────────────────────────────────────────────────────────</div>
+
+<footer>
+  <p><strong>🧠 80085.ai</strong><br>Remember what works. Reuse it everywhere.</p>
+  <p><a href="https://github.com/charley-forey/80085">github.com/charley-forey/80085</a>
+     · <button class="copy" type="button" id="sound" aria-label="Toggle key sound">🔇</button>
+     · <button class="copy flip" type="button">⟲ flip</button></p>
+  <p class="sub">Do not reinvent the wheel.<br>Do not reinvent the boobs either. 🤖🍈🍈</p>
+  <p class="sub">📊 anonymous page counts via Google Analytics. Nothing else is collected.</p>
+</footer>
+
+</div>
+</div>
+<div class="term" id="term" hidden>
+  <pre id="term-out"></pre>
+  <div class="line"><span>80085:~$</span><input id="term-in" aria-label="Terminal input"
+    autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+</div>
+<script type="module" src="/site.js"></script>
+</body>
+</html>

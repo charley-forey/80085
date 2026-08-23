@@ -15,7 +15,7 @@
  * Node stdlib only. Run: node build.mjs
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -645,7 +645,7 @@ ${[...'80085']
 // ------------------------------------------------------------------ main ---
 
 const log = [];
-log.push(write('../index.html', page()));
+log.push(write('index.html', page()));
 log.push(write('index.md', bothStates()));
 log.push(write('index.ansi', ansiHome(A)));
 log.push(write('index.txt', strip(ansiHome(PLAIN))));
@@ -654,7 +654,7 @@ log.push(write('install.ansi', ansiInstall(A)));
 log.push(write('install.txt', strip(ansiInstall(PLAIN))));
 log.push(
   write(
-    '../install.html',
+    'install.html',
     shell({
       title: 'Install — 80085.ai',
       value: '1n5t4LL',
@@ -665,7 +665,7 @@ log.push(
 
 log.push(
   write(
-    '../key.html',
+    'key.html',
     shell({
       title: 'Get a key — 80085.ai',
       value: 'no',
@@ -685,7 +685,7 @@ log.push(
 
 log.push(
   write(
-    '../1337.html',
+    '1337.html',
     shell({
       title: '1337 — 80085.ai',
       value: '1337',
@@ -703,7 +703,7 @@ log.push(
 
 log.push(
   write(
-    '../404.html',
+    '404.html',
     shell({
       title: 'Error — 80085.ai',
       value: 'Error',
@@ -722,7 +722,7 @@ log.push(
  * else — no calculator, no flip, no terminal. */
 log.push(
   write(
-    '../small.js',
+    'small.js',
     `const t=document.getElementById('theme');
 t&&t.addEventListener('click',()=>{const r=document.documentElement;
 const d=getComputedStyle(r).getPropertyValue('--paper').trim().startsWith('#00');
@@ -782,5 +782,15 @@ function installBlock() {
   const at = (n) => content.serious.findIndex((x) => x.t === 'h' && x.n === n);
   return content.serious.slice(at('04'), at('05'));
 }
+
+/* public/ is the complete build output: everything the site serves lands here
+ * and nothing else does, so any static host can point at this one directory.
+ * The browser modules are copied rather than bundled — three requests over
+ * HTTP/2 costs less than owning a bundler. */
+for (const f of ['site.css', 'site.js', 'calc.js', 'seg.js', 'terminal.js']) {
+  cpSync(join(HERE, f), join(OUT, f));
+}
+cpSync(join(HERE, 'assets'), OUT, { recursive: true });
+log.push(`copied 5 modules + assets/`);
 
 console.log(log.join('\n'));

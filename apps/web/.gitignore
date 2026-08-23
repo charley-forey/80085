@@ -1,26 +1,13 @@
-# Everything build.mjs writes. Vercel runs the build; committing the output
+# public/ is generated in its entirety by build.mjs — every page, every
+# machine file, and copies of the browser modules and assets/. Committing it
 # would let it drift from content.js, which is the one thing this site's
 # architecture exists to prevent.
-/index.html
-/install.html
-/key.html
-/1337.html
-/404.html
-/small.js
-/public/index.*
-/public/install.*
-/public/llms.txt
-/public/llms-full.txt
-/public/agents.md
-/public/robots.txt
-/public/sitemap.xml
-/public/boot.js
-/public/og.svg
-/public/.well-known/
+/public/
 
-# Committed, not generated:
+# Committed inputs live in assets/:
 #   og.png    drawn by scripts/make-og.py; there is no rasteriser in the build
-#   icon.svg  a copy of the root brand icon, so this directory is a complete
+#   icon.svg  a copy of the root brand icon, so apps/web is a complete
 #             deployable root on its own and the build never reaches outside it
 
 .vercel
+node_modules/

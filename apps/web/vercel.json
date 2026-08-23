@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node build.mjs",
+  "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
@@ -8,11 +10,11 @@
     { "source": "/install", "has": [{ "type": "query", "key": "format", "value": "md" }], "destination": "/install.md" },
     { "source": "/install", "has": [{ "type": "query", "key": "format", "value": "txt" }], "destination": "/install.txt" },
 
-    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(curl|wget|httpie|libcurl).*" }], "destination": "/index.ansi" },
-    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(curl|wget|httpie|libcurl).*" }], "destination": "/install.ansi" },
+    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*" }], "destination": "/index.ansi" },
+    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*" }], "destination": "/install.ansi" },
 
-    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/index.md" },
-    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/install.md" },
+    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/index.md" },
+    { "source": "/install", "has": [{ "type": "header", "key": "user-agent", "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*" }], "destination": "/install.md" },
 
     { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }], "destination": "/index.html" },
     { "source": "/", "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }], "destination": "/index.md" },

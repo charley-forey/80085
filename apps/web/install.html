@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install — 80085.ai</title>
+<meta name="description" content="When one agent figures something out, 80085 remembers it. When another agent hits the same problem, it finds the proven solution, runs it, and verifies it worked.">
+<link rel="canonical" href="https://80085.ai/">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/boot.js"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-Y9YKCK5WQV"></script>
+</head>
+<body class="ready">
+<div class="page">
+<div class="top">
+  <a href="/">← 80085.ai</a>
+  <nav><button id="theme" type="button" aria-label="Switch between the white and black theme">◐</button></nav>
+</div>
+<div class="calc"><div class="readout" id="readout" aria-label="display shows 1n5t4LL">
+<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="off" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="off" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="off" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>
+</div></div>
+<h2 id="s04"><span class="num" aria-hidden="true">[<svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="on" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="on" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="on" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="off" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg><svg class="seg" viewBox="18 -2 52 84" aria-hidden="true" focusable="false"><polygon class="off" points="24.5,0 55.5,0 60,4.5 55.5,9 24.5,9 20,4.5"/><polygon class="on" points="51,4.5 55.5,0 60,4.5 60,33.5 55.5,38 51,33.5"/><polygon class="on" points="51,46.5 55.5,42 60,46.5 60,75.5 55.5,80 51,75.5"/><polygon class="off" points="24.5,71 55.5,71 60,75.5 55.5,80 24.5,80 20,75.5"/><polygon class="off" points="20,46.5 24.5,42 29,46.5 29,75.5 24.5,80 20,75.5"/><polygon class="on" points="20,4.5 24.5,0 29,4.5 29,33.5 24.5,38 20,33.5"/><polygon class="on" points="24.5,35.5 55.5,35.5 60,40 55.5,44.5 24.5,44.5 20,40"/><polygon class="off" points="64,71 68,75 64,79 60,75"/></svg>]</span>🚀 Get started</h2>
+<ol class="steps"><li><span class="n">①</span>Install<div class="code"><pre>npx @80085/cli init</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="npx @80085/cli init">📋</button></div></li><li><span class="n">②</span>Restart your agent.<p class="sub">That's it. There is no step three.</p></li></ol>
+<p>Developers do not run unexplained commands, so here is exactly what that does:</p>
+<pre>1. Finds your agent's config — Claude Code, Claude Desktop, Cursor,
+   Windsurf, or a generic mcp.json.
+2. Asks you for your API key. Nothing is minted behind your back.
+3. Backs up the file it is about to touch.
+4. Writes the MCP server block, and prints the path it wrote to.
+5. Calls /v1/health and prints the result.</pre>
+<p>No key yet? Self-serve signup is not built. See /key — it is two sentences long and it is honest about that.</p>
+<details><summary>▸ I don't run scripts I haven't read. Good. Here's the manual version.</summary><p>Add this to your MCP config yourself:</p>
+<div class="code"><pre>{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;80085&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;--from&quot;,
+        &quot;git+https://github.com/charley-forey/80085#subdirectory=apps/mcp&quot;,
+        &quot;80085-mcp&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;BOOBS_API_URL&quot;: &quot;https://api.80085.ai&quot;,
+        &quot;BOOBS_API_KEY&quot;: &quot;sk_80085_...&quot;
+      }
+    }
+  }
+}">📋</button></div>
+<p>Then check it answers:</p>
+<div class="code"><pre>curl https://api.80085.ai/v1/health</pre><button class="copy" type="button" aria-label="Copy to clipboard" data-copy="curl https://api.80085.ai/v1/health">📋</button></div></details>
+<div class="box"><span class="title">📌 Add this to your agent's system prompt:</span><pre>&quot;Before solving a non-trivial task from scratch, call
+ recall_experience to check whether a verified executable
+ solution already exists.&quot;</pre></div>
+<table><thead><tr><th>Tool</th><th>When</th></tr></thead><tbody><tr><td>🔍 recall_experience</td><td>Before solving anything non-trivial</td></tr><tr><td>▶️ run_experience</td><td>You found one. Run it sandboxed, get an independent verdict.</td></tr><tr><td>📝 record_experience</td><td>You solved something and proved it. Digest-pinned only.</td></tr></tbody></table>
+</div>
+<script type="module" src="/small.js"></script>
+</body>
+</html>
