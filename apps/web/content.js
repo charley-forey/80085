@@ -38,14 +38,34 @@
 // It is deliberately the count in *this repository*, which a build can verify.
 // What the live registry holds is a different number and not knowable from a
 // static build, so the copy does not claim it.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/* Two candidate locations, for the same reason build.mjs has two for the legal
+ * documents: the container build stages this directory's contents into /web,
+ * flattening it, while a checkout has the manifest two levels up. Reading only
+ * the checkout path is what broke the API image — `node build.mjs` passes in
+ * CI, where the repo layout is intact, and fails in Docker, where it is not. */
+const MANIFEST = [
+  join(HERE, 'capabilities', 'manifest.json'),
+  join(HERE, '..', '..', 'capabilities', 'manifest.json'),
+].find(existsSync);
+
+if (!MANIFEST) {
+  // Louder than a stack trace from readFileSync, because the useful part is
+  // *where it looked*, not that a read failed.
+  throw new Error(
+    'capabilities/manifest.json not found beside content.js or two levels up. ' +
+      'The corpus size is read from it, and a build that guessed the number ' +
+      'would republish the drift this was written to end.'
+  );
+}
+
 export const CORPUS = Object.keys(
-  JSON.parse(
-    readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'capabilities', 'manifest.json'), 'utf8')
-  ).capabilities
+  JSON.parse(readFileSync(MANIFEST, 'utf8')).capabilities
 ).length;
 
 export const REPO = 'https://github.com/charley-forey/80085';

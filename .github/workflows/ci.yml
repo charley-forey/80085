@@ -56,6 +56,19 @@ jobs:
         working-directory: apps/cli
         run: node --test
 
+      # Build what actually deploys. `node build.mjs` above runs against an
+      # intact checkout; the image's web stage does `COPY apps/web/ ./`, which
+      # flattens the tree, so a path that reaches outside apps/web resolves
+      # differently there. That is not hypothetical -- reading the capability
+      # manifest as ../../capabilities broke the API image while every job here
+      # stayed green, and main went two merges without deploying before anyone
+      # looked at Railway.
+      #
+      # Nothing is pushed. If the image does not build, nothing else in this
+      # workflow matters, because none of it reaches production.
+      - name: The deployable image builds
+        run: docker build -f infrastructure/docker/Dockerfile .
+
   unit:
     name: unit tests
     runs-on: ubuntu-latest

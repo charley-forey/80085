@@ -15,6 +15,11 @@ COPY apps/web/ ./
 # The licence and terms live at the repository root but have to be served from
 # the site's document root, or every descriptor pointing at /TERMS.md 404s.
 COPY LICENSE TERMS.md CONTRIBUTING.md ./legal/
+# content.js reads the corpus size from the manifest rather than hard-coding a
+# number that drifts. `COPY apps/web/ ./` flattens the tree, so the checkout's
+# ../../capabilities is not here and has to be staged in, exactly like the
+# legal documents above.
+COPY capabilities/manifest.json ./capabilities/manifest.json
 RUN node build.mjs
 
 
