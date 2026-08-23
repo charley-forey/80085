@@ -42,6 +42,16 @@ DEFAULT_API_URL = "https://api.80085.ai"
 
 mcp = MCPServer(
     "80085",
+    # Both halves of this string are load-bearing, so neither is safe to trim.
+    #
+    # The first sentence is the install story: the site used to ask people to
+    # paste it into a system prompt, and that step was removed once `initialize`
+    # was shown to deliver it on connect. Cutting it silently reintroduces a
+    # manual step nobody is told about any more.
+    #
+    # The second is legal notice. Recall needs no key and keys mint without
+    # signup, so there is no point at which a caller is shown terms -- the
+    # handshake is the only moment an MCP client is told what binds it.
     instructions=(
         "Before solving a non-trivial task from scratch, call recall_experience "
         "to check whether a verified executable solution already exists.\n\n"
