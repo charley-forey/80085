@@ -44,7 +44,7 @@ test('a browser gets HTML', () => {
     resolve('/', {
       headers: { accept: CHROME, 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/141' }
     }),
-    '/p/home.html'
+    '/p/home'
   );
 });
 
@@ -122,7 +122,7 @@ test('?format overrides everything, including a browser', () => {
 });
 
 test('a request with no Accept and no known UA still gets a page', () => {
-  assert.equal(resolve('/', {}), '/p/home.html');
+  assert.equal(resolve('/', {}), '/p/home');
 });
 
 test('the HTML pages sit where the filesystem will not claim them first', () => {
@@ -137,12 +137,12 @@ test('the HTML pages sit where the filesystem will not claim them first', () => 
       `${claimed} exists and will pre-empt every negotiation rule`
     );
   }
-  assert.equal(resolve('/', { headers: { accept: CHROME } }), '/p/home.html');
-  assert.equal(resolve('/install', { headers: { accept: CHROME } }), '/p/install.html');
+  assert.equal(resolve('/', { headers: { accept: CHROME } }), '/p/home');
+  assert.equal(resolve('/install', { headers: { accept: CHROME } }), '/p/install');
 });
 
 test('/58008 serves the page, which flips itself from the path', () => {
-  assert.equal(resolve('/58008', { headers: { accept: CHROME } }), '/p/home.html');
+  assert.equal(resolve('/58008', { headers: { accept: CHROME } }), '/p/home');
 });
 
 test('openapi.json is proxied to the live API rather than duplicated', () => {
@@ -150,10 +150,25 @@ test('openapi.json is proxied to the live API rather than duplicated', () => {
 });
 
 test('every rewrite destination that is local actually exists', () => {
+  // cleanUrls: true means a destination is written without its .html, because
+  // naming the .html file makes Vercel 308 to the extensionless form instead
+  // of serving it. Resolve both spellings when checking the build output.
   const here = dirname(fileURLToPath(import.meta.url));
   for (const rule of rewrites) {
     if (rule.destination.startsWith('http')) continue;
-    const file = join(here, 'public', rule.destination);
-    assert.ok(existsSync(file), `${rule.destination} is not produced by build.mjs`);
+    const base = join(here, 'public', rule.destination);
+    assert.ok(
+      existsSync(base) || existsSync(`${base}.html`),
+      `${rule.destination} is not produced by build.mjs`
+    );
+  }
+});
+
+test('no rewrite names a .html file, which cleanUrls would redirect', () => {
+  for (const rule of rewrites) {
+    assert.ok(
+      !rule.destination.endsWith('.html'),
+      `${rule.destination} will 308 to its extensionless form rather than serve`
+    );
   }
 });
