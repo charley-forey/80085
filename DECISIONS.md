@@ -916,3 +916,157 @@ for failure and it was wrong: every successful `ExecutionResponse` carries
 
 **Undo:** the envelope is `{"error", "detail", "fix"}` and callers read prose,
 so shrinking it back is a deletion.
+### 31. A credential is committed before it is handed over
+
+**Found five times as CI flake before it was traced.** `POST /v1/keys` and
+`/v1/bootstrap` flushed their rows and returned; `get_db` commits in its
+dependency teardown, and FastAPI closes that exit stack *after*
+`await response(scope, receive, send)` -- read `request_response` in
+`fastapi/routing.py`. So the plaintext key reached the caller while the
+transaction that created it was still open, and a caller who used it
+immediately raced the commit. The loser got `401 unknown api key`.
+
+It presented as flake, which is why it survived: `bootstrap → use` on one
+keep-alive connection cannot lose, because HTTP/1.1 serializes requests on a
+socket and the server finishes the whole request, teardown included, before it
+reads the next one. A caller on a fresh connection, a second concurrent
+caller, or a second replica is not protected by that accident.
+
+This mattered out of proportion to its size. Self-serve minting followed by
+immediate use *is* the onboarding path -- there is no signup, the key is the
+account (decision 15) -- so the failure was aimed precisely at first contact
+with the people the product needs, and it fired at random.
+
+Both handlers now commit inside the handler, via `deps.release`, before
+returning. The three rows are still written in one transaction, so a failure
+still leaves no half-made account; what changed is only that the transaction
+ends before the credential leaves the process. Revocation commits the same
+way, for the mirror-image reason: a caller told a key is dead must not find it
+alive.
+
+**The general rule this is an instance of:** anything the caller can act on
+must be committed before they are told about it. Handler-local commits, not
+teardown, for any response that is itself a capability.
+
+**Not fixed here, and deliberately named rather than quietly left:**
+`record_experience` has the same shape -- it returns an `experience_id` that a
+caller could immediately fetch and miss. It is a much smaller loss (a retry
+finds it, and no credential is involved) and `routes.py` is heavily contended
+tonight, so it is a one-line follow-up rather than a drive-by edit here.
+
+Locked in by
+`tests/unit/test_credentials_are_committed_before_they_are_returned.py`, which
+asserts the ordering directly, and by
+`tests/integration/test_mint_then_use.py`, which reproduces the exact window
+against a real database: the handler has returned, the teardown has not run,
+and a second connection is asked whether it can see the key. Both fail on the
+old code every time rather than one run in twenty.
+
+---
+
+### 32. Keys are revoked by their organization, or by an admin
+
+`revoked_at` has been a column since the first migration and has been checked
+at authentication ever since, and **nothing ever set it**. `docs/security.md`
+said keys were "revocable"; in practice revocation was an `UPDATE` typed
+against production. `ACTION_SCOPES["admin.keys"] = Scope.ADMIN` had no
+endpoint behind it -- the authorization was wired and the route was missing.
+
+`POST /v1/keys/{key_id}/revoke`. Who may call it:
+
+* **any key in the owning organization.** Keys mint anonymously and there is
+  no account to log into, so the organization is the only owner there is -- and
+  it is exactly the set a contributor needs to be able to burn when one leaks.
+  No extra scope is demanded, because a worker key holds only `worker:execute`
+  and would otherwise be unable to retire itself.
+* **`admin`, across organizations**, which is what `admin.keys` names. The
+  cross-tenant branch calls `policy.authorize(principal, "admin.keys")` with
+  no resource on purpose: `admin.keys` is a `MUTATING_ACTION`, so passing the
+  row would make the policy engine demand ownership -- the one thing a
+  cross-tenant revocation cannot have.
+
+The failure worth designing against is not "revocation does not work", it is
+revocation used as a weapon: it is a denial-of-service primitive pointed at
+whoever's key id you can name, and anyone can mint a key for free. So a
+stranger gets 403 and the key keeps working.
+
+Ids are `uuid4`, so 403 rather than 404 on a cross-tenant attempt leaks
+nothing anyone could enumerate, and it tells a confused operator the truth.
+
+Revoking twice keeps the first timestamp: the fact being recorded is when the
+key stopped working.
+
+`mint` and `bootstrap` now return `key_id`. There is no account to look it up
+in afterwards, so a key id that is not handed over at creation does not exist
+for its owner -- and a self-serve organization that loses it can mint another
+key, which is the same disposability the rest of the model already assumes.
+
+**Deliberately not built:** listing an organization's keys, and revoking "the
+key I am calling with" without naming it. Both are conveniences for keys
+minted before this shipped; an admin can reach those, and everything minted
+from now on carries its id.
+
+**Not rate limited**, unlike every other write: it is authenticated, it is
+idempotent, and it only reaches the caller's own organization. Throttling it
+would slow down burning a leaked key, which is the one write that must never
+be slow.
+
+Locked in by `tests/unit/test_key_revocation.py` and
+`tests/integration/test_key_revocation.py` -- both the allowed and the refused
+case, including that the refused one leaves the victim's key working.
+
+---
+
+### 33. Rate limit windows live in Postgres, and the caller is the last proxy hop
+
+Three separate holes, one file.
+
+**`verify_execution` called no limiter at all** while every other write path
+did. It is the endpoint that turns a finished run into evidence, and evidence
+is the entire product, so it was the worst one to leave open. It now has a
+window of its own. `tests/unit/test_open_access.py` asserts the property over
+the router rather than over a list, so the next write endpoint has to answer
+the question too.
+
+**The counters were a process-local dict.** With N replicas the effective
+limit was N times the configured one, and every deploy handed everybody a
+fresh budget. Railway runs one replica, which made the numbers exact by
+accident rather than by design. The window is now one row per caller per limit
+per time bucket, incremented with a single
+`INSERT ... ON CONFLICT DO UPDATE ... RETURNING hits` on the request's own
+session -- one round trip, one primary key lookup, no second pooled
+connection, and no read-then-write for two replicas to lose. This is the
+upgrade path `docs/scaling.md` already named; Redis was removed from this
+stack when the queue moved to leases and one counter does not justify bringing
+it back.
+
+The hit is committed before the refusal is raised. `get_db` rolls back on
+exception, so counting inside the request's transaction would let a caller
+spend a window for free by making requests that fail.
+
+**`client_ip` trusted the leftmost `X-Forwarded-For` entry**, which is
+whatever the caller sent -- each hop *appends* the address it received the
+connection from. Any caller could therefore pick their own rate-limit bucket
+with one header, which made minting effectively unlimited, and minting is the
+root of the Sybil tree: a fresh organization per key, no identity behind it.
+It now reads the last entry, which behind exactly one trusted proxy is the
+address that proxy observed. A direct connection falls back to the socket.
+
+Two ceilings, both marked `ponytail:` in `limits.py` rather than papered over:
+
+* **Fixed windows, not sliding.** A caller straddling a boundary can get up to
+  2x the limit across two adjacent windows. That is the price of one row
+  instead of a timestamp per hit; weighting the previous window's count is the
+  upgrade, and it needs the same row.
+* **One trusted hop.** Put a CDN in front of Railway and the last entry
+  becomes the CDN's edge address, collapsing every caller into a handful of
+  buckets. At that point take the Nth from the right, N being the number of
+  proxies actually run. There is no configuration for this today because there
+  is nothing to configure it to, and a knob set wrong here fails silently in
+  the direction that matters.
+
+Locked in by `tests/unit/test_open_access.py` and
+`tests/integration/test_rate_limits.py`, which counts across two independent
+sessions -- which is all a second replica is, from Postgres's point of view --
+and spends a spoofed address's budget without touching the address it claimed
+to be.

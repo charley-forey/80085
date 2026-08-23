@@ -43,16 +43,26 @@ The fix when it hurts, cheapest first:
 3. Only then, a hosted embedding API — which reintroduces a network hop and a
    vendor on the read path, so it is genuinely the last resort.
 
-### 2. Rate limits are per replica
+### 2. Rate limits — done, and no longer a reason not to scale out
 
-`apps/api/src/boobs_api/limits.py` keeps counters in process. With N replicas
-the effective limit is N times the configured one. That is a real ceiling and
-it is marked as such in the file.
+`apps/api/src/boobs_api/limits.py` used to keep counters in process, so with N
+replicas the effective limit was N times the configured one and every deploy
+reset it. The window is now a row in `rate_limits`: one counter per caller per
+limit per time bucket, incremented with a single
+`INSERT ... ON CONFLICT DO UPDATE ... RETURNING hits`.
 
-Railway runs one replica today, so the numbers are exact. **Before adding a
-second, move the window into Postgres** — a small table plus a periodic delete.
-Redis was deliberately removed from this stack when the queue moved to leases,
-and rate limiting alone does not justify bringing it back.
+Cost on the hot path is one round trip and one primary key lookup, on the
+request's own session — no second pooled connection, so this does not eat into
+the budget in section 3. Expired rows are deleted on every thousandth check.
+
+Two ceilings remain, both marked in the file: the windows are fixed rather
+than sliding (up to 2x the limit across a boundary), and `client_ip` trusts
+exactly one proxy hop. A CDN in front of Railway would collapse callers into
+the CDN's edge addresses; take the Nth `X-Forwarded-For` entry from the right
+at that point.
+
+Redis stayed gone. It was removed when the queue moved to leases, and one
+counter does not justify bringing it back.
 
 ### 3. Connection pool
 

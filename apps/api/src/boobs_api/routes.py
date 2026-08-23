@@ -190,11 +190,16 @@ async def bootstrap(request: BootstrapRequest, db: DbSession) -> dict[str, Any]:
     for row in (org, agent_row, key):
         db.add(row)
         await db.flush()
+    # Committed here, not by get_db's teardown, which runs after the response
+    # has gone out. See mint_key: handing back a credential that is not yet
+    # committed is a 401 waiting to happen on the caller's next request.
+    await release(db)
     # The only time the plaintext key exists anywhere.
     return {
         "organization_id": org.id,
         "agent_id": agent_row.id,
         "api_key": plaintext,
+        "key_id": key.id,
         "scopes": granted,
     }
 
@@ -217,7 +222,7 @@ async def mint_key(
     runs, so an Experience nobody has successfully run is never returned as
     "use", however many of them a spammer records.
     """
-    limits.MINT.check(limits.client_ip(http))
+    await limits.MINT.check(db, limits.client_ip(http))
 
     name = (label or "anonymous").strip()[:200] or "anonymous"
     org = Organization(id=ids.new_id(ids.ORGANIZATION), name=f"self-serve:{name}", created_at=now())
@@ -237,14 +242,73 @@ async def mint_key(
     for row in (org, agent_row, key):
         db.add(row)
         await db.flush()
+    # The commit has to happen here, inside the handler. get_db commits in its
+    # teardown, which FastAPI runs *after* the response has been sent -- so
+    # this endpoint used to hand out a key whose row was not yet visible to
+    # any other connection, and a caller who used it immediately got
+    # `401 unknown api key`. Non-deterministically, on the one path that has
+    # no signup to fall back on: the key is the account.
+    #
+    # All three rows are still written in one transaction, so a failure leaves
+    # no half-made account; what changes is only that the transaction ends
+    # before the credential leaves the process.
+    await release(db)
     return {
         "api_key": plaintext,  # the only time the plaintext exists anywhere
         "organization_id": org.id,
         "agent_id": agent_row.id,
+        # Returned so this key can be revoked later. There is no account to
+        # log into and no way to look it up afterwards, so if it is not handed
+        # over here it does not exist for the caller.
+        "key_id": key.id,
         "scopes": granted,
         "note": (
             "Store this now. It is not recoverable, and there is no account to recover it into."
         ),
+    }
+
+
+@router.post("/keys/{key_id}/revoke")
+async def revoke_key(key_id: str, db: DbSession, principal: CurrentPrincipal) -> dict[str, Any]:
+    """Revoke a key, so that `docs/security.md` saying "revocable" is true.
+
+    `revoked_at` has always been checked at authentication and never set by
+    anything, which made revocation an UPDATE run by hand against production.
+
+    Who may revoke what:
+
+    * any key in an organization may revoke that organization's keys. Keys
+      mint anonymously and there is no account to log into, so the
+      organization is the only owner there is -- and it is exactly the set a
+      contributor needs to be able to burn if their key leaks.
+    * `admin` reaches across organizations, which is what ACTION_SCOPES's
+      `admin.keys` names. Nothing else does.
+
+    A caller therefore cannot revoke a stranger's key, which is the failure
+    that would matter: revocation is a denial-of-service primitive pointed at
+    whoever's id you can name, and key ids are handed out at mint.
+
+    Idempotent -- revoking twice keeps the first timestamp, because the fact
+    being recorded is when the key stopped working.
+    """
+    record = (await db.execute(select(ApiKey).where(ApiKey.id == key_id))).scalar_one_or_none()
+    if record is None:
+        raise NotFound(f"api key {key_id} not found")
+    if record.organization_id != principal.organization_id:
+        # Deliberately no resource argument: admin.keys is a MUTATING_ACTION,
+        # and passing the row would make the policy engine demand ownership --
+        # which is the one thing a cross-tenant admin revocation cannot have.
+        await policy.authorize(principal, "admin.keys")
+    if record.revoked_at is None:
+        record.revoked_at = now()
+    # Committed before the answer goes out, for the same reason minting is: a
+    # caller told a key is revoked must not be able to use it a millisecond
+    # later.
+    await release(db)
+    return {
+        "key_id": record.id,
+        "organization_id": record.organization_id,
+        "revoked_at": record.revoked_at,
     }
 
 
@@ -256,7 +320,7 @@ async def record_experience(
     request: RecordExperienceRequest, http: Request, db: DbSession, principal: CurrentPrincipal
 ) -> ExperienceResponse:
     """RECORD: an agent contributes a reusable capability."""
-    limits.RECORD.check(limits.client_ip(http))
+    await limits.RECORD.check(db, limits.client_ip(http))
     repository = ExperienceRepository(db)
     experience, version = await repository.create(principal, request)
     artifact = await ArtifactRepository(db).resolve(version.artifact_id)
@@ -347,7 +411,7 @@ async def recall_experiences(
     demands a signup before it will answer is just a database with a landing
     page. Callers without a key see public Experiences only.
     """
-    limits.RECALL.check(limits.client_ip(http))
+    await limits.RECALL.check(db, limits.client_ip(http))
     started = time.monotonic()
     query = RecallQuery(
         task=request.task,
@@ -396,7 +460,7 @@ async def recall_via_url(
     and recalled text appears only inside a delimited untrusted block. See
     `boobs_security.untrusted` and docs/security.md.
     """
-    limits.RECALL.check(limits.client_ip(http))
+    await limits.RECALL.check(db, limits.client_ip(http))
     query = RecallQuery(task=q, limit=limit)
     outcome = await ExperienceRepository(db).search(principal, query)
     _remember_miss(background, outcome, q, principal, query)
@@ -453,7 +517,7 @@ async def execute_experience(
     # The only operation that spends real compute, so it gets the tightest
     # limit of the four. The sandbox has no network and a 60s ceiling, which
     # makes it close to useless as stolen compute even before this.
-    limits.EXECUTE.check(limits.client_ip(http))
+    await limits.EXECUTE.check(db, limits.client_ip(http))
     repository = ExperienceRepository(db)
     experience = await repository.get(principal, experience_id)
     await policy.authorize(principal, "execution.run", experience)
@@ -542,10 +606,16 @@ async def get_execution_events(
 async def verify_execution(
     execution_id: str,
     request: VerifyRequest,
+    http: Request,
     db: DbSession,
     principal: CurrentPrincipal,
 ) -> VerificationResponse:
     """VERIFY: turn a completed execution into evidence, or refuse to."""
+    # This was the one write path with no limit at all, which is the wrong one
+    # to leave open: it is the endpoint that mints evidence, and evidence is
+    # what the whole registry sells. Re-running a verifier is also arbitrary
+    # work over stored artefacts, so it costs real CPU as well as credibility.
+    await limits.VERIFY.check(db, limits.client_ip(http))
     execution = await ExecutionRepository(db).get(principal, execution_id)
     await policy.authorize(principal, "execution.verify", execution)
     if execution.status not in TERMINAL:
