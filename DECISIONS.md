@@ -391,6 +391,9 @@ neither the successful nor the failed count. That is a change to evidence
 semantics -- the highest-stakes thing in this codebase -- so it wants its own
 review and its own integration test rather than riding along with a runtime.
 
+*Done in decision 51, which also explains why the default stayed off anyway:
+the danger was never only that a replay might count too much.*
+
 **`ponytail:` ceiling** -- the cache is an in-process LRU, so it dies with the
 worker and is not shared between workers. Upgrade path when the hit rate
 matters: key -> `SandboxResult` in Postgres (outputs already go to object
@@ -1571,6 +1574,120 @@ too.
 **Undo:** delete the route, the response models and the `admin.misses` entry.
 Nothing else reads the table, and decision 29's original position — record it,
 decide later — is still available.
+
+---
+
+### 51. A replayed run is recorded, is not verified, and counts as nothing
+
+Decision 20 built the cache, proved it worked, and switched it off, because
+`recompute` learns about a run from what the worker reports and a worker
+reporting a replay like any other run would have the platform record a
+verification of something that never executed. It also named the three things
+missing and asked for a test of its own. This is them.
+
+`SandboxResult.cached` now survives the HTTPS boundary: `ResultRequest.cached`,
+`executions.cached` (migration 0009), and `Execution.cached.is_(False)` in
+`recompute`.
+
+**A replay is not an observation, so it lands in neither count.** Not a
+success, not a failure, not an "unverified success". The filter goes on the one
+query every number is derived from rather than on the counts, because the
+counts are not the only lie available: `durations` is built from the same rows,
+and the milliseconds on a replay describe a run that happened on a different
+machine on a different day. A cached row that scored a success would also have
+dragged the median and the p95 toward whatever the cache remembered, and
+`distinct_organizations` — the corroboration decision 41 rests on — would have
+counted an organization that ran nothing. Excluded from the row set, all of it
+follows: both counts, the success rate, the durations, the failure modes, the
+organizations, and therefore the confidence.
+
+**The row is stored, and stays terminal.** The alternative — refuse to record a
+replay at all — is worse in three separate ways, and only one of them is about
+honesty. The row is a true record: a caller asked, and was served an answer, in
+some number of milliseconds, for some amount of money. It is the only place
+cost accounting could ever come from, and `GET /v1/executions/{id}` has to
+answer the caller who is waiting on it. And the queue *is* this table
+(decision 17), so a report that wrote nothing would leave the row `running`
+until its lease expired, at which point another worker would lease it, replay
+it again, and report nothing again — forever. Recording it is not a concession;
+it is the only terminal state that exists.
+
+**It is not verified, and no `Verification` row is written.** Verification is
+the platform's judgement about a run (decision 17), and there was no run to
+judge. `verifications` is append-only and feeds both `_strongest_level` and
+`last_verified_at`, so a verdict written here would permanently assert that
+this version was proven at a moment when nothing executed — and it would be
+counted by anything reading those rows directly rather than through
+`recompute`'s filter. The cache key deliberately spans versions (it is keyed on
+image, command, inputs, env, network and limits, not on `experience_version_id`),
+so the verdict would not even reliably belong to the version it was filed
+under. The honest answer to "did it pass" for a run that did not happen is
+`null`, and that is what the worker gets back.
+
+The two halves are load-bearing together, which the mutation check made
+visible: with the verification skipped and the `recompute` filter reverted, a
+replay is not counted as a success — it is counted as a *failure* with mode
+`unverified`, dropping `success_rate` from 1.0 to 0.5. Deflating evidence is a
+smaller crime than inflating it, but it is the same crime.
+
+**Trust: the flag comes from the worker, and that is bounded.** A worker is
+scoped but not trusted, and it could omit `cached` to make a replay count. What
+that buys is nothing it did not already have. A worker can only report on an
+execution it holds a lease on — one the platform asked it to run — and for that
+execution it can already report any status, exit code and output it likes.
+Fabricating a run outright is strictly stronger than laundering a replay into
+one, and decision 17 accepts that exposure explicitly: the answer to a lying
+worker is not the payload, it is that the API verifies the output itself
+(a worker cannot forge a `sha256` match it does not have the bytes for) and
+that promotion needs a second organization (decision 41). Nothing cheap closes
+the omission — the API cannot detect a replay from the outside without keeping
+its own content-addressed index of every result, which is the shared cache from
+decision 20's ceiling and a much larger change. The flag is an honest worker's
+disclosure, not a security control, and it is worth having for exactly the
+reason a fire alarm is worth having in a building where arson is possible.
+
+**The default stays `BOOBS_EXEC_CACHE=0`, for a new reason.** Decision 20's
+reason is gone: a replay can now be reported safely. The reason to keep it off
+is the other direction. The cache is an in-process LRU, so the second
+organization to run an artifact through a given worker is served the first
+organization's bytes — and that run now produces *no* evidence: no
+verification, no duration sample, and no second `distinct_organizations`. An
+Experience in exactly the state where corroboration matters most, one genuine
+run and one organization, would sit there forever while the runs that would
+have promoted it were quietly answered from memory. The cache trades evidence
+for compute at precisely the moment evidence is scarcest, and that trade is an
+operator's call, not a default. The warning it prints on startup now says this
+instead of the old inflation warning.
+
+**What would have to be true to flip it on:** the replay decision has to move
+to where the organization is known. A worker cannot see who is asking — the
+lease payload does not carry `organization_id`, and giving it one would hand a
+worker key the tenant graph — so only the API can say "this organization has
+never run this artifact, so run it for real; that one has, so replay it". That
+is the same Postgres-backed shared cache decision 20 named as the upgrade path,
+approached from the evidence side rather than the hit-rate side. Until then,
+turning it on is correct for a fleet running a saturated corpus and wrong for
+one still gathering proof.
+
+**Rollout order is not optional.** `ResultRequest` forbids unknown fields, so a
+worker sending `cached` to an API that predates this change gets a `422` on
+every result. API first, then workers — the same order every worker-protocol
+change has needed, and the reason the worker sends the field unconditionally
+rather than only when the cache is on: a field that first appears the day
+somebody flips `BOOBS_EXEC_CACHE` is a field nobody has ever seen work.
+
+Locked in by `tests/integration/test_a_replay_is_not_evidence.py`: a genuine
+run, a replay reporting an absurd duration, then another genuine run. It
+asserts the *whole* evidence payload is identical across the replay rather than
+a chosen field or two — counts, success rate, confidence, both percentiles,
+organizations, failure modes — that the row is nonetheless recorded terminal
+with `cached` true and no `Verification` row, and that the real run afterwards
+moves all of it. Reverting the `recompute` filter fails it, which is the only
+version of this test worth having.
+
+**Undo:** revert the `recompute` filter and the migration, and the platform
+returns to counting replays as runs — so undo the worker cache first, which is
+off anyway.
 
 ---
 

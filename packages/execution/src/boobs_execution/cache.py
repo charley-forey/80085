@@ -11,13 +11,15 @@ whatever the worker reports. If a worker served a cached result and reported
 it like any other, the platform would record a verification of a run that
 never happened -- and evidence is the entire product. So:
 
-* a cache hit is stamped `SandboxResult.cached`, and callers that turn results
-  into evidence are expected to honour it;
-* the worker leaves the cache **off** by default and says loudly what enabling
-  it costs, because the API cannot yet be told a result was replayed. Making
-  it safe to enable by default needs a `cached` flag on the worker result
-  payload and a matching column excluded from `recompute` -- an evidence-
-  semantics change, deliberately not smuggled in here.
+* a cache hit is stamped `SandboxResult.cached`, the worker sends it on every
+  result, and the API records it on `executions.cached`, does not verify it,
+  and excludes it from both counts in `recompute` (DECISIONS 51);
+* the worker still leaves the cache **off** by default, but no longer because
+  a replay would inflate evidence. It is off because a replay produces *no*
+  evidence: a second organization running this artifact would be served the
+  first organization's bytes, `distinct_organizations` would never reach two,
+  and the Experience would never be promoted. The cache trades evidence for
+  compute, so turning it on is an operator's call.
 
 Only successes are cached. A non-zero exit may be deterministic, but a timeout
 or an out-of-memory kill depends on what else the machine was doing, and

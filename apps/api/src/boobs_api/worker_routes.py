@@ -95,6 +95,13 @@ class ResultRequest(Strict):
     outputs: dict[str, str] = Field(default_factory=dict, description="filename -> base64")
     truncated: bool = False
     error: str | None = None
+    # `SandboxResult.cached`: this result was replayed from an identical
+    # earlier run rather than executed. It is recorded and it is answered, but
+    # it is not verified and `recompute` counts it as neither a success nor a
+    # failure -- a replay is not an independent observation (DECISIONS 51).
+    # Defaults false, so a worker that predates the field describes a real run,
+    # which is what a worker without the cache always does.
+    cached: bool = False
 
 
 class ResultResponse(Strict):
@@ -213,7 +220,13 @@ async def lease(request: LeaseRequest, db: DbSession, principal: CurrentPrincipa
 async def report_result(
     execution_id: str, request: ResultRequest, db: DbSession, principal: CurrentPrincipal
 ) -> ResultResponse:
-    """Record what a worker observed, then decide independently whether it worked."""
+    """Record what a worker observed, then decide independently whether it worked.
+
+    Unless the worker says it observed nothing: `cached` means the result was
+    replayed from an identical earlier run, which is recorded as a true account
+    of what the caller was served and counted as neither a success nor a
+    failure by `recompute` (DECISIONS 51).
+    """
     _require_worker(principal)
 
     execution = (
@@ -250,6 +263,7 @@ async def report_result(
         output_files=outputs,
         truncated=request.truncated,
         error=request.error,
+        cached=request.cached,
     )
 
     # The authorization checks above are the last thing that needs the database
@@ -273,10 +287,19 @@ async def report_result(
     # Verifying is the platform's judgement, not the worker's, and it is pure
     # computation over the result -- so it happens here rather than holding a
     # connection. It is the seam an http or test_suite verifier would extend.
+    #
+    # A replay is not verified at all. `verifications` is append-only and feeds
+    # `_strongest_level` and `last_verified_at`, so a row written here would
+    # permanently assert that this version was proven at a moment when nothing
+    # ran -- and the cache key spans versions, so the verdict would not even
+    # reliably belong to this one. Excluding the execution from `recompute`
+    # while writing the verdict would leave the weaker half of the same lie in
+    # place. The honest answer to "did it pass" for a run that did not happen
+    # is null.
     verifier_name: str | None = None
     outcome = None
     declared = version.verification or {}
-    if declared.get("verifier"):
+    if declared.get("verifier") and not request.cached:
         verifier_name = str(declared["verifier"])
         outcome = await verifier.verify(
             result,
@@ -308,6 +331,7 @@ async def report_result(
                 output_key=output_key,
                 logs_key=logs_key,
                 error=request.error,
+                cached=request.cached,
                 completed_at=now(),
                 lease_expires_at=None,
             )
@@ -334,6 +358,7 @@ async def report_result(
             "duration_ms": request.duration_ms,
             "outputs": sorted(outputs),
             "worker": request.worker_id,
+            "cached": request.cached,
         },
     )
 
@@ -379,6 +404,11 @@ async def report_result(
             # pass nor a fail and must not be counted as either.
             "verified": "none" if verified is None else str(verified).lower(),
             "cross_organization": owner is not None and owner != execution.organization_id,
+            # Replays are excluded from evidence, so without this label the
+            # execution rate and the evidence would drift apart with nothing
+            # saying why. It is also the only measure of what the cache is
+            # actually saving.
+            "cached": request.cached,
         },
     )
 

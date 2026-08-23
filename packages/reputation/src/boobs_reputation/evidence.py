@@ -7,6 +7,9 @@ rows and can be rebuilt from scratch at any time.
 A run counts as *successful* only if the sandbox succeeded AND a verifier
 passed. That is the whole distinction the product sells: an agent's claim is
 not evidence.
+
+A run the worker replayed from its cache counts as neither, because it is not
+an observation at all -- it is the previous run being read back.
 """
 
 from __future__ import annotations
@@ -70,6 +73,15 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
             ).where(
                 Execution.experience_version_id == experience_version_id,
                 Execution.status.in_([s.value for s in TERMINAL]),
+                # A replay is not an observation. It is not a success, it is
+                # not a failure, and it is not a duration: the milliseconds on
+                # a cached row belong to a run that happened on another machine
+                # on another day, so counting one would misstate the percentile
+                # as well as the count. Dropping the row here keeps it out of
+                # every number derived below -- both counts, the durations, the
+                # failure modes, the distinct organizations and therefore the
+                # confidence -- rather than out of one of them (DECISIONS 51).
+                Execution.cached.is_(False),
             )
         )
     ).all()

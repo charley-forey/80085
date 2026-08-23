@@ -116,6 +116,11 @@ async def report(http: httpx.AsyncClient, job: dict[str, Any], result: SandboxRe
             },
             "truncated": result.truncated,
             "error": result.error,
+            # The whole point of decision 51: a replay says so, and the API
+            # keeps it out of the evidence. Sent always, not only when the
+            # cache is on -- a field that appears the day someone flips
+            # BOOBS_EXEC_CACHE is a field nobody has ever seen work.
+            "cached": result.cached,
         },
     )
     if response.status_code >= 400:
@@ -132,6 +137,7 @@ async def report(http: httpx.AsyncClient, job: dict[str, Any], result: SandboxRe
         execution_id=job["execution_id"],
         status=body.get("status"),
         verified=body.get("verified"),
+        cached=result.cached,
     )
 
 

@@ -201,6 +201,15 @@ class Execution(Base):
     logs_key: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
 
+    # Replayed by the worker's cache rather than executed (DECISIONS 20, 51).
+    # The row is a true record that a caller asked and got an answer, so it is
+    # kept; it is not a record that anything ran, so `evidence.recompute`
+    # excludes it from both counts. Defaults false: a worker that does not send
+    # the flag is describing a run it actually performed.
+    cached: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+
     # A client that times out and retries must not buy a second sandbox run.
     # The row is the receipt: whoever inserts it first wins the unique index,
     # and the retry is answered with the execution that already exists.
