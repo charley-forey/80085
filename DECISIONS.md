@@ -2729,3 +2729,51 @@ Vercel domain setting has it backwards. And `@80085/cli` is not on npm, so
 
 **Undo:** revert the CLI default and the middleware; keep the tests that
 describe what you chose instead.
+
+---
+
+### 65. The corpus is corroborated by a script, and watched by a routine
+
+**Found by counting.** Every Experience in the live corpus sat at `consider`
+with `distinct_organizations: 1`, and the reason was simpler than any ranking
+question: nobody from a second organization had ever run one. The seed
+records the corpus under `acme-research`; the smoke test executes exactly one
+capability; the consumer org, `globex-labs`, existed so that corroboration
+*could* happen and then never did. A product whose claim is cross-agent reuse
+had zero cross-agent runs.
+
+`scripts/corroborate.py` is the missing step. Given one organization's key it
+finds each capability's live Experience by its goal statement, skips anything
+two organizations have already proven, executes the rest with the checked-in
+fixture inputs, and prints one line per capability. It sleeps to the next
+hourly window when the per-address execution limit bites. Run it with both
+keys and every Experience the worker can run reaches `use`.
+
+Run on 2026-08-24 with the consumer key: 29 of 30 verified on the first pass
+(the four misses were connection errors immediately after a window sleep and
+passed on retry). The thirtieth, `csv_to_jsonl`, had an image in the registry
+and no Experience in the database -- built, never recorded -- so it was
+recorded and run under both organizations. Then the same script with the
+producer key, because it turned out the producer had only ever run the
+original three; `use` needs both sides.
+
+Two things the exercise surfaced, recorded here rather than fixed:
+
+* **Relevance saturates.** For `csv_to_jsonl`'s verbatim goal statement, a
+  dozen Experiences tie at relevance 1.0 and the exact match ranks twelfth.
+  Ties fall through to a deterministic order, not to quality. "csv to jsonl"
+  finds it first. The exact statement should not lose to its neighbours.
+* **The execution limit let through about twenty an hour from one machine**
+  where `limits.py` says ten. Two processes, dual-stack host -- plausibly two
+  source addresses -- but worth confirming before anyone relies on the number.
+
+The nightly watchdog routine (`trig_01CGNtdips8Ws2deJuNzQET5`, 07:00 UTC) is
+the standing version of this session's checks: live health, job freshness,
+the representation matrix, machine files, keyless recall, CORS, the apex
+redirect; then the repo's tests; then at most one pull request. It holds no
+secrets and is forbidden from minting keys or executing anything -- a bot
+that runs the corpus is a bot manufacturing its own corroboration, which is
+the one thing this product must never do to itself.
+
+**Undo:** the script creates only executions, which are evidence and stay.
+Disable the routine at https://claude.ai/code/routines.
