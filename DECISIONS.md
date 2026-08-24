@@ -2854,6 +2854,15 @@ answer.
 **Undo:** `INTENT_MISMATCH_FACTOR = 1.0` disables the discriminator without
 touching the intent repair, which is a bug fix and should stay either way.
 
+**Amended the same day.** The discriminator first fired on *any* difference
+between two conversion labels, which made non-conversions immune to it and
+therefore relatively cheaper. Probing production with real paraphrases caught
+it: "convert a spreadsheet export to json" returned a JSON *merge patch*
+above the CSV-to-JSON converter, because `merge_json` is not a conversion and
+escaped a discount its rival took. Only the **output** format counts now. A
+different source is routinely the same bytes -- a spreadsheet export is a CSV
+file -- while a different target is the thing an agent cannot use.
+
 ---
 
 ### 68. A recorded intent and a query intent were in different namespaces

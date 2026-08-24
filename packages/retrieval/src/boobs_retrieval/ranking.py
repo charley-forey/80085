@@ -71,14 +71,17 @@ LEXICAL_SCALE = 0.12
 # the final score: matching the task is not the same as being known to work.
 INTENT_MATCH_BONUS = 0.15
 
-# And the other half of that signal. Two intents that each name a source and a
-# target, and disagree, are positive evidence of a different job -- csv_to_json
-# produces an array, csv_to_jsonl produces a line per record, and an agent that
-# asked for one cannot use the other. A bonus alone could not express this:
-# relevance saturates at 1.0 for near-identical wording, so the exact match
-# tied with a dozen neighbours and lost the tie to whichever had been run more.
-# Only applied when both labels are specific, so a vague query penalizes
-# nothing.
+# And the other half of that signal. Two conversions that emit different
+# formats are positive evidence of a different job -- csv_to_json produces an
+# array, csv_to_jsonl produces a line per record, and an agent that asked for
+# one cannot use the other. A bonus alone could not express this: relevance
+# saturates at 1.0 for near-identical wording, so the exact match tied with a
+# dozen neighbours and lost the tie to whichever had been run more.
+#
+# Only the output format counts. Penalising any difference at all made
+# non-conversions immune and therefore relatively cheaper, which is how
+# "convert a spreadsheet export to json" came back with a JSON *merge patch*
+# above the CSV-to-JSON converter that was the right answer.
 INTENT_MISMATCH_FACTOR = 0.8
 
 # A run this recent counts as fully fresh; older evidence decays toward zero
@@ -239,9 +242,17 @@ def relevance_of(
     return max(lexical, cosine_similarity or 0.0)
 
 
-def _names_a_conversion(intent: str) -> bool:
-    """Whether a label names both a source and a target, e.g. `csv_to_jsonl`."""
-    return "_to_" in intent
+def _produces(intent: str) -> str | None:
+    """What a conversion label says it emits, e.g. `jsonl` from `csv_to_jsonl`.
+
+    None for anything that is not a conversion. The output format is the part
+    that makes two conversions non-interchangeable: an agent that asked for
+    JSONL cannot use a JSON array. Differing only in the *source* is a much
+    weaker signal -- "a spreadsheet export" and "a CSV file" are routinely the
+    same bytes -- so that is not treated as a disagreement.
+    """
+    _, separator, target = intent.partition("_to_")
+    return target if separator else None
 
 
 def intent_relevance(relevance: float, query_intent: str, candidate_intent: str) -> float:
@@ -258,7 +269,8 @@ def intent_relevance(relevance: float, query_intent: str, candidate_intent: str)
     """
     if query_intent == candidate_intent and query_intent != UNKNOWN:
         return min(1.0, relevance + INTENT_MATCH_BONUS)
-    if _names_a_conversion(query_intent) and _names_a_conversion(candidate_intent):
+    wanted, produced = _produces(query_intent), _produces(candidate_intent)
+    if wanted is not None and produced is not None and wanted != produced:
         return relevance * INTENT_MISMATCH_FACTOR
     return relevance
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
+
 from boobs_common.clock import now
 from boobs_domain.enums import Compatibility, Recommendation, VerificationLevel
 from boobs_retrieval import ranking
@@ -166,3 +168,24 @@ def test_a_vague_query_penalizes_nothing() -> None:
     assert ranking.intent_relevance(0.9, "unknown", "csv_to_json") == 0.9
     assert ranking.intent_relevance(0.9, "csv_to_json", "unknown") == 0.9
     assert ranking.intent_relevance(0.9, "validate_json", "csv_to_json") == 0.9
+
+
+def test_only_the_output_format_makes_two_conversions_disagree() -> None:
+    """A different source is routinely the same bytes; a different target is not.
+
+    Penalising every difference made non-conversions immune to the penalty and
+    so relatively cheaper: "convert a spreadsheet export to json" returned a
+    JSON merge patch above the CSV-to-JSON converter, because merge_json is
+    not a conversion and escaped a discount its rival took.
+    """
+    # Same output, different input: a spreadsheet export IS a CSV file.
+    assert ranking.intent_relevance(0.9, "xlsx_to_json", "csv_to_json") == 0.9
+    # Different output: not interchangeable, whatever went in.
+    assert ranking.intent_relevance(1.0, "csv_to_jsonl", "csv_to_json") == pytest.approx(
+        ranking.INTENT_MISMATCH_FACTOR
+    )
+    assert ranking.intent_relevance(1.0, "csv_to_json", "json_to_csv") == pytest.approx(
+        ranking.INTENT_MISMATCH_FACTOR
+    )
+    # A non-conversion is neither rewarded nor punished by this rule.
+    assert ranking.intent_relevance(0.9, "csv_to_json", "merge_json") == 0.9
