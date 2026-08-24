@@ -303,7 +303,7 @@
       ]
     },
     {
-      "source": "/(site.css|site.js|calc.js|seg.js|terminal.js|boot.js|icon.svg|og.png|og.svg)",
+      "source": "/(site.css|site.js|calc.js|seg.js|terminal.js|key.js|boot.js|icon.svg|og.png|og.svg)",
       "headers": [
         {
           "key": "Cache-Control",

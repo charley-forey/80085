@@ -64,6 +64,15 @@ Two orphaned project records may exist from those attempts, `80085` and
 4. Add the domains `80085.ai` and `www.80085.ai`, with `www` redirecting to the
    apex.
 
+   **Check the direction.** As of 2026-08-23 it is backwards: `80085.ai` 308s
+   to `www.80085.ai`. The canonical URL on every page is the apex, and every
+   `curl 80085.ai/...` the site advertises gets a redirect page instead of an
+   answer, because curl does not follow redirects unless told to. In the
+   Vercel dashboard, Settings → Domains, make `80085.ai` the primary and set
+   `www.80085.ai` to redirect to it. The project is not visible to the Vercel
+   account the MCP integration is signed into, so this cannot be done from a
+   session; it is a dashboard click.
+
 Environment variables (Production): none.
 
 Terminal-mode recall calls `/recall`, the same public, keyless endpoint the

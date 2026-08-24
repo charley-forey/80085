@@ -26,6 +26,8 @@ import {
   MCP,
   REPO,
   COMMAND,
+  COMMAND_KEYED,
+  CONFIG_KEYED,
   SYSTEM_PROMPT,
   WORDMARK_BLOCK,
   WORDMARK_SEG,
@@ -52,6 +54,31 @@ const esc = (s) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+/**
+ * Page references in prose become links. Three shapes: a full URL, the apex
+ * with a path (`80085.ai/prompt.txt`, as the curl lines spell it), and a bare
+ * site path (`/key`, `/llms.txt`). Nobody should have to retype a URL they
+ * can see. Every link opens in a new tab so the calculator keeps its state.
+ *
+ * Not linked on purpose: `text/markdown`, `10 / 0`, `mcp.80085.ai` (a bare MCP
+ * endpoint answers a browser with 406), and anything inside a code block,
+ * which exists to be copied rather than clicked.
+ */
+const LINK =
+  /https?:\/\/(?!mcp\.80085\.ai)[^\s<>"')]+|(?<![\w.@/])80085\.ai(?:\/[^\s<>"')]*)?|(?<![\w/.:])\/(?:[\w.-]*\w)(?:\/[\w.-]*\w)*(?:\?[\w+=&%.-]+)?/g;
+
+function link(text) {
+  let out = '';
+  let at = 0;
+  for (const m of String(text).matchAll(LINK)) {
+    out += esc(text.slice(at, m.index));
+    const href = m[0].startsWith('http') || m[0].startsWith('/') ? m[0] : `https://${m[0]}`;
+    out += `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(m[0])}</a>`;
+    at = m.index + m[0].length;
+  }
+  return out + esc(String(text).slice(at));
+}
 
 // ANSI. No colour — inversion and weight are the only emphasis this brand has,
 // which happens to be exactly what a monochrome terminal does best.
@@ -85,24 +112,26 @@ function htmlNode(n) {
     case 'lead':
       return `<p class="lead">${esc(n.text)}</p>`;
     case 'sub':
-      return `<p class="sub">${esc(n.text)}</p>`;
+      return `<p class="sub">${link(n.text)}</p>`;
     case 'p':
-      return `<p>${esc(n.text)}</p>`;
+      return `<p>${link(n.text)}</p>`;
     case 'centre':
-      return `<p class="centre">${esc(n.text)}</p>`;
+      return `<p class="centre">${link(n.text)}</p>`;
     case 'pre':
-      return `<pre${n.grid ? ' class="grid"' : ''}>${esc(n.text)}</pre>`;
+      return `<pre${n.grid ? ' class="grid"' : ''}>${link(n.text)}</pre>`;
     case 'code':
-      return codeHtml(n.text);
+      return codeHtml(n.text, n.keyed);
+    case 'mint':
+      return `<p>${link(n.text)}</p>` + mintHtml();
     case 'steps':
       return (
         '<ol class="steps">' +
         n.steps
           .map(
             (s) =>
-              `<li><span class="n">${esc(s.n)}</span>${esc(s.label)}` +
+              `<li><span class="n">${esc(s.n)}</span>${link(s.label)}` +
               (s.code ? codeHtml(s.code) : '') +
-              (s.note ? `<p class="sub">${esc(s.note)}</p>` : '') +
+              (s.note ? `<p class="sub">${link(s.note)}</p>` : '') +
               '</li>'
           )
           .join('') +
@@ -112,20 +141,20 @@ function htmlNode(n) {
       return (
         '<div class="box">' +
         (n.title ? `<span class="title">${esc(n.emoji)} ${esc(n.title)}</span>` : '') +
-        `<pre>${esc(n.text)}</pre></div>`
+        `<pre>${link(n.text)}</pre></div>`
       );
     case 'table':
       return (
         '<table><thead><tr>' +
         n.head.map((h) => `<th>${esc(h)}</th>`).join('') +
         '</tr></thead><tbody>' +
-        n.rows.map((r) => '<tr>' + r.map((c) => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') +
+        n.rows.map((r) => '<tr>' + r.map((c) => `<td>${link(c)}</td>`).join('') + '</tr>').join('') +
         '</tbody></table>'
       );
     case 'cols':
       return (
         '<div class="cols">' +
-        n.cols.map((c) => `<div><h3>${esc(c.head)}</h3><p>${esc(c.text)}</p></div>`).join('') +
+        n.cols.map((c) => `<div><h3>${esc(c.head)}</h3><p>${link(c.text)}</p></div>`).join('') +
         '</div>'
       );
     case 'status':
@@ -135,8 +164,8 @@ function htmlNode(n) {
           .map(
             ([icon, what, note, done]) =>
               `<li class="${done ? 'done' : 'todo'}"><span aria-hidden="true">${esc(icon)}</span>` +
-              `<span class="what">${esc(what)}</span>` +
-              `<span class="note">${esc(note)}</span></li>`
+              `<span class="what">${link(what)}</span>` +
+              `<span class="note">${link(note)}</span></li>`
           )
           .join('') +
         '</ul>'
@@ -144,7 +173,7 @@ function htmlNode(n) {
     case 'faq':
       return (
         '<dl class="faq">' +
-        n.items.map(([q, a]) => `<dt>❓ ${esc(q)}</dt><dd>${esc(a)}</dd>`).join('') +
+        n.items.map(([q, a]) => `<dt>❓ ${esc(q)}</dt><dd>${link(a)}</dd>`).join('') +
         '</dl>'
       );
     case 'details':
@@ -156,11 +185,37 @@ function htmlNode(n) {
   }
 }
 
-const codeHtml = (text) =>
+/* `keyed` is the same text with {KEY} where a key goes. key.js swaps it in
+ * once the visitor has one, on the button and on the <pre> beside it. */
+const codeHtml = (text, keyed) =>
   '<div class="code"><pre>' +
   esc(text) +
   '</pre><button class="copy" type="button" aria-label="Copy to clipboard" ' +
-  `data-copy="${esc(text)}">📋</button></div>`;
+  `data-copy="${esc(text)}"${keyed ? ` data-keyed="${esc(keyed)}"` : ''}>📋</button></div>`;
+
+/**
+ * The key button and what appears under it. Identical on the homepage and on
+ * /key, driven by key.js on both. The key is shown once, saved in the
+ * visitor's browser, offered as a download, and written into every keyed code
+ * block on the page -- so what they copy next already carries it.
+ */
+const mintHtml = () =>
+  `<div class="mintbox" data-api="${API}">` +
+  '<p><button class="mint" type="button">🔑 Mint a key</button> ' +
+  '<span class="sub">No email, no password, no account to forget.</span></p>' +
+  '<div class="minted" hidden>' +
+  '<p class="sub">Your key. It is saved in this browser, and the commands on this page ' +
+  'now include it. <a class="dl" download="80085-key.txt" href="#">Download it</a> ' +
+  'to keep it somewhere safer, because it is not recoverable from us.</p>' +
+  '<div class="code"><pre class="keyout"></pre>' +
+  '<button class="copy copykey" type="button" data-copy="" aria-label="Copy the key">📋</button>' +
+  '</div>' +
+  '<p class="sub">If it ever leaks, this makes it worthless:</p>' +
+  '<div class="code"><pre class="revout"></pre>' +
+  '<button class="copy copyrev" type="button" data-copy="" aria-label="Copy the revoke command">📋</button>' +
+  '</div>' +
+  '<p class="sub"><a class="forget" href="#">Forget this key in this browser.</a></p>' +
+  '</div></div>';
 
 // -------------------------------------------------------------- Markdown ---
 
@@ -186,6 +241,8 @@ function mdNode(n) {
       return n.grid ? '```\n' + n.text + '\n```' : n.text;
     case 'code':
       return '```\n' + n.text + '\n```';
+    case 'mint':
+      return `${n.text}\n\n\`\`\`\ncurl -X POST ${API}/v1/keys\n\`\`\`\n\nNo signup. Keep the \`key_id\` it returns.`;
     case 'steps':
       return n.steps
         .map(
@@ -355,6 +412,7 @@ ${states}
     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
 </div>
 <script type="module" src="/site.js"></script>
+<script type="module" src="/key.js"></script>
 </body>
 </html>
 `;
@@ -364,7 +422,7 @@ ${states}
  * The small pages: /install, /key, /1337, 404. Same design system, no
  * calculator, no flip — they are destinations, not the site.
  */
-function shell({ title, value, body, noindex = false, path, description = meta.description }) {
+function shell({ title, value, body, noindex = false, path, description = meta.description, mint = false }) {
   // A subpage that canonicalises to `/` is a subpage asking not to be indexed.
   // These are rewritten onto clean URLs by vercel.json, so the canonical is the
   // clean URL, never the /p/*.html file the rewrite happens to serve.
@@ -404,7 +462,7 @@ ${readout(value)}
 </div></div>
 ${body}
 </div>
-<script type="module" src="/small.js"></script>
+<script type="module" src="/small.js"></script>${mint ? '\n<script type="module" src="/key.js"></script>' : ''}
 </body>
 </html>
 `;
@@ -468,8 +526,9 @@ function ansiInstall(c) {
     '     npx @80085/cli init',
     '',
     '     Finds your agent config (Claude Code, Claude Desktop, Cursor,',
-    '     Windsurf, or a generic mcp.json), asks for your API key, backs',
-    '     up the file, writes the MCP block, and verifies /v1/health.',
+    '     Windsurf, or a generic mcp.json), mints a key and keeps it in',
+    '     ~/.80085/key, backs up the file, writes the MCP block, and',
+    '     verifies /v1/health. --read-only skips the key.',
     '',
     `  ${c.b('2. Restart your agent.')}`,
     '',
@@ -833,6 +892,7 @@ log.push(
     shell({
       title: 'Install — 80085.ai',
       path: '/install',
+      mint: true,
       description:
         'Add 80085 to Claude Code, Cursor, or any MCP client in one command. ' +
         'Reading the shared memory needs no key and no signup.',
@@ -852,30 +912,19 @@ log.push(
         'Get a free 80085 API key. You only need one to write — recording or ' +
         'running an Experience. Reading is always keyless.',
       value: '5372',
+      mint: true,
       body:
         '<h2>🔑 Get a key</h2>' +
         '<p>You only need one to <em>write</em> — recording an Experience or running ' +
         'one. Reading needs nothing, and always will.</p>' +
-        '<p>No email, no password, no account to forget. Press the button.</p>' +
-        '<p><button id="mint" class="mint" type="button">Mint a key</button></p>' +
-        '<div id="minted" hidden>' +
-        '<p class="sub">Copy this now. It is not recoverable, and there is no account ' +
-        'to recover it into.</p>' +
-        '<div class="code"><pre id="keyout"></pre>' +
-        '<button class="copy" type="button" id="copykey" aria-label="Copy the key">📋</button>' +
-        '</div>' +
-        '<p>Then use it:</p>' +
-        '<div class="code"><pre id="cfgout"></pre>' +
-        '<button class="copy" type="button" id="copycfg" aria-label="Copy the config">📋</button>' +
-        '</div>' +
-        '<p>And keep this, in case you ever have to kill it:</p>' +
-        '<div class="code"><pre id="revout"></pre>' +
-        '<button class="copy" type="button" id="copyrev" aria-label="Copy the revoke command">📋</button>' +
-        '</div>' +
-        '</div>' +
+        mintHtml() +
+        '<p>Then use it. Once you have minted, these already contain it:</p>' +
+        codeHtml(COMMAND, COMMAND_KEYED) +
+        '<p class="sub">Cursor, Windsurf, Claude Desktop, or anything else — same thing, as config:</p>' +
+        codeHtml(CONFIG, CONFIG_KEYED) +
         '<h3>You have a key. Now what?</h3>' +
         '<ol>' +
-        '<li><b>Paste it once.</b> Into the config above, or as ' +
+        '<li><b>Copy a block above.</b> The key is already in it. Or set it as ' +
         '<code>BOOBS_API_KEY</code>. This is the only time you will handle it.</li>' +
         '<li><b>Then forget it.</b> Your agent asks 80085 before it builds, because ' +
         'the server tells it to on connect. There is nothing to remember and no ' +
@@ -897,7 +946,9 @@ log.push(
         'Experience does not make it recommended. Nothing is returned as ' +
         '<em>use</em> until runs actually verify, so a key is permission to ' +
         'contribute, not permission to be believed.</p>' +
-        '<p class="sub">Prefer the command line? <code>npx @80085/cli init</code> wires up your agent, and a key mints itself the first time you contribute.</p>' +
+        '<p class="sub">Prefer the command line? <code>npx @80085/cli init</code> wires up ' +
+        'your agent, mints a key, saves it to <code>~/.80085/key</code> and writes it into ' +
+        'the config — nothing to paste. <code>--read-only</code> skips the key.</p>' +
         `<p class="sub">The key identifies a contributor, not a person. That is all we ` +
         `want from it: enough to revoke a bad actor's work as a set, and nothing more.</p>`
     })
@@ -952,31 +1003,6 @@ for(const b of document.querySelectorAll('.copy[data-copy]')){b.addEventListener
 const ok=()=>{b.textContent='✅';setTimeout(()=>b.textContent='📋',1200)};
 navigator.clipboard?.writeText(b.dataset.copy).then(ok,()=>{});});}
 
-// /key: one button, no form. The whole signup flow is this handler.
-const mint=document.getElementById('mint');
-if(mint){const copy=(btn,get)=>btn.addEventListener('click',()=>{
-const ok=()=>{btn.textContent='✅';setTimeout(()=>btn.textContent='📋',1200)};
-navigator.clipboard?.writeText(get()).then(ok,()=>{});});
-copy(document.getElementById('copykey'),()=>document.getElementById('keyout').textContent);
-copy(document.getElementById('copycfg'),()=>document.getElementById('cfgout').textContent);
-copy(document.getElementById('copyrev'),()=>document.getElementById('revout').textContent);
-mint.addEventListener('click',async()=>{
-mint.disabled=true;mint.textContent='minting…';
-try{const r=await fetch('${API}/v1/keys?label=web',{method:'POST'});
-const d=await r.json();
-if(!r.ok||!d.api_key){throw new Error(d.detail||('HTTP '+r.status));}
-document.getElementById('keyout').textContent=d.api_key;
-document.getElementById('cfgout').textContent=JSON.stringify(
-{mcpServers:{80085:{url:'${MCP}',headers:{Authorization:'Bearer '+d.api_key}}}},null,2);
-// The key_id is the only handle on this credential that survives the page.
-// Nothing can look it up afterwards, so it is printed as the command it is for.
-document.getElementById('revout').textContent=
-'curl -X POST -H "Authorization: Bearer '+d.api_key+'" ${API}/v1/keys/'+d.key_id+'/revoke';
-document.getElementById('minted').hidden=false;
-mint.textContent='minted ✅';
-}catch(e){mint.disabled=false;mint.textContent='Mint a key';
-alert('Could not mint a key: '+e.message+'\\nIf you are rate limited, try again in an hour.');}
-});}
 `
   )
 );
@@ -1053,11 +1079,11 @@ function installBlock() {
  * and nothing else does, so any static host can point at this one directory.
  * The browser modules are copied rather than bundled — three requests over
  * HTTP/2 costs less than owning a bundler. */
-for (const f of ['site.css', 'site.js', 'calc.js', 'seg.js', 'terminal.js']) {
+for (const f of ['site.css', 'site.js', 'calc.js', 'seg.js', 'terminal.js', 'key.js']) {
   cpSync(join(HERE, f), join(OUT, f));
 }
 cpSync(join(HERE, 'assets'), OUT, { recursive: true });
-log.push(`copied 5 modules + assets/`);
+log.push(`copied 6 modules + assets/`);
 
 /* The licence and terms live at the repository root, but the site's document
  * root is this directory's public/. Without copying them in, every link and

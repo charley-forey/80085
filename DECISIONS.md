@@ -2679,3 +2679,53 @@ missing migration.
 A test also asserts `scheduler.JOBS` and smoke's staleness table name the same
 jobs. Adding a job that nothing watches would recreate the silence this closes.
 
+
+---
+
+### 64. The browser is a client, and the install mints the key
+
+**Found by reading IDEAS.md against the live site.** `/key` had a working
+mint button and a page of advice about what to do with the key, and none of
+it worked in a browser: the API sent no CORS headers, so the POST from
+`80085.ai` to `api.80085.ai` was made, the key was minted, and the response
+was withheld from the page. Every click burned one of the five mints an hour
+an address gets and showed "Failed to fetch".
+
+Three changes, one theme — a visitor should never handle the key:
+
+* **The API answers CORS with `*`.** Auth is a bearer header and there are no
+  cookies, so a wildcard origin grants a page nothing a `curl` could not
+  already do. `tests/unit/test_cors.py` holds it.
+* **The key is minted on the homepage, inside the install block**, not on a
+  page the visitor has to guess exists. Once minted it is shown once, kept in
+  `localStorage`, offered as a download, and written into every code block on
+  the page that has a `{KEY}` slot — the `claude mcp add` line gains a
+  `--header`, the config gains `headers`, the local-process block gains
+  `BOOBS_API_KEY`. What they copy next already carries it. `/key` is the same
+  widget (`key.js`, by class: the homepage has it twice, once per flip state).
+* **`npx @80085/cli init` mints by default** and keeps the key in
+  `~/.80085/key`, so a second run for another client reuses it instead of
+  minting a stranger. `--read-only` opts out; `--contribute` is gone.
+
+This reverses the choice made in "Ready the CLI for npm, and stop it minting
+keys nobody asked for". The argument then was that a reader-only install
+should not create an unused credential. The argument now is that four of the
+five tools want a key, so a keyless install is one that fails later, in the
+agent, with a message nobody connects to the install. An unused row in
+`api_keys` is the cheaper failure.
+
+Also while looking: every page the copy names (`/llms.txt`, `/TERMS.md`,
+`/agents.md`, the curl lines) is now a link, opening in a new tab so the
+calculator keeps its state. Code blocks are not linkified; they exist to be
+copied. `links.test.js` holds both.
+
+**Still wrong, and not fixable from the repo:** the apex `80085.ai` 308s to
+`www.80085.ai`, which the Vercel project owns. `curl 80085.ai/recall?q=...`
+— the line the page tells people to try — returns a redirect page, because
+curl does not follow redirects unasked. The canonical URL is the apex; the
+Vercel domain setting has it backwards. And `@80085/cli` is not on npm, so
+`npx @80085/cli init` fails for everyone until the `@80085` org exists and
+`npm publish` has run from `apps/cli`.
+
+**Undo:** revert the CLI default and the middleware; keep the tests that
+describe what you chose instead.

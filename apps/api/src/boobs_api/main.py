@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -204,6 +205,15 @@ def create_app() -> FastAPI:
     )
     app.include_router(router)
     app.include_router(worker_router)
+
+    # The /key page and the homepage mint keys with a browser fetch from
+    # 80085.ai to this host. Without this the browser sends the POST, the key
+    # is minted, and the response is withheld from the page -- every click
+    # burned a mint and showed an error. Bearer auth and no cookies means a
+    # wildcard origin grants nothing a curl could not already do.
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    )
 
     # Instrumented here rather than in lifespan: Starlette builds its
     # middleware stack before the lifespan runs, so adding middleware there

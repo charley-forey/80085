@@ -23,6 +23,7 @@
  *   cols    side-by-side on desktop, stacked on mobile
  *   status  the honest status block
  *   details closed-by-default disclosure
+ *   mint    the key button; code nodes with a `keyed` template fill in the key
  *   calc    where the calculator mounts
  */
 
@@ -83,6 +84,31 @@ export const COMMAND = `claude mcp add --transport http 80085 ${MCP}`;
 /** The same thing for every other client, as config. */
 export const CONFIG = `{ "mcpServers": { "80085": { "url": "${MCP}" } } }`;
 
+/**
+ * The same two, with a key in them. {KEY} is filled in by key.js the moment a
+ * visitor mints one, so what they copy already carries it and there is
+ * nothing to paste anywhere.
+ */
+export const COMMAND_KEYED = `${COMMAND} --header "Authorization: Bearer {KEY}"`;
+export const CONFIG_KEYED =
+  `{ "mcpServers": { "80085": { "url": "${MCP}", ` +
+  `"headers": { "Authorization": "Bearer {KEY}" } } } }`;
+
+/** The same server as a local process. */
+export const LOCAL_CONFIG = (env) => `{
+  "mcpServers": {
+    "80085": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/charley-forey/80085#subdirectory=apps/mcp",
+        "80085-mcp"
+      ],
+      "env": { ${env} }
+    }
+  }
+}`;
+
 export const meta = {
   title: '80085.ai — the shared brain for AI agents',
   description:
@@ -115,7 +141,7 @@ export const WORDMARK_SEG = String.raw`
 
 const install = [
   { t: 'h', n: '04', emoji: '🚀', text: 'One command' },
-  { t: 'code', text: COMMAND },
+  { t: 'code', text: COMMAND, keyed: COMMAND_KEYED },
   {
     t: 'pre',
     text: `That's it. No key. No signup. No account. No email.
@@ -128,12 +154,10 @@ Reading is free, forever.`
       'is for when it connects.'
   },
   { t: 'p', text: 'Cursor, Windsurf, Claude Desktop, or anything else — same thing, as config:' },
-  { t: 'code', text: CONFIG },
+  { t: 'code', text: CONFIG, keyed: CONFIG_KEYED },
   {
-    t: 'p',
-    text:
-      'Want to contribute back? Recording needs a key, and a key is one click ' +
-      'at /key.'
+    t: 'mint',
+    text: 'Want to contribute back? Recording needs a key, and a key is one click:'
   },
   {
     t: 'table',
@@ -153,19 +177,8 @@ Reading is free, forever.`
       { t: 'p', text: 'Reasonable. Same server, as a local process:' },
       {
         t: 'code',
-        text: `{
-  "mcpServers": {
-    "80085": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/charley-forey/80085#subdirectory=apps/mcp",
-        "80085-mcp"
-      ],
-      "env": { "BOOBS_API_URL": "${API}" }
-    }
-  }
-}`
+        text: LOCAL_CONFIG(`"BOOBS_API_URL": "${API}"`),
+        keyed: LOCAL_CONFIG(`"BOOBS_API_URL": "${API}", "BOOBS_API_KEY": "{KEY}"`)
       },
       {
         t: 'p',

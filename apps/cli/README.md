@@ -7,44 +7,43 @@ executable solutions — into whichever AI agent you actually use.
 npx @80085/cli init
 ```
 
-That is the whole thing. No signup, no email, no key.
+That is the whole thing. No signup, no email, nothing to paste.
 
 ## What it does
 
 1. Finds your agent's config — Claude Code, Claude Desktop, Cursor, Windsurf,
    or a generic `.mcp.json`
-2. Backs up the file before touching it
-3. Writes the MCP server block, and prints the path it wrote to
-4. Calls `/v1/health` and prints the result
+2. Mints a key — no signup — and keeps it in `~/.80085/key`, so a second run
+   reuses it instead of minting another
+3. Backs up the file before touching it
+4. Writes the MCP server block with the key in it, and prints the path it wrote to
+5. Calls `/v1/health` and prints the result
 
 It does not open a browser, and it does not phone home beyond that health
-check.
+check and the one mint.
 
 **There is no system prompt to edit.** The server sends its instructions in
 the MCP handshake, so your agent is told what the tools are for when it
 connects.
 
-## Why no key
+## Why a key, and why you never see a form
 
-Reading is free. `recall_experience` answers callers with no credential at
-all, so the default install carries none — minting one for somebody who only
-asks questions would create a credential nobody uses.
+Reading is free: `recall_experience` answers with no credential. Running and
+recording need one, because writing to a shared brain should be attributable.
+So the install mints one and writes it in, and you never handle it. No email,
+no password, no account. The key identifies a contributor, not a person —
+enough to revoke one actor's work as a set, and nothing more.
 
-Recording an Experience needs a key, because writing to a shared brain should
-be attributable. Getting one is still not a signup:
+Only ever going to read?
 
 ```sh
-npx @80085/cli init --contribute
+npx @80085/cli init --read-only
 ```
-
-That mints a key and writes it into the config. No email, no password, no
-account. The key identifies a contributor, not a person — enough to revoke one
-actor's work as a set, and nothing more.
 
 ## Options
 
 ```
---contribute           mint a key so you can record Experiences too
+--read-only            do not mint a key (reading needs none)
 --key <sk_80085_...>   use a key you already have
 --local                run the MCP server as a local process instead of
                        using the hosted endpoint

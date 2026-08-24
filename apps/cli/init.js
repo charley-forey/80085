@@ -8,9 +8,10 @@
  * the server block, and verifies the API answers. Everything it did is
  * printed, including the path it touched.
  *
- * No credential is involved unless you pass --contribute, because reading
- * needs none. It never opens a browser and never phones home beyond the
- * health check (and the mint call, if you asked for a key).
+ * A key is minted on the first run and kept in ~/.80085/key, so a second run
+ * (for another client, or after a reinstall) reuses it rather than minting
+ * another. --read-only skips the key: recall needs none. It never opens a
+ * browser and never phones home beyond the health check and that one mint.
  */
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -26,6 +27,22 @@ export const DEFAULT_API = 'https://api.80085.ai';
 // client pointed at the bare host gets a 404 with no useful explanation.
 export const DEFAULT_MCP = 'https://mcp.80085.ai/mcp';
 const KEY_PREFIX = 'sk_80085_';
+/** Where the minted key lives between runs. The config file has it too. */
+export const KEY_FILE = join(homedir(), '.80085', 'key');
+
+export function loadKey(file = KEY_FILE) {
+  try {
+    const k = readFileSync(file, 'utf8').trim();
+    return k.startsWith(KEY_PREFIX) ? k : '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveKey(key, file = KEY_FILE) {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, key + '\n', { mode: 0o600 });
+}
 
 /** Every config we know how to write, in the order we prefer them. */
 export function targets(os = platform(), env = process.env, home = homedir()) {
@@ -118,8 +135,7 @@ const HELP = `
     npx @80085/cli init [options]
 
   Options
-    --contribute           mint a key so you can record Experiences too
-                           (reading needs none, so none is minted by default)
+    --read-only            do not mint a key (reading needs none)
     --key <sk_80085_...>   use a key you already have
     --local                run the server as a local process instead of
                            using the hosted endpoint
@@ -129,7 +145,7 @@ const HELP = `
     --dry-run              print what would change, write nothing
     --help                 this
 
-  Reading needs no key. --contribute mints one, with no signup.
+  A key is minted on first run, with no signup, and kept in ~/.80085/key.
 `;
 
 function parseArgs(argv) {
@@ -140,7 +156,7 @@ function parseArgs(argv) {
     else if (a === '--all') args.all = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--local') args.local = true;
-    else if (a === '--contribute') args.contribute = true;
+    else if (a === '--read-only') args.readOnly = true;
     else if (a === '--mcp-url') args.mcpUrl = argv[++i];
     else if (a === '--key') args.key = argv[++i];
     else if (a === '--api-url') args.apiUrl = argv[++i];
@@ -194,18 +210,24 @@ async function main(argv) {
     // credential is a tool most people close, and there is nothing worth
     // learning about someone from making them fill in a form first.
     //
-    // Nothing is minted here either, unless you ask for it: recall answers
-    // callers with no credential, so minting one for somebody who only reads
-    // would create a credential nobody ever uses.
+    // So the key is minted, not requested: four of the five tools want one,
+    // and an install that leaves the agent unable to run or record is an
+    // install that fails later, somewhere less explicable than here.
     key = args.key || process.env.BOOBS_API_KEY || '';
-    if (!key && args.contribute) {
+    if (!key && !args.readOnly) {
+      key = loadKey();
+      if (key) console.log(ok(`key         ${dim(`kept from last time, ${KEY_FILE}`)}`));
+    }
+    if (!key && !args.readOnly) {
       console.log(dim('\n  minting a key: no signup, no email, nothing to fill in'));
       try {
         key = await mintKey(apiUrl, 'cli');
-        console.log(ok(`minted      ${dim(KEY_PREFIX + '…' + key.slice(-6))}`));
+        saveKey(key);
+        console.log(ok(`minted      ${key}`));
+        console.log(ok(`saved       ${dim(KEY_FILE)}`));
       } catch (err) {
         console.log(bad(String(err.message)));
-        console.log(dim('    pass --key sk_80085_... if you already have one.'));
+        console.log(dim('    pass --key sk_80085_... if you already have one, or --read-only.'));
         return 1;
       }
     }
@@ -284,9 +306,9 @@ async function apply(chosen, key, apiUrl, args) {
   // connects. Telling people to edit a prompt would be inventing a step.
   console.log(dim('  Your agent is told what the tools are for when it connects.'));
   if (!key) {
-    console.log(dim('  Reading needs no key. Run again with --contribute to record too.\n'));
+    console.log(dim('  Reading needs no key. Run again without --read-only to record too.\n'));
   } else {
-    console.log(dim('  You can record Experiences as well as read them.\n'));
+    console.log(dim(`  You can record Experiences as well as read them. The key is in the config and in ${KEY_FILE}.\n`));
   }
   return 0;
 }

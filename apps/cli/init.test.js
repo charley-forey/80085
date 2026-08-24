@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
   DEFAULT_API,
   DEFAULT_MCP,
+  loadKey,
   localServerBlock,
   mergeConfig,
+  saveKey,
   serverBlock,
   targets
 } from './init.js';
@@ -94,5 +100,15 @@ test('the install never asks the user for anything', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('./init.js', import.meta.url), 'utf8');
   assert.ok(!/rl\.question\(\s*['"`]\s*paste/i.test(src), 'it prompts for a key again');
-  assert.ok(src.includes('args.contribute'), 'minting is no longer opt-in');
+  assert.ok(src.includes('args.readOnly'), 'the key is opt-out, not opt-in');
+  assert.ok(!src.includes('--contribute'), 'the old opt-in flag is gone');
+});
+
+test('a minted key survives to the next run, and garbage does not', () => {
+  const file = join(mkdtempSync(join(tmpdir(), '80085-')), 'nested', 'key');
+  assert.equal(loadKey(file), '', 'nothing yet');
+  saveKey('sk_80085_abc', file);
+  assert.equal(loadKey(file), 'sk_80085_abc');
+  saveKey('not a key', file);
+  assert.equal(loadKey(file), '', 'a file that does not hold a key is treated as absent');
 });
