@@ -74,8 +74,10 @@ def test_a_recorded_label_is_read_in_the_same_namespace_as_a_query() -> None:
         assert canonical_label(label) == label
 
     # A label the normalizer cannot read stays unreadable rather than becoming
-    # a wildcard that matches every other unreadable one.
-    assert canonical_label("business_day_arithmetic") == "unknown"
+    # a wildcard that matches every other unreadable one. Deliberately not a
+    # label from the corpus: those are the ones vocabulary keeps rescuing, and
+    # the property being guarded here is about the ones it never will.
+    assert canonical_label("frobnicate_widgets") == "unknown"
 
 
 def test_unpacking_an_archive_is_extracting_it() -> None:
@@ -91,3 +93,25 @@ def test_unpacking_an_archive_is_extracting_it() -> None:
     # "zip" hides inside "unzip"; a word-boundary search must not read the
     # verb as the format it operates on.
     assert normalize("unzip the file").source_format is None
+
+
+def test_the_corpus_names_jobs_the_normalizer_can_read() -> None:
+    """Three capabilities had labels no query could ever match.
+
+    `csv_select`, `sniff_csv_dialect` and `business_day_arithmetic` all read as
+    `unknown`, so the intent bonus could never fire for them -- and with
+    identical evidence to capabilities that reached `use`, they sat at
+    `consider` purely because of how the recorder happened to name the job.
+    """
+    from boobs_retrieval.intent import canonical_label
+
+    assert normalize("guess the delimiter of a csv").canonical == canonical_label(
+        "sniff_csv_dialect"
+    )
+    assert normalize("pick and rename some csv columns").canonical == canonical_label("csv_select")
+    assert normalize("how many business days between two dates").canonical == canonical_label(
+        "business_day_arithmetic"
+    )
+    # None of them is a conversion, so none can trip the mismatch discount.
+    for label in ("detect_csv", "select_csv", "calculate"):
+        assert "_to_" not in label

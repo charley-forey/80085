@@ -63,6 +63,11 @@ ACTIONS: dict[str, tuple[str, ...]] = {
     "encode": ("encode",),
     "decode": ("decode",),
     "merge": ("merge", "apply patch"),
+    # Reading something to report what it *is*, rather than to pull data out
+    # of it: which delimiter, which encoding, which dialect.
+    "detect": ("detect", "sniff", "guess", "identify"),
+    "select": ("select", "pick", "choose", "rename"),
+    "calculate": ("arithmetic", "calculate", "how many days", "business day"),
 }
 
 STOPWORDS = frozenset(

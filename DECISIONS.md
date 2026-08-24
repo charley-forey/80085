@@ -2896,3 +2896,23 @@ is what produced the duplicates in decision 67.
 
 **Undo:** compare `experience.goal_intent` directly again. The dead bonus
 comes back with it.
+
+**Follow-up, once the corpus was fully corroborated.** Twenty-seven of thirty
+capabilities reached `use`. The three that did not -- `csv_select`,
+`csv_dialect_sniff`, `business_days` -- held evidence identical to
+capabilities that did: two organizations, three verified runs. They were held
+back entirely by their names. Each declared a job the normalizer could not
+read (`sniff_csv_dialect`, `business_day_arithmetic`), so no bonus could ever
+reach them, and a capability was left recommending itself as "maybe" because
+of a label rather than because of anything it did.
+
+Three actions closed it: `detect` (detect, sniff, guess, identify), `select`
+(select, pick, choose, rename) and `calculate` (arithmetic, calculate, how
+many days, business day). Nineteen of thirty labels now match. None of the
+three names a conversion, so none can trip the mismatch discount.
+
+The vocabulary tables are the honest place for this: a paraphrase-matching
+system whose vocabulary is missing the word for the job is broken at the
+vocabulary, not at the ranking. Expect to keep adding words -- and to keep
+finding out which are missing by asking production the questions an agent
+would ask, which is how `unpack` was found.
