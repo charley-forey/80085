@@ -33,6 +33,10 @@ FORMATS: dict[str, tuple[str, ...]] = {
     "toml": ("toml",),
     "base64": ("base64", "b64"),
     "archive": ("archive", "tarball", "tar", "zip", "gzip"),
+    "ini": ("ini",),
+    # "json web token" contains "json"; the span-containment rule in _matches
+    # keeps the longer reading, same as jsonl.
+    "jwt": ("jwt", "json web token"),
 }
 
 ACTIONS: dict[str, tuple[str, ...]] = {
@@ -68,6 +72,9 @@ ACTIONS: dict[str, tuple[str, ...]] = {
     "detect": ("detect", "sniff", "guess", "identify"),
     "select": ("select", "pick", "choose", "rename"),
     "calculate": ("arithmetic", "calculate", "how many days", "business day"),
+    # Every action label is also its own alias, so canonical_label is a fixed
+    # point on the labels this table produces.
+    "schedule": ("schedule", "cron", "crontab", "next run", "fire time"),
 }
 
 STOPWORDS = frozenset(

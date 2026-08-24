@@ -1,0 +1,14 @@
+{
+  "header": {
+    "alg": "HS256",
+    "typ": "JWT"
+  },
+  "payload": {
+    "exp": 1516242622,
+    "iat": 1516239022,
+    "name": "Ada Lovelace",
+    "sub": "1234567890"
+  },
+  "signature_bytes": 20,
+  "verified": false
+}

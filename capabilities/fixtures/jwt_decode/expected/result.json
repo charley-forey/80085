@@ -1,0 +1,6 @@
+{
+  "algorithm": "HS256",
+  "claims": 4,
+  "output": "output.json",
+  "sha256": "482d77adc03f76c40ce968897e2a812aa68a82db000dc4590eac8a3ace2e0d87"
+}

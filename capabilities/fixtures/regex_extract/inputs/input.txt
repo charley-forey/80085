@@ -1,0 +1,3 @@
+Contact ada@example.com or grace@navy.mil.
+Not-an-email: foo@bar
+Also ADA@EXAMPLE.COM again.

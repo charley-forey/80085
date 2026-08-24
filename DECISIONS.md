@@ -2916,3 +2916,37 @@ system whose vocabulary is missing the word for the job is broken at the
 vocabulary, not at the ranking. Expect to keep adding words -- and to keep
 finding out which are missing by asking production the questions an agent
 would ask, which is how `unpack` was found.
+
+---
+
+### 69. The corpus grows toward what agents reach for
+
+Six new capabilities, the first growth since the original corpus:
+`html_to_markdown`, `cron_next_runs`, `csv_to_markdown_table`, `ini_to_json`,
+`jwt_decode`, `regex_extract`. Chosen for being things coding agents do
+weekly and get subtly wrong -- cron arithmetic around a weekend, pipes inside
+Markdown table cells, JWT padding -- rather than more format-pair permutations.
+
+Three rules this batch establishes for every capability after it:
+
+* **Stdlib only, same image contract.** Every image is `python:3.13-slim`
+  plus one `main.py`; nothing to pin, nothing to CVE-watch beyond the base.
+* **Labels are born canonical.** Each `goal.intent` equals what `normalize`
+  emits for its own statement, asserted by a test -- so the intent bonus works
+  from the day of recording instead of being revived later (decision 68).
+  Vocabulary grew where needed: `ini` and `jwt` as formats ("json web token"
+  contains "json"; the span-containment rule keeps the longer reading), and
+  `schedule` as an action whose label is its own alias, keeping
+  `canonical_label` a fixed point.
+* **jwt_decode verifies nothing and says so in its goal.** Its output carries
+  `"verified": false`. A decode capability that looked like a verification
+  capability would be the most dangerous artifact in the corpus.
+
+`regex_extract` is the first deliberately *generic* capability: the pattern
+is an input, so one Experience answers a family of tasks. If its evidence
+stays clean it is the template for a jq-like JSON selector next; if it
+attracts garbage runs, that is a finding about generic capabilities worth
+having cheaply.
+
+**Undo:** delete the six directories and manifest entries; nothing else
+references them until they are recorded.

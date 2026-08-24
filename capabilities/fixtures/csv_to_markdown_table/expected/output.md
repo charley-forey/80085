@@ -1,0 +1,5 @@
+| name | role | notes |
+| --- | --- | --- |
+| Ada | engineer | likes \| pipes |
+| Grace | admiral | line break |
+| Alan | logician |  |

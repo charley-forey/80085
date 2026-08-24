@@ -115,3 +115,28 @@ def test_the_corpus_names_jobs_the_normalizer_can_read() -> None:
     # None of them is a conversion, so none can trip the mismatch discount.
     for label in ("detect_csv", "select_csv", "calculate"):
         assert "_to_" not in label
+
+
+def test_the_six_new_capabilities_normalize_to_their_labels() -> None:
+    """Every new goal statement and its declared label meet in one namespace,
+    so the intent bonus works for them from the day they are recorded --
+    unlike the first thirty, where it was dead for twenty-three (decision 68).
+    """
+    from boobs_retrieval.intent import canonical_label
+
+    pairs = {
+        "html_to_markdown": "Convert an HTML document into Markdown, preserving headings",
+        "csv_to_markdown": "Render a CSV file as a Markdown table",
+        "ini_to_json": "Convert an INI configuration file into JSON",
+        "decode_jwt": "Decode a JSON Web Token's header and payload",
+        "schedule": "Compute the next run times of a cron expression",
+        "extract_text": "Extract every match of a regular expression from a text file",
+    }
+    for label, statement in pairs.items():
+        assert normalize(statement).canonical == label, statement
+        assert canonical_label(label) == label, label
+
+    # And the paraphrases agents actually type.
+    assert normalize("turn this html page into markdown").canonical == "html_to_markdown"
+    assert normalize("when does this cron fire next").canonical == "schedule"
+    assert normalize("decode a jwt").canonical == "decode_jwt"

@@ -1,0 +1,14 @@
+{
+  "DEFAULT": {
+    "timeout": "30"
+  },
+  "auth": {
+    "method": "token",
+    "timeout": "30"
+  },
+  "server": {
+    "Host": "api.example.com",
+    "port": "8443",
+    "timeout": "30"
+  }
+}
