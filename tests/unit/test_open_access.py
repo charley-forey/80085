@@ -266,6 +266,20 @@ def test_a_direct_caller_is_their_socket_address() -> None:
     assert client_ip(_request()) == "10.0.0.9"
 
 
+def test_the_bucket_is_the_address_the_edge_vouches_for() -> None:
+    """Railway sets X-Real-IP at the edge and documents it as the client's
+    address. The last X-Forwarded-For entry changed per connection in
+    production, so every limit was per-connection: a caller reconnecting for
+    each request was never limited at all. X-Real-IP wins when present."""
+    assert (
+        client_ip(_request(x_real_ip="198.51.100.4", x_forwarded_for="1.2.3.4, 10.0.0.2"))
+        == "198.51.100.4"
+    )
+    assert (
+        client_ip(_request(x_real_ip="  ", x_forwarded_for="1.2.3.4, 203.0.113.7")) == "203.0.113.7"
+    )
+
+
 # ------------------------------------------------------- minting without asking
 
 # A write needs a key, and there is no signup to send anyone to, so the local

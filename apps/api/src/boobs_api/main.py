@@ -247,7 +247,15 @@ def create_app() -> FastAPI:
             # silently makes the clause unenforceable in practice, because
             # nobody can show a pattern after the fact -- so a breach is a
             # logged event, not just a status code.
-            log.warning("rate_limited", ip=client_ip(request), detail=str(exc))
+            log.warning(
+                "rate_limited",
+                ip=client_ip(request),
+                # Both raw headers, so the next time a bucket looks wrong the
+                # evidence is in the log rather than in a guess.
+                x_real_ip=request.headers.get("x-real-ip"),
+                x_forwarded_for=request.headers.get("x-forwarded-for"),
+                detail=str(exc),
+            )
         return JSONResponse(
             status_code=code, content={"error": type(exc).__name__, "detail": str(exc)}
         )

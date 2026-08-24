@@ -207,14 +207,24 @@ def order(scores: dict[str, float]) -> list[str]:
     return sorted(scores, key=lambda key: scores[key], reverse=True)
 
 
-def relevance_of(lexical_rank: float | None, cosine_similarity: float | None) -> float:
+def relevance_of(
+    lexical_rank: float | None, cosine_similarity: float | None, top_lexical_rank: float = 0.0
+) -> float:
     """How well this candidate actually matches the task, in [0, 1].
 
     Two retrievers disagree about scale, so take the stronger claim rather than
     averaging: a strong lexical hit and a strong semantic hit are each
     sufficient evidence that this is the same task.
+
+    The lexical rank is scaled by the best rank in this query's candidate set
+    once that exceeds LEXICAL_SCALE. A fixed divisor clamped every decent hit
+    to 1.0, so for a goal statement quoted verbatim a dozen neighbours tied
+    with the exact match and it came back twelfth. Only the best lexical hit
+    may score 1.0 on this axis; a query too weak to reach the scale keeps the
+    fixed divisor, so one poor hit does not get promoted to perfect.
     """
-    lexical = min(1.0, (lexical_rank or 0.0) / LEXICAL_SCALE)
+    divisor = max(LEXICAL_SCALE, top_lexical_rank)
+    lexical = min(1.0, (lexical_rank or 0.0) / divisor)
     return max(lexical, cosine_similarity or 0.0)
 
 

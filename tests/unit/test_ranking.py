@@ -125,3 +125,20 @@ def test_corroboration_is_not_usage() -> None:
 def test_rrf_rewards_agreement_between_retrievers() -> None:
     fused = ranking.reciprocal_rank_fusion([["a", "b", "c"], ["c", "a", "b"]])
     assert max(fused, key=lambda key: fused[key]) == "a"
+
+
+def test_only_the_best_lexical_hit_is_perfectly_relevant() -> None:
+    """A verbatim goal statement must not tie with its neighbours.
+
+    ts_rank_cd for any decent hit exceeds LEXICAL_SCALE, and a fixed divisor
+    clamped all of them to 1.0: the exact match ranked twelfth among ties.
+    """
+    best, near, weak = 0.6, 0.36, 0.05
+    assert ranking.relevance_of(best, None, best) == 1.0
+    assert ranking.relevance_of(near, None, best) == 0.6
+    assert ranking.relevance_of(near, None, best) < ranking.relevance_of(best, None, best)
+    # A query too weak to reach the scale keeps the fixed divisor, so a lone
+    # poor hit is not promoted to a perfect one.
+    assert ranking.relevance_of(weak, None, weak) == weak / ranking.LEXICAL_SCALE
+    # The semantic retriever still gets the last word when it is stronger.
+    assert ranking.relevance_of(near, 0.9, best) == 0.9

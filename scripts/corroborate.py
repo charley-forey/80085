@@ -17,6 +17,9 @@ next window when it hits that, or run shards from two hosts:
 
     BOOBS_API_KEY=<consumer> uv run python scripts/corroborate.py --shard 1/2
     BOOBS_API_KEY=<consumer> uv run python scripts/corroborate.py --shard 2/2
+
+`--audit` executes nothing and prints each capability's recommendation,
+confidence, runs and organizations -- the corpus scoreboard.
 """
 
 from __future__ import annotations
@@ -56,7 +59,12 @@ def inputs_for(name: str) -> dict[str, str]:
 
 
 async def run_one(
-    client: httpx.AsyncClient, name: str, statement: str, wait: int, sleep_on_limit: bool
+    client: httpx.AsyncClient,
+    name: str,
+    statement: str,
+    wait: int,
+    sleep_on_limit: bool,
+    audit: bool = False,
 ) -> str:
     found = await find(client, statement)
     if not found:
@@ -66,7 +74,13 @@ async def run_one(
     current = await client.get(f"/v1/experiences/{experience_id}")
     current.raise_for_status()
     evidence = current.json().get("evidence") or {}
-    if int(evidence.get("distinct_organizations") or 0) >= 2:
+    orgs = int(evidence.get("distinct_organizations") or 0)
+    if audit:
+        return (
+            f"{found.get('recommendation', '?'):9} {found.get('confidence', 0):6.1%}  "
+            f"runs={evidence.get('successful_runs', 0)} orgs={orgs}"
+        )
+    if orgs >= 2:
         return f"skip      already corroborated ({found.get('recommendation')})"
 
     inputs = inputs_for(name)
@@ -109,6 +123,9 @@ async def main() -> int:
     parser.add_argument(
         "--no-sleep", action="store_true", help="exit on the rate limit instead of waiting"
     )
+    parser.add_argument(
+        "--audit", action="store_true", help="report recommendation and evidence; execute nothing"
+    )
     args = parser.parse_args()
     if not args.key:
         print("need --key or BOOBS_API_KEY (the consumer organization's key)", file=sys.stderr)
@@ -132,14 +149,21 @@ async def main() -> int:
         for name in names:
             statement = corpus[name]["goal"]["statement"]
             try:
-                line = await run_one(client, name, statement, args.wait, not args.no_sleep)
+                line = await run_one(
+                    client, name, statement, args.wait, not args.no_sleep, args.audit
+                )
             except httpx.HTTPError as exc:
                 line = f"error     {exc}"
-            if not line.startswith(("ok", "skip")):
+            if not line.startswith(("ok", "skip", "use")):
                 failures += 1
             print(f"{name:22} {line}", flush=True)
+            if args.audit:
+                await asyncio.sleep(1.1)  # recall is sixty a minute per address
 
-    print(f"\n{len(names)} attempted, {failures} not ok", flush=True)
+    what = "not yet use" if args.audit else "not ok"
+    print(
+        f"\n{len(names)} {'audited' if args.audit else 'attempted'}, {failures} {what}", flush=True
+    )
     return 1 if failures else 0
 
 

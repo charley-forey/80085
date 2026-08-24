@@ -258,9 +258,12 @@ async def _merge_and_rank(
 
     candidates: list[tuple[float, RecallCandidate]] = []
     best_score = 0.0
+    top_lexical = max(lexical.values(), default=0.0)
     for version, experience, stat in rows:
         compat = compatibility(version, query)
-        relevance = ranking.relevance_of(lexical.get(version.id), vector.get(version.id))
+        relevance = ranking.relevance_of(
+            lexical.get(version.id), vector.get(version.id), top_lexical
+        )
         # An exact intent match is strong evidence that two differently worded
         # tasks are the same task. It raises how well this MATCHES -- it says
         # nothing about whether it WORKS, so it must not touch the evidence.

@@ -177,6 +177,15 @@ def client_ip(request: Request) -> str:
     point take the Nth from the right, N being the number of proxies actually
     run. A direct connection falls back to the socket address.
     """
+    # Railway documents X-Real-IP as "the client's remote IP" and sets it at
+    # the edge. It documents no X-Forwarded-For at all -- and in production the
+    # last entry of that header turned out to change with every connection,
+    # so a caller who opened a new connection per request never hit a limit:
+    # sixty-one keyless recalls on fresh connections, sixty-one 200s. The bucket
+    # was the edge's internal hop, not the caller.
+    real = request.headers.get("x-real-ip", "").strip()
+    if real:
+        return real
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded and forwarded.strip():
         return forwarded.rsplit(",", 1)[-1].strip()

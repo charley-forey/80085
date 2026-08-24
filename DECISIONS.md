@@ -2777,3 +2777,28 @@ the one thing this product must never do to itself.
 
 **Undo:** the script creates only executions, which are evidence and stay.
 Disable the routine at https://claude.ai/code/routines.
+
+---
+
+### 66. Rate limits are keyed on `X-Real-IP`, because the last forwarded hop was the connection
+
+**Found by measuring.** Sixty-one keyless recalls from one machine, each on
+a fresh connection: sixty-one 200s. The same sixty-one on one keep-alive
+connection: a 429 at the sixty-first. The limit was real and the bucket was
+wrong -- the last `X-Forwarded-For` entry, which decision 33 chose so a caller
+could not pick their own bucket, changes with every connection through
+Railway's edge. So every limit in `limits.py` was per-connection, and a
+caller who reconnected per request was never limited at all. Minting is the
+one that matters: five keys an hour was, in practice, unlimited organizations.
+
+Railway's networking specification documents exactly one header for the
+caller's address, `X-Real-IP`, set at the edge. It documents no
+`X-Forwarded-For`. `client_ip` now prefers `X-Real-IP` and keeps the last
+forwarded hop as the fallback for anything not behind Railway. The 429 log
+line now carries both raw headers, so the next wrong bucket is diagnosed
+from a log rather than from an hour of curl.
+
+Verified after deploy the same way it was found: fresh connections, one bucket.
+
+**Undo:** none wanted. If the platform changes, the log line says what it
+sent.
