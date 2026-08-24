@@ -23,9 +23,11 @@ FORMATS: dict[str, tuple[str, ...]] = {
     "image": ("image", "png", "jpeg", "jpg", "scan"),
     "yaml": ("yaml", "yml"),
     "xml": ("xml",),
-    # "json lines" also matches the bare "json" alias above at the same word.
-    # _collapse_compounds keeps the head of the phrase, so the longer label
-    # wins -- which is why the compound aliases are safe to list here.
+    # "json lines" also matches the bare "json" alias above, inside the same
+    # words. _matches drops the reading contained in the longer one, so the
+    # more specific label wins -- which is why these compound aliases are safe
+    # to list here. (The compound collapse below used to be credited with
+    # this and did the opposite: it kept the bare "json".)
     "jsonl": ("jsonl", "ndjson", "json lines", "newline delimited json"),
     "tsv": ("tsv", "tab separated", "tab delimited"),
     "toml": ("toml",),
@@ -108,11 +110,30 @@ COMPOUND_WORD_GAP = 2
 DIRECTION_WORDS = frozenset({"to", "into", "from", "as", "in"})
 
 
+def _alias_pattern(alias: str) -> str:
+    """An alias, matching however its words are joined in real prose.
+
+    A multi-word alias is written both ways: "newline delimited json" and
+    "newline-delimited json" are the same phrase, and the hyphenated spelling
+    is the common one. Escaping the alias whole meant only the spaced form
+    matched, so "convert to newline-delimited json" normalized to `csv_to_json`
+    and every JSONL query was answered with a JSON-array capability.
+    """
+    return r"\b" + r"[\s\-]+".join(re.escape(word) for word in alias.split()) + r"s?\b"
+
+
 def _matches(text: str, table: dict[str, tuple[str, ...]]) -> list[tuple[int, str]]:
     """Earliest word-boundary hit per label, as (word index, label), in order.
 
     Word boundaries matter: a substring search would find "md" inside
     "amd64" and "text" inside "context".
+
+    A label matched *inside* another label's span is the same words counted
+    twice -- "json" sits within "newline-delimited json" -- so the shorter
+    reading is dropped and the more specific format survives. Without this the
+    compound collapse below treated the bare "json" as the head of the phrase
+    and threw the JSONL reading away, which is the opposite of what the
+    comment on FORMATS promises.
     """
     word_at: dict[int, int] = {}
     offset = 0
@@ -120,16 +141,22 @@ def _matches(text: str, table: dict[str, tuple[str, ...]]) -> list[tuple[int, st
         word_at[offset] = index
         offset += len(word) + 1
 
-    hits: list[tuple[int, str]] = []
+    spans: list[tuple[int, int, str]] = []
     for label, aliases in table.items():
-        positions = [
-            match.start()
-            for alias in aliases
-            if (match := re.search(rf"\b{re.escape(alias)}s?\b", text))
-        ]
-        if positions:
-            char = min(positions)
-            hits.append((word_at.get(char, char), label))
+        found = [match for alias in aliases if (match := re.search(_alias_pattern(alias), text))]
+        if found:
+            # Earliest mention, and the longest reading of it.
+            best = min(found, key=lambda match: (match.start(), -(match.end() - match.start())))
+            spans.append((best.start(), best.end(), label))
+
+    hits = [
+        (word_at.get(start, start), label)
+        for start, end, label in spans
+        if not any(
+            other_start <= start and end <= other_end and other_end - other_start > end - start
+            for other_start, other_end, _ in spans
+        )
+    ]
     return sorted(hits)
 
 

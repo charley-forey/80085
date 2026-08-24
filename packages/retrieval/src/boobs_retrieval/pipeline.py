@@ -265,10 +265,11 @@ async def _merge_and_rank(
             lexical.get(version.id), vector.get(version.id), top_lexical
         )
         # An exact intent match is strong evidence that two differently worded
-        # tasks are the same task. It raises how well this MATCHES -- it says
-        # nothing about whether it WORKS, so it must not touch the evidence.
-        if experience.goal_intent == intent:
-            relevance = min(1.0, relevance + ranking.INTENT_MATCH_BONUS)
+        # tasks are the same task, and a disagreement between two specific
+        # conversions is evidence they are not. Either way this raises or
+        # lowers how well this MATCHES -- it says nothing about whether it
+        # WORKS, so it must not touch the evidence.
+        relevance = ranking.intent_relevance(relevance, intent, experience.goal_intent)
         evidence = _evidence(stat)
         signals = ranking.Signals(
             relevance=relevance,

@@ -70,6 +70,16 @@ LEXICAL_SCALE = 0.12
 # the final score: matching the task is not the same as being known to work.
 INTENT_MATCH_BONUS = 0.15
 
+# And the other half of that signal. Two intents that each name a source and a
+# target, and disagree, are positive evidence of a different job -- csv_to_json
+# produces an array, csv_to_jsonl produces a line per record, and an agent that
+# asked for one cannot use the other. A bonus alone could not express this:
+# relevance saturates at 1.0 for near-identical wording, so the exact match
+# tied with a dozen neighbours and lost the tie to whichever had been run more.
+# Only applied when both labels are specific, so a vague query penalizes
+# nothing.
+INTENT_MISMATCH_FACTOR = 0.8
+
 # A run this recent counts as fully fresh; older evidence decays toward zero
 # over STALE_AFTER_DAYS (spec section 24).
 FRESH_HOURS = 24.0
@@ -226,6 +236,24 @@ def relevance_of(
     divisor = max(LEXICAL_SCALE, top_lexical_rank)
     lexical = min(1.0, (lexical_rank or 0.0) / divisor)
     return max(lexical, cosine_similarity or 0.0)
+
+
+def _names_a_conversion(intent: str) -> bool:
+    """Whether a label names both a source and a target, e.g. `csv_to_jsonl`."""
+    return "_to_" in intent
+
+
+def intent_relevance(relevance: float, query_intent: str, candidate_intent: str) -> float:
+    """Adjust how well this candidate MATCHES, given what each side calls the job.
+
+    Never touches evidence: this says whether the task is the same one, not
+    whether the Experience works.
+    """
+    if query_intent == candidate_intent:
+        return min(1.0, relevance + INTENT_MATCH_BONUS)
+    if _names_a_conversion(query_intent) and _names_a_conversion(candidate_intent):
+        return relevance * INTENT_MISMATCH_FACTOR
+    return relevance
 
 
 def score(signals: Signals) -> tuple[float, float]:

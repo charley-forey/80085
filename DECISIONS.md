@@ -2802,3 +2802,54 @@ Verified after deploy the same way it was found: fresh connections, one bucket.
 
 **Undo:** none wanted. If the platform changes, the log line says what it
 sent.
+
+---
+
+### 67. A hyphen was answering every JSONL question with a JSON array
+
+**Found by auditing the corpus.** `corroborate.py --audit` reported
+`csv_to_jsonl` as "not in the live registry" while the Experience plainly
+existed. It was there, at rank twelve, behind twelve copies of
+`csv_to_json` -- for a query that was its own goal statement, quoted
+verbatim. Worse, the exact match scored relevance 0.9527 while candidates
+whose text was *not* the query scored 1.0000.
+
+Three defects, one root:
+
+* **`newline-delimited json` never matched the `jsonl` alias.** Aliases were
+  escaped whole, so only the space-separated spelling matched, and the
+  hyphenated one is the spelling people actually write. Aliases now match
+  across either separator, which also repairs `tab-separated` (tsv) and
+  `comma-separated` (csv) for free.
+* **The compound collapse threw the specific label away.** Even spelled with
+  spaces, `newline delimited json` produced hits for both `jsonl` and the bare
+  `json` inside it, and `_collapse_compounds` kept "the head of the phrase" --
+  the bare `json`. The comment on `FORMATS` claimed the opposite ("the longer
+  label wins -- which is why the compound aliases are safe to list here"),
+  which is how it survived review. A hit contained inside another hit's span
+  is now dropped as the same words read twice, so the specific format wins.
+* **A mismatch had no weight.** With intent fixed the exact match still lost:
+  wording that close saturates relevance at 1.0, so it tied with a dozen
+  neighbours and the tie went to whichever had been run most. An intent
+  *bonus* cannot separate candidates already at the cap. `csv_to_json` and
+  `csv_to_jsonl` are not interchangeable -- one emits an array, the other a
+  line per record -- so two intents that each name a source and a target and
+  disagree now scale relevance by `INTENT_MISMATCH_FACTOR`. Only when both
+  labels are specific: a vague query has said nothing to disagree with.
+
+**Why there were twelve copies.** `scripts/seed.py` called `/v1/bootstrap`,
+which creates a *new* organization every call, then recorded the whole corpus
+under it. Every re-seed of the live deployment duplicated everything. Seeding
+now reuses `BOOBS_PRODUCER_KEY`/`BOOBS_CONSUMER_KEY` when they are set and
+skips any goal statement already live. Recording itself stays non-idempotent
+on purpose: two organizations solving one problem their own way is the
+product. A seeder doing it by accident is not.
+
+The duplicates already in production are left alone. They are real
+Experiences with real evidence, `quarantine` is an admin write, and deleting
+another organization's contribution to tidy a ranking is a bad habit for this
+system to learn. The ranking change is what stops them crowding out the right
+answer.
+
+**Undo:** `INTENT_MISMATCH_FACTOR = 1.0` disables the discriminator without
+touching the intent repair, which is a bug fix and should stay either way.

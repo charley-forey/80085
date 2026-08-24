@@ -142,3 +142,27 @@ def test_only_the_best_lexical_hit_is_perfectly_relevant() -> None:
     assert ranking.relevance_of(weak, None, weak) == weak / ranking.LEXICAL_SCALE
     # The semantic retriever still gets the last word when it is stronger.
     assert ranking.relevance_of(near, 0.9, best) == 0.9
+
+
+def test_a_different_conversion_is_a_different_job() -> None:
+    """csv_to_json and csv_to_jsonl are not interchangeable.
+
+    In production a JSONL query returned twelve JSON-array Experiences above
+    the JSONL one: wording that close saturates relevance at 1.0, so the exact
+    match tied and then lost the tie to whichever neighbour had been run most.
+    A bonus cannot separate candidates that are already at the cap; only
+    lowering the mismatched ones can.
+    """
+    assert ranking.intent_relevance(0.95, "csv_to_jsonl", "csv_to_jsonl") == 1.0
+    mismatched = ranking.intent_relevance(1.0, "csv_to_jsonl", "csv_to_json")
+    assert mismatched == ranking.INTENT_MISMATCH_FACTOR
+    assert mismatched < ranking.intent_relevance(0.95, "csv_to_jsonl", "csv_to_jsonl")
+
+
+def test_a_vague_query_penalizes_nothing() -> None:
+    """Only two *specific* conversions can disagree. A query that named no
+    direction has said nothing to disagree with, and an Experience recorded
+    without one must not be pushed down for it."""
+    assert ranking.intent_relevance(0.9, "unknown", "csv_to_json") == 0.9
+    assert ranking.intent_relevance(0.9, "csv_to_json", "unknown") == 0.9
+    assert ranking.intent_relevance(0.9, "validate_json", "csv_to_json") == 0.9

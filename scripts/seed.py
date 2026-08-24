@@ -29,13 +29,46 @@ API = os.environ.get("BOOBS_API_URL", "http://localhost:8000")
 BOOTSTRAP = os.environ.get("BOOBS_BOOTSTRAP_TOKEN", "dev-bootstrap-change-me")
 
 
-async def bootstrap(client: httpx.AsyncClient, organization: str, agent: str) -> str:
+async def bootstrap(client: httpx.AsyncClient, organization: str, agent: str, env: str) -> str:
+    """The organization's key: an existing one if you have it, or a new one.
+
+    `/v1/bootstrap` creates a *new* organization on every call, so seeding a
+    live deployment twice used to duplicate the entire corpus under a second
+    identity -- production ended up holding thirteen copies of one capability,
+    which crowded the exact match for a task out of its own top ten. Pass
+    BOOBS_PRODUCER_KEY and BOOBS_CONSUMER_KEY to seed as the organizations
+    that already exist.
+    """
+    existing = os.environ.get(env, "").strip()
+    if existing:
+        print(f"reusing {organization} from {env}")
+        return existing
     response = await client.post(
         "/v1/bootstrap",
         json={"organization": organization, "agent": agent, "token": BOOTSTRAP},
     )
     response.raise_for_status()
     return str(response.json()["api_key"])
+
+
+async def already_recorded(client: httpx.AsyncClient, key: str, statement: str) -> str | None:
+    """The id of a live Experience with exactly this goal, if there is one.
+
+    Recording is not idempotent -- and should not be, because two organizations
+    solving the same problem their own way is the point. Re-running the seeder
+    is a different thing, and this is what keeps it from being a contribution.
+    """
+    response = await client.post(
+        "/v1/experiences/recall",
+        headers={"Authorization": f"Bearer {key}"},
+        json={"task": statement, "limit": 20},
+    )
+    if response.status_code != 200:
+        return None
+    for match in response.json().get("matches", []):
+        if match.get("goal") == statement:
+            return str(match["experience_id"])
+    return None
 
 
 async def main() -> int:
@@ -47,14 +80,19 @@ async def main() -> int:
     corpus: dict[str, dict[str, Any]] = manifest["capabilities"]
 
     async with httpx.AsyncClient(base_url=API, timeout=60.0) as client:
-        producer_key = await bootstrap(client, "acme-research", "agent-a")
-        consumer_key = await bootstrap(client, "globex-labs", "agent-b")
+        producer_key = await bootstrap(client, "acme-research", "agent-a", "BOOBS_PRODUCER_KEY")
+        consumer_key = await bootstrap(client, "globex-labs", "agent-b", "BOOBS_CONSUMER_KEY")
 
         recorded = []
         for name, spec in corpus.items():
             reference = digests.get(name)
             if not reference:
                 print(f"skipping {name}: not built")
+                continue
+            existing = await already_recorded(client, producer_key, spec["goal"]["statement"])
+            if existing:
+                print(f"skipping {name}: already recorded as {existing}")
+                recorded.append((name, existing))
                 continue
             response = await client.post(
                 "/v1/experiences",
