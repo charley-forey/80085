@@ -2853,3 +2853,37 @@ answer.
 
 **Undo:** `INTENT_MISMATCH_FACTOR = 1.0` disables the discriminator without
 touching the intent repair, which is a bug fix and should stay either way.
+
+---
+
+### 68. A recorded intent and a query intent were in different namespaces
+
+**Found while explaining a `consider`.** The corpus declares `csv_validate`,
+`json_diff`, `archive_extract`. `normalize` emits `validate_csv`, `diff_json`,
+`extract_archive` -- the same concepts with the words the other way round.
+The comparison in the pipeline is literal, so the intent-match bonus fired for
+**seven of thirty** capabilities. That bonus is the entire mechanism by which
+a paraphrased task finds the right Experience, which is the product's central
+claim; for twenty-three capabilities it had never once applied.
+
+`canonical_label` reads a recorded label through the same normalizer a query
+goes through, so both sides land in one namespace. Sixteen of thirty match
+now. It is idempotent on anything `normalize` produced -- which is exactly
+what a label recorded without an explicit intent already is -- so nothing
+stored has to change and no row is rewritten.
+
+"unknown" is excluded from matching in both directions. Nine labels are
+unreadable to the normalizer (`business_day_arithmetic`, `sniff_csv_dialect`),
+and without the guard they would all have started matching each other and
+every unreadable query, handing +0.15 to the vaguest pairs in the corpus.
+Those nine stay at `consider` on their own evidence, which is the honest
+outcome: the fix revives a signal, it does not invent one.
+
+**Left alone:** the manifest's labels themselves. Rewriting them to the
+normalizer's word order would only affect newly recorded Experiences -- the
+stored `goal_intent` of everything already live would keep the old spelling --
+so it would be churn that fixes nothing until a re-record, and re-recording
+is what produced the duplicates in decision 67.
+
+**Undo:** compare `experience.goal_intent` directly again. The dead bonus
+comes back with it.

@@ -180,6 +180,26 @@ def _collapse_compounds(hits: list[tuple[int, str]], words: list[str]) -> list[t
     return collapsed
 
 
+UNKNOWN = "unknown"
+
+
+def canonical_label(label: str) -> str:
+    """Put a recorded intent label into the namespace queries are normalized to.
+
+    A recorder may name the job whatever it likes, and it does: the corpus
+    declares `csv_validate` and `json_diff` while `normalize` emits
+    `validate_csv` and `diff_json`. Same concept, opposite word order, and the
+    comparison is literal -- so the intent bonus, which exists so a paraphrase
+    finds the right Experience, was dead for twenty-three of thirty
+    capabilities. Reading both sides through the same normalizer revives it
+    without touching a single stored row.
+
+    Idempotent on anything `normalize` produces, which is what a label recorded
+    without an explicit intent already is.
+    """
+    return normalize(label.replace("_", " ")).canonical
+
+
 def normalize(task: str) -> Intent:
     text = re.sub(r"[^a-z0-9\s\-/.]+", " ", task.lower())
     text = re.sub(r"\s+", " ", text).strip()

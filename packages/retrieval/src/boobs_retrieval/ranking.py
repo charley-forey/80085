@@ -16,6 +16,7 @@ from datetime import datetime
 from boobs_common.clock import now
 from boobs_common.config import settings
 from boobs_domain.enums import Compatibility, Recommendation, VerificationLevel
+from boobs_retrieval.intent import UNKNOWN
 
 # Quality weights. These describe how *good* a match is once we already know
 # it is the right kind of thing; relevance is applied separately, as a gate.
@@ -248,8 +249,14 @@ def intent_relevance(relevance: float, query_intent: str, candidate_intent: str)
 
     Never touches evidence: this says whether the task is the same one, not
     whether the Experience works.
+
+    Both labels arrive canonicalized, so `csv_validate` and `validate_csv` are
+    the same label by the time they get here. "unknown" is excluded from
+    matching in both directions: two tasks the normalizer could not read are
+    not thereby the same task, and rewarding that would hand the bonus to
+    every vague pair in the corpus.
     """
-    if query_intent == candidate_intent:
+    if query_intent == candidate_intent and query_intent != UNKNOWN:
         return min(1.0, relevance + INTENT_MATCH_BONUS)
     if _names_a_conversion(query_intent) and _names_a_conversion(candidate_intent):
         return relevance * INTENT_MISMATCH_FACTOR

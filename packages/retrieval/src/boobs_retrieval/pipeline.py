@@ -21,7 +21,7 @@ from boobs_domain.protocols import Principal, RecallQuery
 from boobs_observability import counter, tracer
 from boobs_retrieval import ranking
 from boobs_retrieval.embedding import Embedder, embed_in_thread, embedder
-from boobs_retrieval.intent import Intent, normalize
+from boobs_retrieval.intent import Intent, canonical_label, normalize
 from boobs_schemas.tables import ExecutionStat, Experience, ExperienceVersion
 
 CANDIDATE_POOL = 50
@@ -269,7 +269,9 @@ async def _merge_and_rank(
         # conversions is evidence they are not. Either way this raises or
         # lowers how well this MATCHES -- it says nothing about whether it
         # WORKS, so it must not touch the evidence.
-        relevance = ranking.intent_relevance(relevance, intent, experience.goal_intent)
+        relevance = ranking.intent_relevance(
+            relevance, intent, canonical_label(experience.goal_intent)
+        )
         evidence = _evidence(stat)
         signals = ranking.Signals(
             relevance=relevance,

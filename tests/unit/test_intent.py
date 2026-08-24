@@ -53,3 +53,26 @@ def test_compound_format_words_do_not_swallow_a_real_direction() -> None:
     """The compound rule must not merge "pdf to json" into a single format."""
     assert normalize("convert pdf to json").canonical == "pdf_to_json"
     assert normalize("render markdown to pdf").canonical == "markdown_to_pdf"
+
+
+def test_a_recorded_label_is_read_in_the_same_namespace_as_a_query() -> None:
+    """The corpus declares `csv_validate`; `normalize` emits `validate_csv`.
+
+    The comparison is literal, so the intent bonus -- the whole mechanism for
+    letting a paraphrase find the right Experience -- was dead for twenty-three
+    of thirty capabilities. Both sides go through the normalizer now.
+    """
+    from boobs_retrieval.intent import canonical_label
+
+    assert canonical_label("csv_validate") == normalize("validate a CSV file").canonical
+    assert canonical_label("json_diff") == normalize("diff two json documents").canonical
+    assert canonical_label("archive_extract") == normalize("extract a tarball").canonical
+
+    # Idempotent on whatever normalize itself produced, which is what a label
+    # recorded without an explicit intent already is.
+    for label in ("csv_to_json", "validate_csv", "extract", "unknown"):
+        assert canonical_label(label) == label
+
+    # A label the normalizer cannot read stays unreadable rather than becoming
+    # a wildcard that matches every other unreadable one.
+    assert canonical_label("business_day_arithmetic") == "unknown"
