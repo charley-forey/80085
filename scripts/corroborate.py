@@ -42,8 +42,14 @@ FIXTURES = ROOT / "capabilities" / "fixtures"
 
 
 async def find(client: httpx.AsyncClient, statement: str) -> dict[str, Any] | None:
-    """The live Experience whose goal is exactly this statement, or None."""
-    response = await client.post("/v1/experiences/recall", json={"task": statement, "limit": 10})
+    """The live Experience whose goal is exactly this statement, or None.
+
+    Asks for the maximum the API allows. At ten this reported `csv_to_jsonl`
+    as missing while it sat at rank twelve behind duplicates, and "missing"
+    from a seeder is an instruction to record it again -- which is one more
+    duplicate. A lookup that fails open must fail wide first.
+    """
+    response = await client.post("/v1/experiences/recall", json={"task": statement, "limit": 20})
     response.raise_for_status()
     for match in response.json().get("matches", []):
         if match.get("goal") == statement:
