@@ -37,7 +37,22 @@ FORMATS: dict[str, tuple[str, ...]] = {
 
 ACTIONS: dict[str, tuple[str, ...]] = {
     "convert": ("convert", "transform", "turn into", "render", "export", "translate"),
-    "extract": ("extract", "parse", "pull out", "scrape", "read", "ocr"),
+    # "unpack"/"untar"/"unzip" are what people call extracting an archive, and
+    # without them "unpack a tarball" read as no action at all: the query fell
+    # back to `unknown`, no intent bonus reached the extractor, and the
+    # *archive creator* outranked it by a thousandth of a point.
+    "extract": (
+        "extract",
+        "parse",
+        "pull out",
+        "scrape",
+        "read",
+        "ocr",
+        "unpack",
+        "untar",
+        "unzip",
+        "decompress",
+    ),
     "validate": ("validate", "check", "verify", "lint", "conform"),
     "test": ("run tests", "test suite", "pytest", "unit test"),
     "repair": ("repair", "fix", "resolve", "correct"),

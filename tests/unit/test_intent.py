@@ -76,3 +76,18 @@ def test_a_recorded_label_is_read_in_the_same_namespace_as_a_query() -> None:
     # A label the normalizer cannot read stays unreadable rather than becoming
     # a wildcard that matches every other unreadable one.
     assert canonical_label("business_day_arithmetic") == "unknown"
+
+
+def test_unpacking_an_archive_is_extracting_it() -> None:
+    """ "unpack a tarball" named no action, so the query fell back to `unknown`,
+    no intent bonus reached the extractor, and in production the archive
+    *creator* came back above it -- both scored low enough to read `avoid`."""
+    from boobs_retrieval.intent import canonical_label
+
+    assert normalize("unpack a tarball").canonical == "extract_archive"
+    assert normalize("untar this archive").canonical == "extract_archive"
+    assert normalize("unpack a tarball").canonical == canonical_label("archive_extract")
+
+    # "zip" hides inside "unzip"; a word-boundary search must not read the
+    # verb as the format it operates on.
+    assert normalize("unzip the file").source_format is None
