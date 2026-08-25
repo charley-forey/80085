@@ -32,7 +32,7 @@ actively want it:
 
 - "compatible with 80085.ai", "an 80085.ai client", "built on 80085.ai"
 - linking to us, writing about us, reviewing us, criticising us
-- the unmodified package names `@80085/cli`, `80085-mcp` when redistributing the
+- the unmodified package names `@80085-ai/cli`, `80085-mcp` when redistributing the
   software unmodified under ELv2
 - academic and journalistic reference
 

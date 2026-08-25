@@ -1,5 +1,5 @@
 {
-  "name": "@80085/cli",
+  "name": "@80085-ai/cli",
   "version": "0.1.0",
   "description": "Wire the 80085 shared brain into your AI agent. One command, no signup.",
   "type": "module",

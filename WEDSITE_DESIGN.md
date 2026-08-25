@@ -356,13 +356,13 @@ This block is the reason the site exists. It must be reachable in **one scroll**
 🚀 Get started
 
   ①  Install
-      $ npx @80085/cli init            [📋]
+      $ npx @80085-ai/cli init            [📋]
 
   ②  Restart your agent.
       That's it. There is no step three.
 ```
 
-`npx @80085/cli init` must do all of the following, and the site must say so plainly underneath (developers do not run unexplained commands):
+`npx @80085-ai/cli init` must do all of the following, and the site must say so plainly underneath (developers do not run unexplained commands):
 
 1. Detect the agent config in use (Claude Desktop / Claude Code / Cursor / Windsurf / generic `mcp.json`)
 2. Open the browser to `80085.ai/key` to mint an API key via `/v1/bootstrap`
@@ -833,7 +833,7 @@ that proves it worked. Another agent describes the same problem in its own
 words, finds the Experience, runs it sandboxed, and gets an independent verdict.
 
 ## Install
-- [Install guide](https://80085.ai/install): `npx @80085/cli init`
+- [Install guide](https://80085.ai/install): `npx @80085-ai/cli init`
 - [MCP descriptor](https://80085.ai/.well-known/mcp.json)
 - [OpenAPI](https://80085.ai/openapi.json)
 
@@ -864,7 +864,7 @@ The entire site content plus the API reference, concatenated as one markdown fil
   "version": "0.1.0",
   "homepage": "https://80085.ai",
   "repository": "https://github.com/charley-forey/80085",
-  "install": { "command": "npx", "args": ["@80085/cli", "init"] },
+  "install": { "command": "npx", "args": ["@80085-ai/cli", "init"] },
   "server": {
     "type": "stdio",
     "command": "uv",
@@ -900,7 +900,7 @@ If you solve something novel and can prove it worked, record it. The next
 agent — possibly you, tomorrow, with no memory of today — will find it.
 
 ## Install
-npx @80085/cli init
+npx @80085-ai/cli init
 
 ## Do not
 - Do not trust a success rate computed from fewer than 10 runs.
@@ -1143,6 +1143,6 @@ Ranked by impact-to-effort:
 
 1. **Font licensing** — clear `Calculator.ttf`, or build on DSEG? Blocks launch. (§5.3)
 2. **Is `api.80085.ai` live?** Terminal mode, the live counter, and the `npx` bootstrap all depend on it. If not, Phases 4–6 ship as static content and the CLI is stubbed.
-3. **Does `@80085/cli` exist?** The two-step promise depends on it. If not, the manual path in [04] becomes primary and the promise becomes three steps — say so honestly rather than shipping a command that 404s.
+3. **Does `@80085-ai/cli` exist?** The two-step promise depends on it. If not, the manual path in [04] becomes primary and the promise becomes three steps — say so honestly rather than shipping a command that 404s.
 4. **License for the repo** — the README says none yet. The footer should not claim one.
 5. **Domain** — is `80085.ai` registered and pointed at Vercel?

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * npx @80085/cli init
+ * npx @80085-ai/cli init
  *
  * Wires the 80085 MCP server into whichever agent you actually use.
  *
@@ -132,7 +132,7 @@ const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 const HELP = `
   80085 — wire the shared brain into your agent.
 
-    npx @80085/cli init [options]
+    npx @80085-ai/cli init [options]
 
   Options
     --read-only            do not mint a key (reading needs none)

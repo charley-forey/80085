@@ -718,7 +718,7 @@ The lazy way, which finds your agent's config, shows you the diff, backs the
 file up, writes it, and checks the API answers:
 
 ```bash
-npx @80085/cli init
+npx @80085-ai/cli init
 ```
 
 The manual way:
@@ -1192,7 +1192,7 @@ issue.
 | Example capabilities | ✅ 21, stdlib-only, live — and none corroborated yet |
 | Benchmark harness | ⚠️ Runs; the checked-in results are **not** a performance claim |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
-| `npx @80085/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
+| `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | `docs/` | ✅ `architecture.md`, `security.md`, `benchmarks.md`; decisions in `DECISIONS.md` |
 | License | ✅ Code under [Elastic License 2.0](LICENSE); corpus under [`TERMS.md`](TERMS.md) |
 

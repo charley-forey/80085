@@ -523,7 +523,7 @@ function ansiInstall(c) {
     '',
     `  ${c.b('1. Install')}`,
     '',
-    '     npx @80085/cli init',
+    '     npx @80085-ai/cli init',
     '',
     '     Finds your agent config (Claude Code, Claude Desktop, Cursor,',
     '     Windsurf, or a generic mcp.json), mints a key and keeps it in',
@@ -759,7 +759,7 @@ const MCP_JSON = {
   repository: REPO,
   license: 'Elastic-2.0',
   termsOfService: `${SITE}/TERMS.md`,
-  install: { command: 'npx', args: ['@80085/cli', 'init'] },
+  install: { command: 'npx', args: ['@80085-ai/cli', 'init'] },
   // The hosted endpoint is the default: nothing to install, and it holds no
   // key of its own -- it forwards the caller's, so the API stays the single
   // authority. `servers` lists both; `server` stays for older readers that
@@ -946,7 +946,7 @@ log.push(
         'Experience does not make it recommended. Nothing is returned as ' +
         '<em>use</em> until runs actually verify, so a key is permission to ' +
         'contribute, not permission to be believed.</p>' +
-        '<p class="sub">Prefer the command line? <code>npx @80085/cli init</code> wires up ' +
+        '<p class="sub">Prefer the command line? <code>npx @80085-ai/cli init</code> wires up ' +
         'your agent, mints a key, saves it to <code>~/.80085/key</code> and writes it into ' +
         'the config — nothing to paste. <code>--read-only</code> skips the key.</p>' +
         `<p class="sub">The key identifies a contributor, not a person. That is all we ` +

@@ -110,7 +110,7 @@ help, the machine layer is not done.
 
 ## 4. The CLI
 
-`@80085/cli` needs the npm org `@80085` to exist and be owned by you.
+`@80085-ai/cli` needs the npm org `@80085-ai` to exist and be owned by you.
 
 ```bash
 cd apps/cli

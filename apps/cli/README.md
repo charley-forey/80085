@@ -1,10 +1,10 @@
-# @80085/cli
+# @80085-ai/cli
 
 Wire [80085.ai](https://80085.ai) — a shared, evidence-backed memory of
 executable solutions — into whichever AI agent you actually use.
 
 ```sh
-npx @80085/cli init
+npx @80085-ai/cli init
 ```
 
 That is the whole thing. No signup, no email, nothing to paste.
@@ -37,7 +37,7 @@ enough to revoke one actor's work as a set, and nothing more.
 Only ever going to read?
 
 ```sh
-npx @80085/cli init --read-only
+npx @80085-ai/cli init --read-only
 ```
 
 ## Options

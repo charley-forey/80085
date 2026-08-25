@@ -2703,7 +2703,7 @@ Three changes, one theme — a visitor should never handle the key:
   `--header`, the config gains `headers`, the local-process block gains
   `BOOBS_API_KEY`. What they copy next already carries it. `/key` is the same
   widget (`key.js`, by class: the homepage has it twice, once per flip state).
-* **`npx @80085/cli init` mints by default** and keeps the key in
+* **`npx @80085-ai/cli init` mints by default** and keeps the key in
   `~/.80085/key`, so a second run for another client reuses it instead of
   minting a stranger. `--read-only` opts out; `--contribute` is gone.
 
@@ -2723,8 +2723,8 @@ copied. `links.test.js` holds both.
 `www.80085.ai`, which the Vercel project owns. `curl 80085.ai/recall?q=...`
 — the line the page tells people to try — returns a redirect page, because
 curl does not follow redirects unasked. The canonical URL is the apex; the
-Vercel domain setting has it backwards. And `@80085/cli` is not on npm, so
-`npx @80085/cli init` fails for everyone until the `@80085` org exists and
+Vercel domain setting has it backwards. And `@80085-ai/cli` is not on npm, so
+`npx @80085-ai/cli init` fails for everyone until the `@80085` org exists and
 `npm publish` has run from `apps/cli`.
 
 **Undo:** revert the CLI default and the middleware; keep the tests that
