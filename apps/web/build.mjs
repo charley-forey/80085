@@ -39,7 +39,11 @@ import { readout } from './seg.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'public');
 const SITE = 'https://80085.ai';
-const GA_ID = 'G-Y9YKCK5WQV';
+/* The GA4 measurement ID. It reaches the browser in two places that have to
+ * agree -- the googletagmanager loader in each page <head> and the `config`
+ * call in boot.js -- so it lives here once and analytics.test.js asserts the
+ * built output still matches. Changing property means changing this line. */
+const GA_ID = 'G-KBY6VGNJK8';
 
 const write = (rel, body) => {
   const path = join(OUT, rel);
