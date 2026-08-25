@@ -16,8 +16,9 @@ Either way `api.80085.ai` stays on Railway.
 
 ## 1. DNS — at the registrar
 
-`80085.ai` is registered but currently parked (it serves a 114-byte redirect to
-`/lander`). Replace the parking records with these.
+`80085.ai` and `www.80085.ai` resolve to Vercel today, and `api` and `mcp` to
+Railway; DNS-SETUP.md records exactly what is in GoDaddy. The table below is
+what a fresh environment needs.
 
 | Host  | Type  | Value                     | For                        |
 | ----- | ----- | ------------------------- | -------------------------- |
@@ -46,14 +47,28 @@ curl -s https://80085.ai | head -5          # the seven-segment wordmark
 ```
 
 
-## 2. Vercel — connect GitHub first
+## 2. Vercel — which project is the site
 
-Creating the project over the API failed: it reports success, then every read
-of the project 404s. The cause is that **Vercel has no GitHub connection on
-this account**, so the git link cannot be established.
+GitHub is connected and `charley-forey/80085` is imported. Creating the project
+over the API had failed before that connection existed, and it left a second
+project behind: **two** projects are now linked to this repo, both with Root
+Directory `apps/web`, so every push builds twice.
 
-Two orphaned project records may exist from those attempts, `80085` and
-`80085-ai`. Delete whichever show up before creating the real one.
+| Project    | Domains                    | Role                              |
+| ---------- | -------------------------- | --------------------------------- |
+| `80085`    | `80085.ai`, `www.80085.ai` | production — this is the live site |
+| `80085-ai` | none                       | leftover from the API attempts     |
+
+**`80085` is the one that serves the site. Do not delete it.** An earlier
+version of this section said to delete both and create a fresh project; that
+was written when neither worked, and following it now would take the site down
+and release the domains.
+
+`80085-ai` holds no domain, so nothing resolves to it and it only costs a
+duplicate build per push. Delete it from **Settings → Advanced → Delete
+Project** once its Domains tab reads empty.
+
+Setting one up from scratch, if the environment is ever rebuilt:
 
 1. Vercel dashboard → **Settings → Git → Connect GitHub**, and grant access to
    `charley-forey/80085`.
@@ -107,6 +122,20 @@ JavaScript disabled.
 The real test, from §19: point a fresh agent at the preview with no other
 context and ask it to install the MCP server. If it cannot succeed without
 help, the machine layer is not done.
+
+Once promoted, run the same matrix against production, plus the analytics tag
+— it is the one thing on the page that fails silently, because a wrong or
+stale measurement ID still builds, still deploys and still renders:
+
+```bash
+curl -sL https://80085.ai/boot.js | grep -o 'G-[A-Z0-9]*'   # expect G-KBY6VGNJK8
+curl -sI https://80085.ai | grep -i '^location'             # should be empty; see below
+```
+
+`analytics.test.js` holds the build side of that tag (loader, config, CSP and
+cache headers); the `curl` is what proves the deploy carried it. Note that
+`boot.js` is served `max-age=3600`, so a browser that visited within the hour
+keeps the previous ID — hard-reload before concluding the tag is broken.
 
 ## 4. The CLI
 
