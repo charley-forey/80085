@@ -142,10 +142,12 @@ class Counters:
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if str(statement).lstrip().startswith("SELECT"):  # reading the previous window
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
@@ -158,6 +160,19 @@ async def test_a_window_allows_up_to_the_limit_then_refuses() -> None:
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
     with pytest.raises(RateLimited):
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
+
+
+async def test_a_boundary_cannot_double_the_limit() -> None:
+    """A fixed window resets to 0 at the boundary, so a caller who fills a
+    window right before it closes and again right after gets up to 2x the
+    limit for the two hits either side of it. Weighting the previous window's
+    count by how far into the current one we are closes that."""
+    window, db = Window(limit=3, seconds=60, what="testing"), Counters()
+    key = "1.2.3.4"
+    for now in (1, 20, 59):  # fills the window ending at t=60
+        await window.check(db, key, now=now)
+    with pytest.raises(RateLimited):  # an instant into the next window
+        await window.check(db, key, now=60.001)
 
 
 async def test_callers_are_limited_separately() -> None:
