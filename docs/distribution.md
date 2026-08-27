@@ -15,14 +15,26 @@ is the most persuasive thing the project has.
 
 Every registry, list and launch below is a variation on the same sentence:
 
-> Agents rediscover the same solutions forever. This one remembers — and it
-> will not tell you a solution is proven until someone other than its author
-> has proven it. Ours are not proven. Here is the code that stops us cheating.
+> Your agent will confidently tell you the last business day of December 2021
+> was the 31st. It was the 30th. It will not crash, it will not flag it, and
+> you will ship it. This registry remembers the edge cases somebody already
+> paid to discover — and it will not call one proven until someone other than
+> its author has proven it. Ours are not proven yet.
 
 Nobody is short of AI tools. Everybody is short of AI tools that say what they
 do not know. That is the wedge, and it is why the launch order is proof first
 and reach second — reach spends credibility, and there is only one first
 impression per channel.
+
+**Do not pitch speed.** `agent.py` measured it and 80085 lost: on conversion
+tasks it costs 3.6x–5.8x more input tokens than letting the agent write the
+code. That is a real finding about where this belongs, not a flaw to hide, and
+publishing it is what makes the correctness claim believable. Anyone who
+benchmarks us will find it in a morning; better they find we published it.
+
+The claim that survives contact with a benchmark is correctness, and it has the
+useful property of *not eroding as models improve*: a better model closes the
+speed gap and cannot deduce a fact about the 2021 US holiday calendar.
 
 ## Sequence
 

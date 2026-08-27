@@ -3005,3 +3005,59 @@ gate. The corpus is worth less this week and the gate is worth having.
 
 **Undo:** unset `EVIDENCE_FIRST_PARTY_ORGANIZATIONS`; the next evidence job
 restores the previous counts exactly, because no row was changed.
+
+---
+
+### 71. The benchmark said the product loses, and the product changed shape
+
+`agent.py` ran for the first time. Medians of three on `claude-opus-5`, prompt
+caching on for both arms, every arm verified — 18 for 18, so the reuse path is
+correct and complete. And on all three tasks the treatment arm cost **3.6x to
+5.8x more input tokens** than an agent with a `bash` tool and no registry, with
+no reliable speed benefit either way.
+
+Two readings were made of these numbers before the honest one. Both are
+recorded because the second was made by the same process that caught the first:
+
+* **"~20k flat entry fee, the MCP tool descriptions are too long."** Measured:
+  the toolset is 2,819 tokens, `recall` returns 1,491, `execute` returns 512.
+  About 4,800 tokens of unique content re-billed across every turn of the agent
+  loop. The fix implied was prompt caching, not shorter docstrings — so the
+  harness now caches for both arms or neither, and reports cache reads at 0.1x
+  and writes at 1.25x rather than folding them in at full price.
+* **"80085 wins once deriving costs more than ~20k tokens."** Withdrawn. The
+  same arm on the same task took 34.4s, 65.6s and 88.7s across three runs. The
+  variance swamps the effect at three repeats, and the threshold was
+  pattern-matching on noise.
+
+What survives is monotone across every run and both cache modes: treatment is
+never cheaper, and nothing about time is measurable at this sample size.
+
+**Why it loses is the useful part.** `csv_to_json`, `json_to_csv` and
+`json_validate` are all tasks where the naive implementation is *right*. An
+agent writes `csv.DictReader` and it works the first time. There is nothing to
+inherit, so carrying a registry to fetch it is pure overhead — correctly so.
+The corpus is 36 capabilities weighted toward exactly that band.
+
+So the claim changes. Not "the same answer, faster", which is contingent on
+task difficulty, harness design and caching, and which a better model erodes.
+Instead: **an answer the agent would have gotten wrong**, which is what
+`correctness.py` already measures — `csv.Sniffer` answering `'\r'` for a German
+export, `2021-12-31` for a last business day that was the 30th. A better model
+closes a speed gap and cannot deduce the 2021 US holiday calendar. The
+correctness claim does not erode; the speed claim does.
+
+Consequences, in order:
+
+* New capabilities need a documented case where the obvious implementation
+  returns a *plausible wrong answer*. Decision 69 preferred this; the benchmark
+  makes it the rule.
+* The next extension of `agent.py` is the four `correctness.py` capabilities,
+  scored on **pass rate, not time** — binary, and needs few repeats where
+  timing at this variance would need far more than it is worth.
+* `docs/distribution.md` leads with the wrong answer, not the install command,
+  and states the negative result rather than waiting to be caught holding it.
+
+**Undo:** nothing to undo. The numbers are in `results-agent.json`, which is
+gitignored, because a benchmark result is a property of the machine and the
+model that ran it.

@@ -461,7 +461,7 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
         )
     )
 
-    await _grade(db, experience_version_id, state)
+    await _grade(db, experience_version_id, state, distinct_organizations)
 
     return (
         await db.execute(_STAT.where(ExecutionStat.experience_version_id == experience_version_id))
@@ -540,8 +540,18 @@ def recovered(recent: list[tuple[datetime, bool]]) -> bool:
     return failures / len(recent) <= RELEASE_AT
 
 
-async def _grade(db: AsyncSession, experience_version_id: str, state: _Evidence) -> None:
+async def _grade(
+    db: AsyncSession, experience_version_id: str, state: _Evidence, organizations: int
+) -> None:
     """Move the Experience's status to match what its current version's runs say.
+
+    `organizations` is the *independent* count that `recompute` just stored, not
+    `len(state.organizations)`. Grading off the raw set was how this first
+    shipped, and it left the two halves of one decision disagreeing: recall
+    said `consider` from the collapsed count while `status` still said
+    `verified` from the raw one. `verified` is a claim that somebody else
+    proved it, so reading it off a number that counts one party twice is the
+    exact claim decision 70 exists to stop making.
 
     Both directions live here because they are one decision, and splitting them
     is how a corpus ends up able to promote and not demote -- which is what
@@ -583,8 +593,10 @@ async def _grade(db: AsyncSession, experience_version_id: str, state: _Evidence)
             )
             return
 
-    if state.successful and corroborated(len(state.organizations)):
+    if state.successful and corroborated(organizations):
         _promote(experience, state.level, state.last_verified)
+    else:
+        _withdraw(experience)
 
 
 def quarantine(experience: Experience, reason: str, by: str, manual: bool) -> None:
@@ -632,6 +644,30 @@ def _promote(
     experience.status = ExperienceStatus.VERIFIED
     experience.verification_level = level
     experience.updated_at = last_verified or now()
+
+
+def _withdraw(experience: Experience) -> None:
+    """Take back `verified` when the corroboration behind it is gone.
+
+    `_promote` was one-way, which was survivable while the only thing that
+    could change was runs accumulating -- evidence never un-happens. Decision
+    70 made the *count* mutable: naming an organization as first-party
+    collapses it into the operator, and an Experience promoted on two
+    organizations that turn out to be one party is left asserting something
+    nobody proved. Recall already stopped recommending it; the row went on
+    saying `verified`, and the row is what a human reads.
+
+    So the pair is closed the way `_grade`'s docstring says it must be. Only
+    from VERIFIED, and only back to CANDIDATE -- this is "nobody independent
+    has proven this yet", which is exactly what a candidate is. Quarantine and
+    deprecation are somebody's judgement and are not ours to undo, and an
+    Experience that never reached verified has nothing to take back.
+    """
+    if experience.status != ExperienceStatus.VERIFIED:
+        return
+    experience.status = ExperienceStatus.CANDIDATE
+    experience.verification_level = VerificationLevel.UNVERIFIED
+    experience.updated_at = now()
 
 
 def _percentile(values: list[int], fraction: float) -> int | None:

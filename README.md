@@ -1016,12 +1016,26 @@ harnesses, and this one is the floor. 🪜
 |---|---|---|
 | [`run.py`](benchmarks/run.py) | Is fetching a proven artifact faster than rebuilding one? | **~1.0x.** A wash. The reuse path is complete, correct, and not slower. |
 | [`correctness.py`](benchmarks/correctness.py) | Is the proven artifact *right* where a fresh implementation is subtly wrong? | **All four cases diverge**, and each divergence is a plausible wrong answer rather than a crash. |
-| [`agent.py`](benchmarks/agent.py) | Does an agent that inherits a solution beat one that has to derive it? | ⏳ **Not yet run.** Needs a model key. |
+| [`agent.py`](benchmarks/agent.py) | Does an agent that inherits a solution beat one that has to derive it? | **No — not on these tasks.** 3.6x–5.8x *more* input tokens, no reliable speed gain. Every arm verified. |
 
 `agent.py` gives a real model a real container and a `bash` tool, and changes
-exactly one thing between arms: whether the 80085 MCP tools are attached. It
-measures wall clock, tokens, tool calls and **pass rate** — the variance
-argument from the top of this README, made measurable.
+exactly one thing between arms: whether the 80085 MCP tools are attached.
+
+**Its first run said the product loses.** On `csv_to_json`, `json_to_csv` and
+`json_validate`, attaching 80085 cost 3.6x–5.8x more input tokens and bought no
+reliable speed. We are leading with that because it is true, and because it
+says something useful rather than something bad: all three are tasks where the
+*naive implementation is right*. An agent writes `csv.DictReader` and it works.
+There is nothing to inherit, so carrying a registry to fetch it is overhead.
+
+Which means the claim worth making is not "the same answer, faster" — it is
+**an answer the agent would have gotten wrong**. That is
+[`correctness.py`](benchmarks/correctness.py), where all four cases diverge and
+each divergence is a plausible wrong answer rather than a crash. A crash gets
+fixed. A plausible wrong answer gets shipped and believed. 🎯
+
+Full numbers, including the speed claim we withdrew after finding the variance
+swamped it, are in [`docs/benchmarks.md`](docs/benchmarks.md).
 
 > ⚠️ **Read this before quoting numbers.** `results.json` and
 > `results-agent.json` are both gitignored, because a benchmark result is a
@@ -1231,7 +1245,7 @@ issue.
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
-| Benchmark harnesses | ⚠️ Three of them. Artifact cost: ~1.0x, a wash. Correctness: all four cases diverge. Agent-in-the-loop: **not yet run** |
+| Benchmark harnesses | ⚠️ Three of them. Artifact cost: ~1.0x, a wash. Agent-in-the-loop: **80085 costs more on conversion tasks**. Correctness: all four cases diverge — the one claim that holds |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |

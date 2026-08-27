@@ -48,6 +48,9 @@ REPEATS = int(os.environ.get("BENCHMARK_REPEATS", "3"))
 MCP_URL = os.environ.get("BOOBS_MCP_URL", "https://mcp.80085.ai/mcp")
 API_URL = os.environ.get("BOOBS_API_URL", "https://api.80085.ai")
 IMAGE = os.environ.get("BENCHMARK_AGENT_IMAGE", "python:3.13-slim")
+# Prompt caching, on for both arms or neither. Off reproduces the naive
+# harness; on reproduces one that knows its prefix is stable.
+CACHE = os.environ.get("BENCHMARK_CACHE", "1") != "0"
 RESULTS = ROOT / "benchmarks" / "results-agent.json"
 
 # The agent's workspace. Same path in both arms so the prompt is identical.
@@ -239,6 +242,15 @@ async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any
                 ],
             }
 
+        # Both arms cache or neither does. The prefix -- system prompt, tool
+        # definitions -- is byte-stable across a run's turns, and an agent loop
+        # resends it every turn, so without this the treatment arm pays full
+        # price for the same 2,819-token toolset on every request. That is not
+        # a property of 80085; it is a property of how the harness was written,
+        # and charging it to the product would be measuring our own mistake.
+        if CACHE:
+            extra["cache_control"] = {"type": "ephemeral"}
+
         runner = client.beta.messages.tool_runner(
             model=MODEL,
             max_tokens=16000,
@@ -258,10 +270,17 @@ async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any
             **extra,
         )
 
-        tokens_in = tokens_out = calls = 0
+        # Kept apart because they are not the same money. A cache read bills at
+        # about a tenth of an uncached input token and a cache write at about
+        # 1.25x, so folding them together -- as this did at first -- reports a
+        # cached run as costing what an uncached one would and hides the single
+        # biggest lever an agent harness has over the price of using 80085.
+        tokens_in = cached_in = written = tokens_out = calls = 0
         for message in runner:
             usage = message.usage
-            tokens_in += usage.input_tokens + (usage.cache_read_input_tokens or 0)
+            tokens_in += usage.input_tokens
+            cached_in += usage.cache_read_input_tokens or 0
+            written += usage.cache_creation_input_tokens or 0
             tokens_out += usage.output_tokens
             calls += sum(1 for block in message.content if block.type == "tool_use")
 
@@ -271,6 +290,10 @@ async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any
     return {
         "seconds": seconds,
         "input_tokens": tokens_in,
+        "cache_read_tokens": cached_in,
+        "cache_write_tokens": written,
+        # What the run actually costs in input, in units of uncached tokens.
+        "billed_input": round(tokens_in + cached_in * 0.1 + written * 1.25),
         "output_tokens": tokens_out,
         "tool_calls": calls,
         "verified": passed,
@@ -284,6 +307,8 @@ def median(runs: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "seconds": statistics.median(r["seconds"] for r in runs),
         "input_tokens": int(statistics.median(r["input_tokens"] for r in runs)),
+        "cache_read_tokens": int(statistics.median(r["cache_read_tokens"] for r in runs)),
+        "billed_input": int(statistics.median(r["billed_input"] for r in runs)),
         "output_tokens": int(statistics.median(r["output_tokens"] for r in runs)),
         "tool_calls": int(statistics.median(r["tool_calls"] for r in runs)),
         # Every repeat must pass. One flake is the variance argument failing,
@@ -294,8 +319,8 @@ def median(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
 def table(rows: list[dict[str, Any]]) -> str:
     header = (
-        f"{'task':<16}{'arm':>11}{'seconds':>10}{'in tok':>10}"
-        f"{'out tok':>10}{'calls':>8}{'passed':>9}"
+        f"{'task':<16}{'arm':>11}{'seconds':>10}{'in tok':>10}{'cached':>10}"
+        f"{'billed':>10}{'out tok':>10}{'calls':>8}{'passed':>9}"
     )
     lines = [header, "-" * len(header)]
     for row in rows:
@@ -304,6 +329,7 @@ def table(rows: list[dict[str, Any]]) -> str:
             lines.append(
                 f"{row['task'] if arm_name == 'control' else '':<16}{arm_name:>11}"
                 f"{got['seconds']:>9.1f}s{got['input_tokens']:>10,}"
+                f"{got['cache_read_tokens']:>10,}{got['billed_input']:>10,}"
                 f"{got['output_tokens']:>10,}{got['tool_calls']:>8}"
                 f"{('yes' if got['verified'] else 'NO'):>9}"
             )
@@ -324,15 +350,18 @@ async def main() -> int:
     key = os.environ.get("BOOBS_API_KEY")
     if not key:
         print(
-            f"BOOBS_API_KEY is not set -- minting one from {API_URL} for the treatment arm.",
+            "BOOBS_API_KEY is not set.\n\n"
+            "The treatment arm executes real Experiences, and an execution is evidence.\n"
+            "Minting a key here would run the corpus as a brand-new organization every\n"
+            "time this is run -- the operator corroborating its own corpus one self-serve\n"
+            "key at a time, which is precisely what decision 70 exists to stop.\n"
+            "Measuring the product must not quietly promote it.\n\n"
+            "Use a key from an organization already named in\n"
+            "EVIDENCE_FIRST_PARTY_ORGANIZATIONS, so these runs prove the artifact works\n"
+            "without pretending to be a second opinion.",
             file=sys.stderr,
         )
-        import httpx
-
-        async with httpx.AsyncClient() as http:
-            response = await http.post(f"{API_URL}/v1/keys", params={"label": "benchmark-agent"})
-        response.raise_for_status()
-        key = str(response.json()["api_key"])
+        return 2
 
     rows: list[dict[str, Any]] = []
     for task in TASKS:

@@ -10,11 +10,14 @@ These tests pin the three places that chain is now broken.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
 from boobs_common.config import EvidencePolicy, Settings
-from boobs_reputation.evidence import collapse, corroborated
+from boobs_domain.enums import ExperienceStatus, VerificationLevel
+from boobs_reputation.evidence import _withdraw, collapse, corroborated
 from boobs_schemas.api import VerifyRequest
 
 
@@ -82,3 +85,30 @@ def test_first_party_organizations_are_named_in_one_setting(
     # Unset means the gate behaves exactly as it did before.
     monkeypatch.delenv("EVIDENCE_FIRST_PARTY_ORGANIZATIONS")
     assert EvidencePolicy().first_party() == frozenset()
+
+
+def test_verified_is_withdrawn_when_its_corroboration_collapses() -> None:
+    """`_promote` was one-way, which was safe only while the count could not
+    fall. Decision 70 made it fall: naming an organization as first-party
+    collapses it into the operator, and an Experience promoted on two
+    organizations that turn out to be one party is left asserting something
+    nobody proved."""
+    experience = SimpleNamespace(
+        status=ExperienceStatus.VERIFIED,
+        verification_level=VerificationLevel.PROVEN,
+        updated_at=None,
+    )
+    _withdraw(experience)
+    assert experience.status == ExperienceStatus.CANDIDATE
+    assert experience.verification_level == VerificationLevel.UNVERIFIED
+
+
+@pytest.mark.parametrize("status", [ExperienceStatus.QUARANTINED, ExperienceStatus.CANDIDATE])
+def test_withdrawal_touches_nothing_but_verified(status: str) -> None:
+    """Quarantine is somebody's judgement and is not ours to undo; a candidate
+    has nothing to take back."""
+    experience = SimpleNamespace(
+        status=status, verification_level=VerificationLevel.UNVERIFIED, updated_at=None
+    )
+    _withdraw(experience)
+    assert experience.status == status

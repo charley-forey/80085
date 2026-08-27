@@ -167,6 +167,57 @@ that could `pip install` would be measuring PyPI rather than either arm.
 > reason `results.json` is: a benchmark result is a property of the machine
 > and the model that ran it.
 
+### What it found: a negative result
+
+First run, `claude-opus-5`, medians of 3, prompt caching on for both arms
+(`billed` converts cache reads at 0.1x and writes at 1.25x, because a cached
+token and an uncached one are not the same money):
+
+| task | arm | seconds | billed input | out | calls | passed |
+|---|---|---:|---:|---:|---:|---|
+| `csv_to_json` | control | 12.8 | 1,604 | 922 | 2 | yes |
+| | treatment | 25.6 | 5,806 | 1,184 | 2 | yes |
+| `json_to_csv` | control | 17.9 | 1,123 | 505 | 3 | yes |
+| | treatment | 28.5 | 6,501 | 1,178 | 3 | yes |
+| `json_validate` | control | 61.9 | 9,751 | 6,094 | 5 | yes |
+| | treatment | 88.7 | 19,065 | 7,516 | 4 | yes |
+
+**On this task set, attaching 80085 costs more than it saves.** Treatment is
+never cheaper in input tokens — 3.6x to 5.8x — and shows no reliable speed
+benefit. That is the honest headline and it is not being buried.
+
+**Two things this does *not* say**, both of which the data refuses to support:
+
+* **It is not a speed measurement.** Across three runs the same arm on the same
+  task took 34.4s, 65.6s and 88.7s. The variance swamps the effect at three
+  repeats, so no speedup — in either direction — may be quoted from this table.
+  An earlier reading of these numbers claimed a crossover threshold; that was
+  pattern-matching on noise and is withdrawn.
+* **It is not evidence the product does not work.** Every arm of every run
+  passed verification, 18 for 18. The reuse path is correct and complete. What
+  it costs is a separate question from whether it works.
+
+### Why, and what it implies
+
+The three tasks are all ones where the *naive implementation is right*. An
+agent writes `csv.DictReader` and it works the first time. There is nothing to
+inherit, so carrying a toolset to fetch it is pure overhead — correctly so.
+
+Measured directly, the overhead decomposes as: MCP toolset definitions **2,819
+tokens**, a `recall` response **1,491**, an `execute` response **512**. Roughly
+4,800 tokens of unique content, re-billed across every turn of the agent loop.
+Prompt caching cuts that substantially and does not close the gap.
+
+So the value of this registry cannot be *"the same answer, faster"*. It has to
+be **an answer the agent would have gotten wrong** — which is what
+`correctness.py` measures and what the corpus should be selected for. The next
+extension of this harness is those four capabilities, scored on **pass rate,
+not time**: pass rate is binary and needs few repeats, where timing at this
+variance would need far more than it is worth.
+
+A benchmark that found its own product's limit is worth more than one that
+confirmed the pitch. This one did that on its first run.
+
 ## Interpreting a run
 
 * `verified: NO` on either arm invalidates that row. A fast wrong answer is
