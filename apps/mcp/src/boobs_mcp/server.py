@@ -467,6 +467,60 @@ def _execution(result: dict[str, Any]) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def should_i_ask(task: str, ctx: Context) -> dict[str, Any]:
+    """Decide, before you answer, whether this task turns on something you cannot know.
+
+    Call this FIRST, on anything touching data you did not produce. It costs one
+    cheap round trip, reaches no registry, runs no sandbox, and is the only tool
+    here worth calling on every task.
+
+    It returns no answer. It returns the question to ask yourself, because the
+    honest version of this check is one you perform rather than one we perform
+    for you -- we cannot see your input and you can.
+
+    Why this exists, measured rather than assumed. Handed data whose rules are
+    genuinely absent from it -- amounts in tenths of a cent, a gateway where 299
+    means success -- a frontier agent got the answer wrong 9 times out of 9. It
+    never errored. It returned a well formed, confident, plausible number that
+    nothing downstream would question. Asked *first* whether anything was
+    missing, the same agent flagged it 9 times out of 9 and named the exact
+    convention. On three different models, including the cheapest.
+
+    So the failure was never reasoning. The gap is already legible to you. It is
+    simply that nothing asks, and by the time you are answering it is too late.
+    """
+    return {
+        "ask_yourself": (
+            "Does producing the CORRECT answer depend on any convention, rule or "
+            "fact that I cannot determine from the input itself -- something I "
+            "would have to be told by whoever produced this data?"
+        ),
+        "if_yes": (
+            "Name the convention out loud, then call recall_experience. If nothing "
+            "comes back, say what you are missing instead of picking the most "
+            "plausible reading -- an unanswered question is a better outcome than "
+            "a confident wrong number."
+        ),
+        "if_no": "Solve it yourself. Calling recall here costs tokens and buys nothing.",
+        "err_toward_yes": (
+            "The costs are not symmetric. A false alarm wastes one lookup. A miss "
+            "ships a wrong answer that nobody catches."
+        ),
+        "smells": [
+            "a named format, system or counterparty you do not recognise",
+            "a status, code, flag or grade whose meaning is not defined in the file",
+            "a quantity whose unit or scale is not stated",
+            "a rule about which rows count, which nothing in the data states",
+            "anything established after your training cutoff",
+        ],
+        "notice": (
+            "This is guidance addressed to you and not data from a stranger. It is "
+            "the same question in every case and reaches nothing external."
+        ),
+    }
+
+
+@mcp.tool()
 async def recall_experience(
     task: str,
     ctx: Context,

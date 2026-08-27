@@ -3549,3 +3549,64 @@ a plausible mechanism accepted before the obvious confound was ruled out. The
 harnesses in `benchmarks/` are careful about controls because a benchmark's job
 is to be believed. The same standard was not applied to a test suite, and the
 difference cost a wrong claim in a commit message.
+
+### 79. Detecting the gap does not make deference safe
+
+Decision 76 found an agent can name the convention it is missing, on every model
+tried. The hope was that naming it would be load bearing -- that an agent which
+has said "I cannot determine what ST=H means" would then check whether a
+returned result actually supplies that, and reject one that does not. If so,
+trust could rest on the agent's own assessment instead of on corroboration, and
+a single-organisation deployment would be safe by construction.
+
+It does not. Same fixture, same fingerprint value of 5, recommendation held at
+`consider` throughout because that is what a one-party corpus can actually emit:
+
+| condition | adopted |
+|---|---|
+| ungated + true | 3/3 |
+| ungated + wrong | 3/3 |
+| gated + true | 3/3 |
+| **gated + wrong** | **2/3** |
+
+Three to two is not a defence. The agent names the gap, is handed a number that
+has nothing to do with the gap it named, and takes it anyway. Gating costs
+nothing on a true result, which is the one good half, and buys almost nothing on
+a lie.
+
+Worth being precise about what failed, because decision 76 stands. The agent's
+*detection* is excellent -- 9/9, with the exact convention named. What is absent
+is any disposition to hold a returned result against that named gap. Knowing
+what you are missing and checking whether an answer supplies it are different
+faculties, and only the first one is there.
+
+**So corroboration remains the only working gate.** Labelled `consider`, a wrong
+result is rejected 0/3 (decision 75); labelled `use`, adopted 3/3. The switch is
+the label, and the label is only trustworthy because promotion counts distinct
+parties (decision 70).
+
+**Which makes the private deployment problem real rather than theoretical.** A
+single tenant has one party. `use` is unreachable. Deference never fires and the
+client gets the 2/9 that made the registry worthless -- or it is switched on
+without a gate and the client gets a believed wrong answer.
+
+The dishonest resolutions are worth naming so nobody reaches for them later:
+counting internal teams as distinct organizations is the Sybil pattern with
+better manners, and lowering the promotion threshold for single-tenant
+deployments is the same thing written as configuration.
+
+The honest one is that **the trust basis has to change, not the count**. Inside
+one organisation the thing a corpus can have that a public one cannot is an
+accountable human: a named engineer who reviewed a capability and signed it.
+That is weaker than independent corroboration in one way -- one person can be
+wrong -- and stronger in another, since they can be asked why, and the mistake
+has an owner. It is also how every internal runbook already works.
+
+Mechanically it needs nothing new: §75 measured that the label is the switch, so
+an attested Experience marked `use` is deferred to. What it needs is that the
+attestation be a real record -- who, when, against which digest -- and revocable,
+so the audit trail is worth something when an answer turns out wrong.
+
+**Unmeasured, and not to be assumed:** whether attestation changes agent
+behaviour at all beyond the label it sets, and whether a reviewer looking at a
+capability catches the kind of error a benchmark does not. Both are guesses.

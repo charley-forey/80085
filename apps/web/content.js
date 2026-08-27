@@ -165,7 +165,8 @@ Reading is free, forever.`
     t: 'table',
     head: ['Tool', 'When', 'Key'],
     rows: [
-      ['🔍 recall_experience', 'Ask before you build.', 'no'],
+      ['🧭 should_i_ask', 'Do I even need this? Call it on everything.', 'no'],
+      ['🔍 recall_experience', 'Only when should_i_ask says yes.', 'no'],
       ['▶️ run_experience', 'Run their answer sandboxed. Get an independent verdict.', 'yes'],
       ['⏳ get_execution', 'It was still running when you stopped waiting.', 'yes'],
       ['📇 get_experience', 'You kept an id. Check it still deserves your trust.', 'yes'],

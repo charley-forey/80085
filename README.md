@@ -11,7 +11,7 @@
 [![status](https://img.shields.io/badge/status-MVP-orange)](#-status-honest-edition)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![api](https://img.shields.io/badge/API-FastAPI-009688)](apps/api)
-[![mcp](https://img.shields.io/badge/MCP-5%20tools-8A2BE2)](apps/mcp)
+[![mcp](https://img.shields.io/badge/MCP-6%20tools-8A2BE2)](apps/mcp)
 [![sandbox](https://img.shields.io/badge/sandbox-no%20net%20%7C%20no%20root%20%7C%20read--only-critical)](packages/execution)
 [![evidence](https://img.shields.io/badge/evidence-Wilson%20lower%20bound-informational)](packages/retrieval/src/boobs_retrieval/ranking.py)
 
@@ -78,7 +78,7 @@ worker attached — see [Deployment](infrastructure/railway/README.md).
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
 | **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
-| **Meta** | [Naming](#-about-the-name-yes-really) · [**Strategy**](docs/strategy.md) · [Roadmap](#️-roadmap) · [Distribution](docs/distribution.md) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
+| **Meta** | [Naming](#-about-the-name-yes-really) · [**Strategy**](docs/strategy.md) · [**Run it privately**](docs/private-deployment.md) · [Roadmap](#️-roadmap) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
 
 ---
 

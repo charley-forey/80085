@@ -281,10 +281,18 @@ non-derivable. That is a fair test of the mechanism and not of the world. Needs
 one real organisation's real convention. *Falsified if real conventions turn out
 to be derivable after all.*
 
-**Then — private deployment.** Only once the three above have answers.
-Self-host docs, private corpus, org-scoped evidence. Not before: shipping a
-deployment story on an untested gate is how the trust that makes this work gets
-spent.
+**Private deployment — and it has a real problem** ([`private-deployment.md`](private-deployment.md)).
+A single tenant has one party, so `use` is unreachable, so deference either
+never fires (2/9, useless) or fires ungated (a believed wrong answer). We tried
+to resolve it with the agent's own detection instead of corroboration and it
+**failed**: a gated agent still adopted a wrong result 2/3 (decision 79).
+Detection and verification are different faculties and only the first is there.
+
+The honest resolution is **attestation** — inside one organisation you have an
+accountable human, which a public corpus never does. A named reviewer signs a
+capability and that signature promotes it. Weaker than corroboration (one person
+can be wrong), stronger in one respect (the mistake has an owner), and exactly
+how internal runbooks already work. Designed, not built.
 
 **Explicitly not now:** the Experience Graph, composability, automatic
 extraction, staleness sweeps, the autonomous improvement loop. All were on the

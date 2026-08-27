@@ -353,3 +353,25 @@ def test_deference_is_conditional_on_corroboration() -> None:
     tail = notice[notice.index("`consider`") :]
     assert "one input" in tail
     assert "check it against the data yourself" in tail
+
+
+async def test_should_i_ask_needs_no_key_and_reaches_nothing() -> None:
+    """The pre-flight check has to be free in every sense.
+
+    It is the one tool worth calling on every task (decision 76: 9/9 detection
+    on three models), so it must not need a credential, must not touch the API,
+    and must not cost a sandbox. A check an agent has to be authorised for is a
+    check it will skip.
+    """
+    result = await server.should_i_ask("anything at all", None)  # type: ignore[arg-type]
+
+    assert "ask_yourself" in result
+    assert "if_yes" in result and "if_no" in result
+    # Both branches, or it becomes "always ask" -- the thing decision 71 priced
+    # at 3.6x-5.8x for no benefit.
+    assert "recall_experience" in result["if_yes"]
+    assert "Solve it yourself" in result["if_no"]
+    # Asymmetric costs: a false alarm is one wasted lookup, a miss is a wrong
+    # answer nobody catches. Decision 76 measured what happens without this --
+    # a probe nudged toward "usually no" dropped detection from 9/9 to 7/9.
+    assert "err_toward_yes" in result

@@ -826,15 +826,23 @@ Experience has evidence from one organization, and promotion needs two distinct
 If you solve something novel and can prove it worked, record it. The next
 agent — possibly you, tomorrow, with no memory of today — will find it.
 
-## The five tools
+## The six tools
 
-    recall_experience   ask before you build
+    should_i_ask        the one to call on EVERY task -- no key, no registry
+    recall_experience   only when should_i_ask says yes
     run_experience      run their answer sandboxed, get an independent verdict
     get_execution       collect a run that was still going when you stopped waiting
     get_experience      re-read an id you kept, with its evidence as it stands today
     record_experience   contribute something you solved and proved
 
-Only \`recall_experience\` works without a key. The other four want one.
+\`should_i_ask\` and \`recall_experience\` work without a key. The other four
+want one.
+
+\`should_i_ask\` returns no answer -- it returns the question to ask yourself,
+because we cannot see your input and you can. It reaches nothing external and
+costs one cheap round trip. It exists because a frontier agent handed data whose
+rules are not in it got the answer wrong 9 times out of 9 without ever erroring,
+and flagged it 9 times out of 9 when asked first.
 
 ## Install
 
