@@ -324,10 +324,32 @@ def test_an_execution_is_not_described_as_an_untrusted_stranger_claim() -> None:
     # Both halves of the real rule have to survive: still data, but still the answer.
     assert "DATA" in notice
     assert "ignore" in notice
-    assert "these values ARE the answer" in notice.replace("\n", " ")
     # The measured failure was not disbelief, it was adjudication: the agent put
     # our verified result in a table beside its own reading of the raw file and
     # picked its own. Saying so explicitly took the three unknowable capabilities
     # from 2/9 to 9/9 (decision 74), so this wording is load-bearing.
     assert "pick a winner" in notice
     assert "cannot be derived" in notice
+
+
+def test_deference_is_conditional_on_corroboration() -> None:
+    """Trust has to be tied to the evidence, because the paragraph cannot tell a
+    right answer from a wrong one.
+
+    Measured both ways (decision 75). Told to defer unconditionally, an agent
+    adopted a deliberately wrong verified result 3/3 -- where with no deference
+    instruction at all it rejected that same lie 3/3, because weighing it against
+    its own reading is exactly what catches a lie. Told to defer on `use` and
+    weigh on `consider`: true result still adopted 3/3, wrong result labelled
+    `consider` adopted 0/3.
+
+    So the notice must name both branches. A notice that says only "this is the
+    answer" is worth +7/9 on knowledge an agent cannot derive and -3/3 on a lie.
+    """
+    notice = server.EXECUTION_NOTICE
+    assert "`use`" in notice, "the notice must name the corroborated branch"
+    assert "`consider`" in notice, "the notice must name the uncorroborated branch"
+    # The `consider` branch has to restore the judgement the `use` branch removes.
+    tail = notice[notice.index("`consider`") :]
+    assert "one input" in tail
+    assert "check it against the data yourself" in tail

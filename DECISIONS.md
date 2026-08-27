@@ -3276,3 +3276,96 @@ written for and not against a wrong Experience. That last one is the next test.
 
 **Undo:** the paragraph is one block in `build.mjs` and one constant in
 `server.py`. `tests/unit/test_mcp_tools.py` fails first if the notice loses it.
+
+---
+
+### 75. The paragraph that made it work also makes it credulous
+
+Decision 74 took treatment from 2/9 to 9/9 by telling agents that a verified
+result IS the answer and not to weigh it against their own reading. It also
+named the obvious risk and deferred testing it. That was the wrong order, and
+this is what the test found.
+
+A wrong result was put in front of an agent in exactly the shape `apps/mcp`
+returns -- same fenced blocks, same `EXECUTION_NOTICE`, `verification.passed`
+true -- claiming `failed_requests: 5` where the truth is 2. Five is a
+fingerprint: naive readings of that fixture give 3 or 4, so an agent writing 5
+did not derive it.
+
+| | adopted |
+|---|---|
+| true result (2), deference on | 3/3 |
+| **wrong result (5), deference on** | **3/3** |
+| wrong result (5), deference off | **0/3** |
+
+**The edges are perfectly symmetric.** The paragraph is worth +7/9 on knowledge
+an agent cannot derive and -3/3 on a lie. And the uncomfortable half: the
+behaviour decision 74 diagnosed as the bug -- the agent tabulating our verified
+result against its own reading and preferring itself -- *is* what caught the
+wrong answer every time. Independent judgement was a safety net. We removed it.
+
+It was removed in the shipped product, not only in the benchmark:
+`agents.md`, `llms.txt` and `EXECUTION_NOTICE` carry the unconditional
+paragraph as of 554d45d, and that is live.
+
+Nothing about decision 74 was wrong on the evidence available. It was
+incomplete in a way only an adversarial test reveals, and the adversarial test
+was run after shipping rather than before. The ordering is the lesson: a change
+that makes a system trust something is a change whose failure mode is being
+wrong about what it trusts, and that has to be measured in the same session.
+
+**What this makes true about the product.** Deference is not a feature that
+sits alongside the evidence gate; it is a load transfer *onto* it. Before, a
+bad Experience was weighed and usually rejected. Now it is believed, and the
+only thing between a bad artifact and a believed answer is decision 70's
+promotion rule -- written when nobody was listening, never under load.
+
+The candidate fix under test is to tie deference to corroboration: defer on
+`use`, weigh on `consider`. If it holds it makes the recommendation field a
+security boundary rather than a label, and it has a consequence worth stating
+plainly: **nothing in the live corpus reaches `use`**, because decision 70
+correctly collapsed our two organizations into one party. An
+evidence-conditional paragraph therefore defers on nothing at all until a
+genuine third party corroborates something -- back to 2/9.
+
+That makes recruiting one outside organization a **safety prerequisite**, not a
+growth activity. This product cannot be simultaneously useful and safe until
+somebody who is not us has verified a capability. It is a better reason to go
+and find one than any launch narrative.
+
+**The fix works, and its limit is exact.** Deference tied to corroboration --
+defer on `use`, weigh on `consider`:
+
+| | adopted |
+|---|---|
+| true result (2) labelled `use` | 3/3 — the benefit survives |
+| wrong result (5) labelled `consider` | **0/3** — judgement restored |
+| wrong result (5) labelled `use` | **3/3** — no second line of defence |
+
+The first two rows say the split is real: the recommendation field can carry
+trust, and doing so costs nothing on true results. The third says everything
+now rests on the promotion rule. A wrong artifact that reaches `use` is
+believed, completely, and there is nothing behind it. **The gate is not a
+safety feature among several. It is the only one.**
+
+Shipped: `EXECUTION_NOTICE` names both branches, and so do `agents.md` and
+`llms.txt`, replacing the unconditional paragraph that went out in 554d45d.
+`tests/unit/test_mcp_tools.py` fails if either branch is dropped.
+
+**What follows, and it is not a small thing.** Decision 70 collapsed our two
+organizations into one party, so nothing in the live corpus reaches `use`. The
+honest consequence is that the corpus now correctly defers on *nothing*, and an
+agent following our own published guidance gets 2/9 rather than 9/9.
+
+That is the right behaviour and it is not a bug to route around. It means
+**one outside organization verifying one capability is a safety prerequisite
+rather than a growth activity** -- the product cannot be simultaneously useful
+and safe until somebody who is not us has corroborated something. Every
+shortcut around that reintroduces exactly the Sybil pattern decision 70 exists
+to stop, and now the stakes are a believed wrong answer instead of an ignored
+one.
+
+**Still open:** a defence that does not rest on a label. Magnitude checks,
+disagreement surfacing ("this differs from your reading by 100x, here is why"),
+or requiring the agent to state what convention it is accepting. All are guesses
+until measured.

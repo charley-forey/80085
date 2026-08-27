@@ -1,7 +1,7 @@
 # Strategy — what this is, after the benchmarks
 
 Written 2026-08-27, the night four benchmarks killed two theses and found a
-third. Every number here traces to [`DECISIONS.md`](../DECISIONS.md) 70–74 and
+third. Every number here traces to [`DECISIONS.md`](../DECISIONS.md) 70–75 and
 to harnesses in [`benchmarks/`](../benchmarks) that anyone can re-run.
 
 This document replaces the strategy implied by the original spec. That strategy
@@ -20,8 +20,9 @@ it right more often."* Both halves were measured. Both are false.
 | An agent cannot answer without knowledge that is not in the input | `agent_correctness.py` | **Confirmed. Control 0/9.** |
 | Having the answer available is sufficient | `agent_correctness.py` | **No. Treatment 2/9.** |
 | Telling the agent to defer is sufficient | `agent_correctness.py` | **Treatment 9/9.** |
+| Deference is safe | poison test | **No.** A wrong result is adopted 3/3 — where an agent with *no* deference instruction rejects it 3/3. |
 
-The last three rows are the strategy. Everything else is history.
+The last four rows are the strategy. Everything else is history.
 
 ## 2. The thing that is actually true
 
@@ -137,19 +138,53 @@ theoretical to critical in one evening:
 * **Quarantine and staleness** — an Experience that rots must stop being
   recommended *fast*, because it is now trusted rather than weighed.
 
-**This is untested and is the next experiment**, not an assumption: record a
-deliberately wrong Experience and measure whether the deference paragraph makes
-an agent swallow it. If it does, the gate needs hardening before anyone deploys
-this anywhere that matters.
+**This has now been measured, and it is worse than it looked** (decision 75).
+A deliberately wrong verified result, in exactly the shape the MCP returns:
+
+| deference instruction | wrong result adopted |
+|---|---|
+| unconditional | **3/3** |
+| none at all | **0/3** |
+| tied to `use` / `consider` | **0/3** when `consider`, **3/3** when `use` |
+
+The paragraph that is worth +7/9 on knowledge an agent cannot derive is worth
+-3/3 on a lie. The agent's own judgement — the very behaviour we diagnosed as
+the bug — was the thing catching wrong answers. Tying deference to
+corroboration restores it without costing anything on true results, and is
+shipped.
+
+**But the third row is the whole point: a wrong artifact that reaches `use` is
+believed completely, and there is nothing behind it.** The gate is not one
+safety feature among several. It is the only one.
+
+Which produces the sharpest strategic consequence in this document. Decision 70
+means nothing in the live corpus reaches `use`, so the corpus correctly defers
+on nothing and an agent following our own guidance gets 2/9 rather than 9/9.
+
+> **One outside organization verifying one capability is a safety
+> prerequisite, not a growth activity.** This product cannot be simultaneously
+> useful and safe until somebody who is not us has corroborated something.
+
+Every shortcut around that reintroduces the Sybil pattern decision 70 exists to
+stop — and the stakes are now a *believed* wrong answer rather than an ignored
+one.
 
 ## 6. Roadmap, in order, with a falsifier for each
 
 Nothing on this list gets built without a measurement that could kill it.
 
-**Now — can deference be abused?**
-Record a wrong Experience; measure whether an agent believes it over its own
-correct reading. *Falsified if the agent swallows it* — which would mean the
-gate, not the corpus, is the product, and it needs work first.
+**Done — deference can be abused, and the gate is the only defence** (§5,
+decision 75). Fixed by tying deference to corroboration; shipped. The residual
+risk is exact: a wrong artifact labelled `use` is adopted 3/3.
+
+**Now — one outside organization.** Not for the launch narrative. Because
+nothing reaches `use` without it, so the corpus safely defers on nothing and
+the product does not work. *This is the critical path.*
+
+**Now — a defence that does not rest on a label.**
+Magnitude checks, surfacing the disagreement to the agent, requiring it to state
+which convention it is accepting. All guesses until measured. *Falsified if none
+of them catch a wrong `use` without also killing the 3/3 on true results.*
 
 **Next — when should an agent ask at all?**
 The overhead is real (§1) and only pays back on the non-derivable class. An

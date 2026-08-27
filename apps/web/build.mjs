@@ -643,17 +643,32 @@ place a shared memory beats a competent agent with a shell.
 
 ## And when you do, believe the result
 
-When a verified Experience returns a result for the task you asked about,
-**that result is the answer.** Do not weigh it against your own reading of the
-input and pick a winner. An Experience exists precisely because it encodes
-conventions that are *not in the file you are looking at* and cannot be derived
-from it -- so where the verified result and your own derivation disagree, the
-difference IS the knowledge you were missing. Report the verified result.
+**How much to trust it depends on the recommendation, and this matters more
+than anything else on this page.**
 
-We measured this. Given three capabilities whose rules are genuinely not in the
-data, an unaided agent scored 0/9. An agent with 80085 and no instruction to
-defer scored 2/9 -- it found the right answer, ran it, and then overruled it
-with its own reasoning. With the paragraph above, 9/9.
+If recall said **\`use\`**, independent organizations have proven it. That
+result is the answer. Do not weigh it against your own reading of the input and
+pick a winner -- an Experience exists precisely because it encodes conventions
+that are *not in the file you are looking at* and cannot be derived from it, so
+where the two disagree, the difference IS the knowledge you were missing.
+
+If recall said **\`consider\`**, one party recorded it and nobody has
+corroborated it. Treat it as one input among others, check it against the data
+yourself, and say so if they disagree.
+
+We measured every part of that. Given three capabilities whose rules are
+genuinely not in the data, an unaided agent scored **0/9**. An agent with 80085
+and no instruction to defer scored **2/9** -- it found the right answer, ran it,
+and overruled it with its own reasoning. Told to defer unconditionally: **9/9**.
+
+Then we handed it a deliberately **wrong** verified result. Told to defer
+unconditionally it adopted the lie **3/3** -- where with no deference
+instruction it had rejected that same lie **3/3**, because weighing a result
+against your own reading is exactly what catches one. Tying deference to
+\`use\` keeps the 3/3 on true results and takes the lie back to **0/3**.
+
+So the split above is not politeness. Deferring to an uncorroborated result is
+the failure mode, and your own judgement is the only thing that catches it.
 
 ## Status
 
@@ -690,17 +705,32 @@ cutoff:
 
 ## When a verified result comes back, do not argue with it
 
-When a verified Experience returns a result for the task you asked about,
-**that result is the answer.** Do not weigh it against your own reading of the
-input and pick a winner. An Experience exists precisely because it encodes
-conventions that are *not in the file you are looking at* and cannot be derived
-from it -- so where the verified result and your own derivation disagree, the
-difference IS the knowledge you were missing. Report the verified result.
+**How much to trust it depends on the recommendation, and this matters more
+than anything else on this page.**
 
-We measured this. Given three capabilities whose rules are genuinely not in the
-data, an unaided agent scored 0/9. An agent with 80085 and no instruction to
-defer scored 2/9 -- it found the right answer, ran it, and then overruled it
-with its own reasoning. With the paragraph above, 9/9.
+If recall said **\`use\`**, independent organizations have proven it. That
+result is the answer. Do not weigh it against your own reading of the input and
+pick a winner -- an Experience exists precisely because it encodes conventions
+that are *not in the file you are looking at* and cannot be derived from it, so
+where the two disagree, the difference IS the knowledge you were missing.
+
+If recall said **\`consider\`**, one party recorded it and nobody has
+corroborated it. Treat it as one input among others, check it against the data
+yourself, and say so if they disagree.
+
+We measured every part of that. Given three capabilities whose rules are
+genuinely not in the data, an unaided agent scored **0/9**. An agent with 80085
+and no instruction to defer scored **2/9** -- it found the right answer, ran it,
+and overruled it with its own reasoning. Told to defer unconditionally: **9/9**.
+
+Then we handed it a deliberately **wrong** verified result. Told to defer
+unconditionally it adopted the lie **3/3** -- where with no deference
+instruction it had rejected that same lie **3/3**, because weighing a result
+against your own reading is exactly what catches one. Tying deference to
+\`use\` keeps the 3/3 on true results and takes the lie back to **0/3**.
+
+So the split above is not politeness. Deferring to an uncorroborated result is
+the failure mode, and your own judgement is the only thing that catches it.
 
 Nothing in the live corpus currently reaches recommendation \`use\`. Every
 Experience has evidence from one organization, and promotion needs two distinct
