@@ -494,7 +494,24 @@ function ansiHome(c) {
     '  and it scored 0 for 9. Never right, never an error, always plausible.',
     '  Hand it the verified answer and it still scored 2 for 9: it found the',
     '  number, ran it, weighed it against its own reading, and preferred',
-    '  itself. One paragraph telling it to defer took that to 9 for 9.',
+    '  itself. One paragraph telling it to defer took that to 9 for 9 --',
+    '  and made it swallow a deliberately wrong result 3 for 3.',
+    '',
+    `  ${c.rev(' BUT IT KNOWS ')}`,
+    '',
+    '  Asked BEFORE it answers whether the task turns on a convention it',
+    '  cannot get from the input, it flagged every one: 9 for 9, and 0 for 3',
+    '  on a task it could work out by looking. Same on opus, sonnet and',
+    '  haiku, so it is a mechanism and not a frontier-model quirk. One cheap',
+    '  call, no sandbox, no registry:',
+    '',
+    '    every task        ->  cheap detector on a small model',
+    '    only if it fires  ->  recall, execute, defer',
+    '',
+    '  That removes the 3.6x-5.8x overhead rather than tuning it: the cost',
+    '  was the price of asking every time. Caveat, unburied: we wrote the',
+    '  non-derivable fixtures ourselves, so this measures the mechanism and',
+    '  not the world.',
     '',
     `  ${c.b('TRY IT RIGHT NOW')}`,
     '',
@@ -641,6 +658,41 @@ looking -- a counterparty's file conventions, an internal system's undocumented
 behaviour, a fact established after your training cutoff. That is the only
 place a shared memory beats a competent agent with a shell.
 
+## How to tell which case you are in, before you answer
+
+Ask yourself, with the input open in front of you and before you write an
+answer: **does this task depend on a convention I cannot determine from what I
+have been given?** Name the convention if there is one.
+
+We benchmarked exactly that question. Across three capabilities whose rules are
+genuinely absent from the data, the agent flagged the gap **9 of 9** -- and on
+a task it could work out by looking (sniffing a CSV dialect) it flagged nothing,
+**0 of 3**. It discriminates rather than hedging, and it names the missing rule
+precisely: *"nothing defines which ST codes count as settled, whether the
+trailing minus in 45000- denotes a negative"*. That is the same agent that
+otherwise returns 11114500 for a number whose true value is 121450.
+
+It is not a property of one expensive model. Same harness, same fixtures:
+
+| model | flagged | false alarms | input, per 1M |
+|---|---|---|---|
+| \`claude-opus-5\` | 9/9 | 8/12 | $5.00 |
+| \`claude-sonnet-5\` | 9/9 | 7/12 | $2.00 |
+| \`claude-haiku-4-5\` | 9/9 | 9/12 | $1.00 |
+
+So the loop is: **every task gets the cheap check; only a task that fires gets
+recall, execution and deference.** That is what removes the 3.6x-5.8x overhead
+above rather than merely arguing with it -- that cost was the price of asking
+indiscriminately.
+
+Over-fire on purpose. A false alarm costs you one recall; a miss ships a
+confident wrong number that nothing downstream flags. When we rephrased the
+probe to ask "will you actually be *wrong*?" detection fell to 7 of 9, which is
+the wrong trade.
+
+Honest limit: every non-derivable fixture was written by us to be
+non-derivable, so this measures the mechanism and not the world.
+
 ## And when you do, believe the result
 
 **How much to trust it depends on the recommendation, and this matters more
@@ -681,6 +733,12 @@ read the evidence yourself for now.
 Both benchmark arms showed verified runs -- 18 for 18 -- and the answer was
 negative. See docs/benchmarks.md and DECISIONS.md 71-72.
 
+The pre-flight check above is measured but not yet a gate anyone else can call:
+it lives in \`benchmarks/agent_selfknowledge.py\`, not in the tool surface. You
+can run the question yourself today, which is the point -- an agent that says
+"I cannot determine what ST=H means here" is more useful than one that does not,
+whether or not anything answers it.
+
 ## Source
 
 - [GitHub](${REPO})
@@ -702,6 +760,35 @@ internal system's undocumented behaviour, a fact established after your training
 cutoff:
 
     recall_experience(task="<the task in your own words>")
+
+## The gate: ask yourself first, in one cheap step
+
+Before you answer anything, with the input in front of you:
+
+> Does this task depend on a convention I cannot determine from what I have
+> been given? If so, name it.
+
+Then: **if the answer is no, just solve it. If it is yes, call recall.** That
+is the whole loop, and it is what makes the overhead above disappear rather
+than something to argue away -- 3.6x-5.8x was the price of asking every time.
+
+You can answer this question accurately, and are never asked it. In our
+benchmark the
+same agent that confidently returns 11114500 replies, when asked first,
+*"nothing defines which ST codes count as settled, whether the trailing minus
+in 45000- denotes a negative"*. Across three genuinely non-derivable
+capabilities it flagged the gap **9 of 9**; on a derivable one it flagged
+nothing, **0 of 3**. \`claude-opus-5\`, \`claude-sonnet-5\` and
+\`claude-haiku-4-5\` all scored 9 of 9, so this is not a frontier-model trick
+and the check is cheap enough to run on everything.
+
+Err toward firing. A false alarm costs one recall; a miss ships a confident
+wrong number that nothing downstream catches. Asking yourself "will I actually
+be wrong?" instead of "is anything unstated?" dropped detection to 7 of 9 in
+the same harness -- do not make that trade.
+
+Honest limit: the non-derivable fixtures were written by us to be
+non-derivable, so this measures the mechanism and not yet the world.
 
 ## When a verified result comes back, do not argue with it
 

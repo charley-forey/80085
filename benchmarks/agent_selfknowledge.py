@@ -49,11 +49,11 @@ from benchmarks.agent import WORK, Workspace  # noqa: E402
 from benchmarks.agent_correctness import QUESTIONS  # noqa: E402
 
 REPEATS = int(os.environ.get("BENCHMARK_REPEATS", "3"))
-RESULTS = (
-    ROOT
-    / "benchmarks"
-    / (f"results-agent-selfknowledge-{os.environ.get('BENCHMARK_PROBE', 'unstated')}.json")
-)
+MODEL = os.environ.get("BENCHMARK_MODEL", "claude-opus-5")
+PROBE_NAME = os.environ.get("BENCHMARK_PROBE", "unstated")
+# Keyed on model AND probe. Keyed on probe alone, a cross-model sweep silently
+# overwrote the first model's numbers with the second's.
+RESULTS = ROOT / "benchmarks" / f"results-agent-selfknowledge-{MODEL}-{PROBE_NAME}.json"
 VERDICT = "verdict.json"
 
 # `part_supersede_orbital` is excluded on purpose: decision 74 disqualified it
@@ -98,7 +98,7 @@ PROBES = {
         "wrong. You are good at this; most of the time the answer is no."
     ),
 }
-PROBE = PROBES[os.environ.get("BENCHMARK_PROBE", "unstated")]
+PROBE = PROBES[PROBE_NAME]
 
 SYSTEM = """You are an autonomous engineer assessing a task before starting it.
 
@@ -142,7 +142,7 @@ async def ask(question: Any) -> tuple[bool | None, str]:
             return f"exit {code}\n{output}"
 
         runner = client.beta.messages.tool_runner(
-            model=os.environ.get("BENCHMARK_MODEL", "claude-opus-5"),
+            model=MODEL,
             max_tokens=16000,
             system=SYSTEM,
             tools=[bash],

@@ -303,6 +303,136 @@ an agent which situation it is in — so the open question is not "what should t
 corpus contain" but **"how does an agent know it doesn't know?"** Every roadmap
 item sits upstream of that.
 
+That question is what the fifth benchmark asks, and the answer is that the agent
+already knows.
+
+## The fifth benchmark: does the agent know what it doesn't know?
+
+```bash
+ANTHROPIC_API_KEY=... uv run python benchmarks/agent_selfknowledge.py
+```
+
+`agent_correctness.py` measures whether the agent gets it wrong.
+`agent_selfknowledge.py` measures whether it can **tell in advance that it is
+about to**. One question, asked before it answers, with a shell and the input
+file in front of it: does this task depend on a convention that cannot be
+determined from the input? Name it if so.
+
+No execution, no sandbox, no artifact, no registry. One call.
+
+**Result, `claude-opus-5`, three repeats per capability:**
+
+| capability | truth | flagged |
+|---|---|---|
+| `remittance_nwf` | not derivable | **3/3** |
+| `sku_meridian` | not derivable | **3/3** |
+| `apilog_zenith` | not derivable | **3/3** |
+| `csv_dialect_sniff` | derivable | **0/3** |
+| `date_parse` | derivable | 2/3 |
+| `business_days` | derivable | 3/3 |
+| `encoding_detect` | derivable | 3/3 |
+
+**Sensitivity 9/9**, and `csv_dialect_sniff` at 0/3 is the control that makes it
+a result rather than a hedge: the detector can stay silent, and does, on a task
+whose answer is entirely in the bytes.
+
+The reasons are exact, not vague unease. The same agent that returns `11114500`
+without hesitation replies, asked first: *"nothing defines which ST codes (P vs
+H) count as 'settled', whether the trailing minus in `45000-` denotes a
+negative…"* — which is, item for item, the list of rules `remittance_nwf`
+encodes.
+
+**So the 0/9 in the fourth benchmark was never a reasoning failure.** The gap is
+fully legible to the agent before it answers. Nothing in the loop asks.
+
+### False alarms, and why most of them are not
+
+Eight of the twelve derivable runs flagged something. Read the reasons before
+scoring that as noise: on `business_days` the agent says the observance
+convention is unstated, which is **true** — the fixture does not spell out that
+a Saturday New Year's Day is observed on the preceding Friday. It then guesses
+right. Scoring that as a false alarm assumes the guess is reliable, and the 0/9
+is the evidence that it is not.
+
+### The calibration attempt failed, instructively
+
+A second probe asked about the *outcome* — will you actually be wrong — rather
+than about the input:
+
+| probe | sensitivity | false alarms |
+|---|---|---|
+| "is anything unstated?" | **9/9** | 8/12 |
+| "will you be wrong?" | 7/9 | 6/12 |
+
+`remittance_nwf` fell to 1/3, on the capability where the error is a factor of a
+hundred. Two points of detection bought two fewer false alarms.
+
+Part of that is a prompt defect and is ours: the second probe ended "You are
+good at this; most of the time the answer is no", which is a nudge toward
+under-reporting, written because fewer false alarms were wanted.
+
+The rest survives fixing the prompt, and it is the design rule. **The costs are
+asymmetric.** A false alarm wastes one recall. A miss ships a confident wrong
+number that nothing downstream flags. A detector for silent failure should
+over-fire, and the conservative phrasing is correct *because* it does.
+
+## The same harness on three models: it is a mechanism
+
+The obvious doubt about the fifth benchmark is that self-assessment might be a
+property of one expensive model. If it were, the check could not be a cheap gate
+and the honest framing would be "frontier models can self-assess, the ones you
+deploy at volume cannot".
+
+Same harness, same fixtures, same probe:
+
+| model | sensitivity | false alarms | input $/1M |
+|---|---|---|---|
+| `claude-opus-5` | **9/9** | 8/12 | $5.00 |
+| `claude-sonnet-5` | **9/9** | 7/12 | $2.00 |
+| `claude-haiku-4-5` | **9/9** | 9/12 | $1.00 |
+
+Nine of nine on all three. `claude-haiku-4-5` is also the **most** conservative
+of them, which is the right direction for a check whose costs are asymmetric.
+
+### What that changes about the architecture
+
+Detection is one call with no sandbox, no artifact, no execution and no
+registry, and it demonstrably runs on the cheapest model in the family. So it
+can gate *every* task rather than being something an agent occasionally
+remembers to do:
+
+    every task        ->  cheap detector on a small model
+    only if it fires  ->  recall, execute, defer
+
+**This is not a tuning of the 3.6x-5.8x overhead in the third benchmark. It
+removes it.** That cost was the price of asking indiscriminately, and asking is
+now gated by something that costs a fraction of a cent and never missed on the
+class that matters.
+
+It also fixes the safety problem the deference paragraph created
+([decision 75](../DECISIONS.md)): the shape is no longer "always ask, then
+always defer" — expensive per §71 and unsafe per §75 — but **detect, ask only
+there, defer only there**. Deference stops being a loaded gun, because it fires
+exactly where the agent has independently established that it is missing
+something, which is where its own judgement was worth nothing anyway.
+
+And the check detaches from this registry entirely. An agent that says "I cannot
+determine what `ST=H` means in this file" instead of returning `11114500` is
+more useful than one that does not, whether or not anything answers it. It is
+worth shipping standalone.
+
+### What this does not show
+
+**Every non-derivable fixture was written by us to be non-derivable.** This
+measures the mechanism, not the world. One real organisation's real convention
+remains the test that matters, and it is the same ask as decision 75's safety
+prerequisite. Three models agreeing is a mechanism; three models agreeing on
+four fixtures we wrote is still four fixtures we wrote.
+
+Also unmeasured: whether an agent that has *named* the missing convention still
+swallows a wrong result that fails to supply it. That is the clean version of
+the fourth benchmark's adversarial run and the thing that would close the loop.
+
 ## Interpreting a run
 
 * `verified: NO` on either arm invalidates that row. A fast wrong answer is

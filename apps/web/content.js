@@ -114,7 +114,8 @@ export const meta = {
   description:
     'Your agent is right about almost everything. On the questions it cannot ' +
     'derive it scored 0 of 9 — never an error, always a plausible wrong number. ' +
-    '80085 hands it the verified answer and tells it to stop arguing.',
+    'Asked first, it flags all 9, on every model we tried. 80085 hands it the ' +
+    'verified answer for exactly those.',
   aiInstructions:
     'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
     'Ask a question with no key: GET /recall?q=<your task>.'
@@ -210,7 +211,7 @@ Accept: text/markdown          every route, as markdown`
 
 const footer = {
   brand: '🧠 80085.ai',
-  lines: ['Record what cannot be derived. Believe it when it comes back.'],
+  lines: ['Notice what you cannot derive. Record it. Believe it when it comes back.'],
   sign: ['Do not reinvent the wheel.', 'Do not reinvent the boobs either. 🤖🍈🍈']
 };
 
@@ -250,6 +251,81 @@ One paragraph telling it to defer took that to 9 of 9. Control
 stayed at 0, because control has nothing to defer to.
 
 That paragraph is the product. Everything else already worked.`
+  },
+  {
+    t: 'pre',
+    text: `Then we pointed the same test at ourselves and handed it a verified
+result that was a lie. Told to defer unconditionally, it swallowed
+the lie 3 for 3 — the same lie it threw out 3 for 3 when nobody had
+told it to defer. 🔫
+
+Weighing a result against your own reading is the thing that catches
+a bad one. We had just switched it off everywhere.`
+  },
+  {
+    t: 'pre',
+    text: `So we finally asked the question we should have asked first: does it
+know? Before it answers, shell in hand, file in front of it — is
+there a convention here you cannot get from the input?
+
+It flagged all three non-derivable capabilities, 9 for 9. On one it
+can work out by looking, sniffing a CSV dialect, it flagged nothing:
+0 for 3. Discriminating, not hedging. 🎯
+
+And it names the thing. The agent that returns 11114500 without
+blinking says, asked first: "nothing defines which ST codes count
+as settled, whether the trailing minus in 45000- denotes a
+negative."
+
+It knew the whole time. Nothing in the loop ever asked. 😐`
+  },
+  {
+    t: 'pre',
+    grid: true,
+    text: `  MODEL              FLAGGED   FALSE ALARMS   INPUT $ per 1M
+  claude-opus-5      9 / 9     8 of 12        $5.00
+  claude-sonnet-5    9 / 9     7 of 12        $2.00
+  claude-haiku-4-5   9 / 9     9 of 12        $1.00`
+  },
+  {
+    t: 'pre',
+    text: `Same 9 for 9 on all three. Haiku is the most cautious of them at a
+fifth the price, which is the right direction for a safety check, so
+this is a mechanism and not a frontier-model quirk. ⚙️
+
+Which makes detection one cheap call — no sandbox, no container, no
+artifact, no registry:
+
+  every task        →  cheap detector
+  only if it fires  →  recall, execute, defer
+
+That does not tune the 3.6x-5.8x overhead we published. It removes
+it. That cost was the price of asking every single time. 🧾
+
+We also tried to make it less twitchy and made it worse: asking
+"will you actually be wrong?" instead of "is anything unstated?"
+dropped it to 7 of 9. A false alarm wastes one lookup. A miss ships
+a confident wrong number. A smoke alarm should over-fire. 🚨`
+  },
+  {
+    t: 'box',
+    emoji: '🚧',
+    title: '',
+    text: `Said out loud rather than buried: we wrote the four
+non-derivable fixtures to be non-derivable. That measures the
+mechanism, not the world. One real organisation's real
+convention is the test that counts and we have not run it yet.`
+  },
+  {
+    t: 'pre',
+    text: `So it is not "always ask, then always defer" any more — expensive,
+and unsafe. It is detect, ask only there, defer only there.
+Deference stops being a loaded gun once it only fires where the
+agent has worked out for itself that something is missing.
+
+And the check stands alone. An agent that says "I cannot determine
+what ST=H means here" beats one that hands you 11114500, whether or
+not anything answers it. 🧠`
   },
 
   ...install,
@@ -314,7 +390,8 @@ Your claim is not evidence. 🙅`
       ['✅', 'keyless recall', 'reading is free', true],
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
-      ['⚠️', 'benchmark harnesses', 'four of them; two of them killed a thesis', false],
+      ['⚠️', 'benchmark harnesses', 'five of them; two killed a thesis, one found the fix', false],
+      ['⚠️', 'pre-flight "do I know this?" gate', 'measured 9 for 9 on three models, not wired in yet', false],
       ['⚠️', `${CORPUS}-capability corpus`, 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
@@ -330,7 +407,11 @@ reliable time saved. Then we tested "but it is more correct" and
 an unaided agent scored 11 of 12 without us. Both pitches are
 dead. The numbers are in docs/benchmarks.md and decisions 71-72.
 Fabricating a benchmark would be a much funnier joke than the
-name, and we are still not making it. 🚫📉`
+name, and we are still not making it. 🚫📉
+
+The overhead number survives; the objection does not. It was the
+price of asking on every task. Gate the asking on a detector that
+costs a fraction of a cent and you pay it where it pays back.`
   }
 ];
 
@@ -402,6 +483,16 @@ compute a success rate for a wish. 🌠`
         `Probably, eventually. It won't matter. Nothing is recommended
 until it has verified runs, so garbage is visible and inert.
 Popularity can be gamed. Evidence has to be earned. 🧱`
+      ],
+      [
+        "How does an agent know it doesn't know?",
+        `Ask it. Before it answers, with the file in front of it. It
+flagged every question whose answer was not in the file, 9 for 9,
+and shrugged at the one it could work out — 0 for 3. Same result
+on opus, sonnet and haiku, so it is a mechanism and not an
+expensive model showing off. 🎯
+
+Yes, we could have asked this a lot earlier.`
       ],
       [
         'Why does confidence say 20.7% when it has never failed?',

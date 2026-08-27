@@ -1118,10 +1118,80 @@ notice, and *measured* rather than assumed. [Decision 74](DECISIONS.md).
 derive to **win an argument against the agent's own confidence**. Harder, more
 interesting, and the one worth owning.
 
-⚠️ **And it cuts both ways:** an agent instructed to defer will also defer to a
-*wrong* Experience. Deference makes the evidence gate load-bearing in a way it
-never was while nobody was listening. A corpus that earns deference and misuses
-it is worse than no corpus at all.
+⚠️ **And it cuts both ways.** We tested that too, with a deliberately wrong
+verified result. Told to defer unconditionally, an agent adopted the lie **3/3**
+— where with *no* deference instruction it rejected that same lie **3/3**. The
+paragraph is worth +7/9 on knowledge an agent cannot derive and −3/3 on a lie,
+and the behaviour we diagnosed as the bug was the thing catching wrong answers.
+
+Deference is now tied to corroboration — defer on `use`, weigh on `consider` —
+which keeps the 3/3 on true results and takes the lie back to 0/3. The residual
+risk is exact and not hidden: **a wrong artifact that reaches `use` is believed
+completely.** The gate is not one safety feature among several. It is the only
+one. [Decision 75](DECISIONS.md).
+
+### 🔎 Then the question underneath all of it
+
+Three problems — asking costs too much, the agent is silently wrong, the agent
+believes anything — and one missing faculty behind them. So we asked the agent
+directly, *before* it answered, whether the task turned on something it could
+not determine from the file.
+
+**Sensitivity 9/9.** Every non-derivable capability, every time. And
+`csv_dialect_sniff` at 0/3, which is the control that says it discriminates
+rather than hedges.
+
+The same agent that answers `11114500` without hesitation says, when asked
+first:
+
+> *"nothing defines which ST codes (P vs H) count as 'settled', whether the
+> trailing minus in `45000-` denotes a negative…"*
+
+**It can name the exact convention it is missing.** So the 0/9 was never a
+reasoning failure — the gap is fully legible to the agent, and nothing in the
+loop asks. [Decision 76](DECISIONS.md).
+
+That reorders everything. Not *"always ask, then always defer"* but **detect →
+ask only there → defer only there.** Deference stops being a loaded gun, because
+it fires exactly where the agent has independently established it is missing
+something. And the cost objection dissolves: detection is one cheap call with no
+sandbox, no artifact and no execution.
+
+And it is not a property of one expensive model. Same harness, same fixtures:
+
+| model | sensitivity | false alarms | input $/1M |
+|---|---|---|---|
+| `claude-opus-5` | **9/9** | 8/12 | $5.00 |
+| `claude-sonnet-5` | **9/9** | 7/12 | $2.00 |
+| `claude-haiku-4-5` | **9/9** | 9/12 | $1.00 |
+
+**Nine of nine on the cheapest model in the family**, which is also the most
+conservative — the right direction for a check whose costs are asymmetric.
+[Decision 77](DECISIONS.md).
+
+So the architecture stops being *"always ask, then always defer"*:
+
+```
+every task          →  cheap detector, small model, no sandbox
+only if it fires    →  recall, execute, defer
+```
+
+That does not tune the 3.6x–5.8x overhead. It **removes** it — that cost was
+the price of asking indiscriminately.
+
+It also says something uncomfortable and probably true: **storage and retrieval
+are commodity. The measurement of silent failure, and the check that precedes
+it, are not.** 💎
+
+An agent that says *"I cannot determine what `ST=H` means in this file"* instead
+of returning `11114500` is more useful than one that does not — **whether or not
+anything answers it.**
+
+> 🧪 **The limit, stated plainly:** all four non-derivable fixtures were written
+> by us to be non-derivable. Three models agreeing is a mechanism; three models
+> agreeing on four fixtures we wrote is still four fixtures we wrote. One real
+> organisation's real convention is the test that matters, and we do not have
+> one yet.
 
 We would rather publish that than a launch. 🫡
 
@@ -1333,7 +1403,7 @@ issue.
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
-| Benchmark harnesses | ⚠️ Four. They killed two theses and found the real one: on knowledge an agent cannot derive, control **0/9**, treatment **2/9** — and **9/9** once told to defer. Decisions 71–74 |
+| Benchmark harnesses | ⚠️ Six. Two theses dead; one alive: control **0/9** on knowledge it cannot derive. Deference fixes it (**9/9**) and is exploitable (**3/3** on a lie). Agents detect the gap **9/9 on every model tested**. Decisions 71–77 |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |

@@ -3448,3 +3448,104 @@ whether it holds on models other than `claude-opus-5`, which decides if it is a
 mechanism or a model property; and whether an agent that has *named* the missing
 convention still swallows a wrong result that fails to supply it -- the clean
 version of decision 75, and the one that would close the loop.
+
+---
+
+### 77. It is a mechanism, not a frontier-model quirk
+
+Decision 76 measured 9/9 detection sensitivity on `claude-opus-5` and named the
+obvious doubt: whether that is a property of one expensive model. If it were,
+the pre-flight check could not be a cheap gate, and the honest framing would
+have been "frontier models can self-assess, the ones you deploy at volume
+cannot" -- a worse fact about the world than the one we hoped for.
+
+Same harness, same fixtures, same probe, three models:
+
+| model | sensitivity | false alarms | input $/1M |
+|---|---|---|---|
+| `claude-opus-5` | **9/9** | 8/12 | $5.00 |
+| `claude-sonnet-5` | **9/9** | 7/12 | $2.00 |
+| `claude-haiku-4-5` | **9/9** | 9/12 | $1.00 |
+
+Nine of nine on all three. Every non-derivable capability, every repeat, on a
+model a fifth the price of the one that produced the original result.
+
+Haiku is also the *most* conservative of the three, which is the right direction
+for a detector whose costs are asymmetric (decision 76): a false alarm wastes
+one recall, a miss ships a confident wrong number.
+
+**What this makes possible.** Detection is one call with no sandbox, no
+artifact, no execution and no registry, and it now demonstrably runs on the
+cheapest model in the family. So it can be a gate on *every* task rather than a
+thing an agent occasionally remembers to do:
+
+    every task -> cheap detector on a small model
+    only if it fires -> recall, execute, defer
+
+That is not a tuning of decision 71's overhead objection. It removes it. The
+3.6x-5.8x cost was the price of asking indiscriminately; asking is now gated by
+something that costs a fraction of a cent and never misses on the class that
+matters.
+
+It also detaches the idea from this registry entirely. An agent that says "I
+cannot determine what ST=H means in this file" instead of returning 11114500 is
+more useful than one that does not, whether or not anything answers it. The
+check is worth shipping on its own.
+
+**What is still not known.** Every non-derivable fixture was written by us to be
+non-derivable, so this measures the mechanism and not the world; one real
+organisation's real convention remains the test that matters, and it is the same
+ask as decision 75's safety prerequisite. Whether detection also makes deference
+safe -- an agent that has *named* the missing convention refusing a result that
+fails to supply it -- is unmeasured and would close the loop on decision 75.
+
+Three models agreeing is a mechanism. Three models agreeing on four fixtures we
+wrote is still four fixtures we wrote.
+
+---
+
+### 78. The integration suite was never flaky. The measurement was.
+
+Correcting a claim made in this file's own commit history. `c8ec912` states the
+integration failures were "the pre-existing order-dependence exposed when make
+test began collecting". That was asserted from a plausible story rather than a
+controlled comparison, and it is wrong.
+
+Integration alone, across the evening:
+
+| concurrent pytest processes | result |
+|---|---|
+| none | **78 passed** |
+| partial overlap | 2 failed |
+| full overlap | 15 failed |
+| full overlap | 23, 25, 28 failed |
+
+Monotone in concurrency. The suite shares one Postgres from `docker-compose` and
+**cannot be run alongside itself**. Every failure count reported tonight was
+measuring background test runs racing each other, launched by the same process
+that then diagnosed them.
+
+The tell was there and was read backwards: the count varied -- 8, 23, 3, 28 --
+on an unchanged tree. Varying results with nothing changing means an
+uncontrolled variable, and it was taken as evidence *for* the hypothesis instead
+of against the methodology.
+
+What survives from that commit: `make test` genuinely could not collect, five
+basenames genuinely collide across `tests/unit` and `tests/integration`, and the
+package markers genuinely fix it. The fix was right. The explanation attached to
+it was not.
+
+**What is actually true, and worth writing down:** the integration suite is not
+safe to run concurrently. If that ever needs to change, the fix is a per-run
+schema or a lock, not test isolation -- a different repair from the one implied.
+
+**And what is now unknown again:** whether any order-dependence exists
+underneath the concurrency. It has never been measured without the confound.
+Recorded as unknown rather than reasoned into an answer, which is the whole
+point of this entry.
+
+Third confident misdiagnosis of the session, and the same shape each time --
+a plausible mechanism accepted before the obvious confound was ruled out. The
+harnesses in `benchmarks/` are careful about controls because a benchmark's job
+is to be believed. The same standard was not applied to a test suite, and the
+difference cost a wrong claim in a commit message.
