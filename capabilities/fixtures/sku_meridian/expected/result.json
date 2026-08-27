@@ -1,0 +1,49 @@
+{
+  "case_size": 12,
+  "excluded_obsolete": 1,
+  "excluded_reject": 1,
+  "format": "MERIDIAN-STOCK-V2",
+  "rows": [
+    {
+      "cases": 30,
+      "grade": "K2",
+      "item": "4471",
+      "obsolete": false,
+      "reject": false,
+      "revision": 8,
+      "sku": "MRD-4471-08-K2",
+      "units": 360
+    },
+    {
+      "cases": 10,
+      "grade": "K1",
+      "item": "4471",
+      "obsolete": true,
+      "reject": false,
+      "revision": 3,
+      "sku": "MRD-4471-03-K1",
+      "units": 0
+    },
+    {
+      "cases": 25,
+      "grade": "K0",
+      "item": "5520",
+      "obsolete": false,
+      "reject": true,
+      "revision": 11,
+      "sku": "MRD-5520-11-K0",
+      "units": 0
+    },
+    {
+      "cases": 5,
+      "grade": "K1",
+      "item": "5520",
+      "obsolete": false,
+      "reject": false,
+      "revision": 9,
+      "sku": "MRD-5520-09-K1",
+      "units": 60
+    }
+  ],
+  "sellable_units": 420
+}

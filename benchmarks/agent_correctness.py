@@ -97,6 +97,62 @@ QUESTIONS = [
         ),
     ),
     Question(
+        capability="sku_meridian",
+        ask=(
+            "input.txt is a stock line list from Meridian Industries, in their "
+            "MERIDIAN-STOCK-V2 format. How many sellable units of stock does it "
+            f'represent? Write {ANSWER} as {{"sellable_units": <integer>}} and '
+            "nothing else."
+        ),
+        inputs={"input.txt": _fixture("sku_meridian", "input.txt")},
+        field="sellable_units",
+        truth=420,
+        naive=70,
+        why=(
+            "Quantities are in cases of twelve, grade K0 is a reject rather than "
+            "stock, and revisions below 05 are obsolete tooling that cannot ship. "
+            "A reader sees a quantity column and sums it: 70, well formed, wrong "
+            "by a factor of six, and objected to by nothing."
+        ),
+    ),
+    Question(
+        capability="apilog_zenith",
+        ask=(
+            "input.txt is an access log from the Zenith internal API gateway, in "
+            "their ZENITH-GW-LOG-V4 format. How many requests genuinely failed? "
+            f'Write {ANSWER} as {{"failed_requests": <integer>}} and nothing else.'
+        ),
+        inputs={"input.txt": _fixture("apilog_zenith", "input.txt")},
+        field="failed_requests",
+        truth=2,
+        naive=4,
+        why=(
+            "299 is this gateway's 'accepted and queued', which is a success; a "
+            "retryable 4xx completed on a later hop and is not a failure; a 5xx "
+            "always is. Counting status >= 300 gives 4 -- defensible, plausible, "
+            "and wrong in the same direction on every dashboard built from it."
+        ),
+    ),
+    Question(
+        capability="part_supersede_orbital",
+        ask=(
+            "input.txt describes an Orbital Systems part supersession chain and an "
+            "order, in their ORBITAL-SUPERSEDE-V1 format. Which part number should "
+            f'this order actually ship? Write {ANSWER} as {{"resolved_part": "<part>"}} '
+            "and nothing else."
+        ),
+        inputs={"input.txt": _fixture("part_supersede_orbital", "input.txt")},
+        field="resolved_part",
+        truth="P-140",
+        naive="P-190",
+        why=(
+            "The chain ends at P-190 and following it to the end is the obvious "
+            "reading. P-190 is EU-only and this is a US order, so the right answer "
+            "is the last US-valid part before it -- which looks, from the file "
+            "alone, like deliberately shipping a superseded part."
+        ),
+    ),
+    Question(
         capability="business_days",
         ask=(
             "input.json holds a holiday list and some queries. Using that holiday "
@@ -226,8 +282,14 @@ async def main() -> int:
         )
         return 2
 
+    # BENCHMARK_ONLY=a,b re-runs a subset. The four derivable questions have
+    # scored 3/3 on both arms every time they have been asked; re-asking them to
+    # measure something else is 24 agent runs spent confirming a settled result.
+    only = {n.strip() for n in os.environ.get("BENCHMARK_ONLY", "").split(",") if n.strip()}
+    questions = [q for q in QUESTIONS if not only or q.capability in only]
+
     rows: list[dict[str, Any]] = []
-    for question in QUESTIONS:
+    for question in questions:
         prompt = PROMPT.format(work=WORK, ask=question.ask, inputs=", ".join(question.inputs))
         row: dict[str, Any] = {"capability": question.capability, "why": question.why}
         for arm_name, flag in (("control", False), ("treatment", True)):
@@ -252,7 +314,7 @@ async def main() -> int:
 
     header = f"{'capability':<20}{'control':>12}{'treatment':>12}   the wrong answer"
     print(f"\n{header}\n{'-' * len(header)}")
-    for row, question in zip(rows, QUESTIONS, strict=True):
+    for row, question in zip(rows, questions, strict=True):
         print(
             f"{row['capability']:<20}"
             f"{row['control']['passed']}/{row['control']['of']:<10}"

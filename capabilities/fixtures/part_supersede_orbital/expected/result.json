@@ -1,0 +1,10 @@
+{
+  "blocked_by_region": [
+    "P-190"
+  ],
+  "chain_end": "P-190",
+  "format": "ORBITAL-SUPERSEDE-V1",
+  "order_region": "US",
+  "ordered_part": "P-100",
+  "resolved_part": "P-140"
+}

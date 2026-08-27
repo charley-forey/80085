@@ -1,0 +1,44 @@
+{
+  "failed_requests": 2,
+  "format": "ZENITH-GW-LOG-V4",
+  "queued_accepted": 2,
+  "request_count": 6,
+  "rows": [
+    {
+      "endpoint": "/orders",
+      "failed": false,
+      "retryable": false,
+      "status": 200
+    },
+    {
+      "endpoint": "/orders",
+      "failed": false,
+      "retryable": false,
+      "status": 299
+    },
+    {
+      "endpoint": "/ship",
+      "failed": false,
+      "retryable": true,
+      "status": 429
+    },
+    {
+      "endpoint": "/ship",
+      "failed": true,
+      "retryable": false,
+      "status": 400
+    },
+    {
+      "endpoint": "/pay",
+      "failed": true,
+      "retryable": true,
+      "status": 503
+    },
+    {
+      "endpoint": "/pay",
+      "failed": false,
+      "retryable": false,
+      "status": 299
+    }
+  ]
+}

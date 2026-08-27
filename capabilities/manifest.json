@@ -1,6 +1,46 @@
 {
   "$comment": "The corpus. scripts/seed.py records these against a running API; tests/unit/test_capabilities.py runs each one against capabilities/fixtures/<name>/ with no Docker. Every entry declares a strong verifier: an exit_code verifier is satisfied by any container that exits 0, which makes evidence forgeable.",
   "capabilities": {
+    "apilog_zenith": {
+      "command": [
+        "python",
+        "/app/main.py"
+      ],
+      "goal": {
+        "intent": "unknown",
+        "statement": "Count genuine failures in a ZENITH-GW-LOG-V4 internal gateway access log",
+        "tags": [
+          "log",
+          "gateway",
+          "zenith",
+          "status-codes",
+          "private-format"
+        ]
+      },
+      "verification": {
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "properties": {
+              "failed_requests": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "format": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "format",
+              "failed_requests",
+              "rows"
+            ],
+            "type": "object"
+          }
+        },
+        "verifier": "json_schema"
+      }
+    },
     "archive_create": {
       "command": [
         "python",
@@ -2262,6 +2302,45 @@
         "verifier": "json_schema"
       }
     },
+    "part_supersede_orbital": {
+      "command": [
+        "python",
+        "/app/main.py"
+      ],
+      "goal": {
+        "intent": "unknown",
+        "statement": "Resolve an ORBITAL-SUPERSEDE-V1 part number through its supersession chain for an order region",
+        "tags": [
+          "parts",
+          "supersession",
+          "orbital",
+          "region",
+          "private-format"
+        ]
+      },
+      "verification": {
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "properties": {
+              "format": {
+                "type": "string"
+              },
+              "resolved_part": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "format",
+              "resolved_part",
+              "ordered_part"
+            ],
+            "type": "object"
+          }
+        },
+        "verifier": "json_schema"
+      }
+    },
     "recurrence_expand": {
       "command": [
         "python",
@@ -2493,6 +2572,46 @@
               "format",
               "settled_total_cents",
               "held_count",
+              "rows"
+            ],
+            "type": "object"
+          }
+        },
+        "verifier": "json_schema"
+      }
+    },
+    "sku_meridian": {
+      "command": [
+        "python",
+        "/app/main.py"
+      ],
+      "goal": {
+        "intent": "unknown",
+        "statement": "Total the sellable units in a MERIDIAN-STOCK-V2 stock line list from Meridian Industries",
+        "tags": [
+          "stock",
+          "sku",
+          "inventory",
+          "meridian",
+          "private-format"
+        ]
+      },
+      "verification": {
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "properties": {
+              "format": {
+                "type": "string"
+              },
+              "sellable_units": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "format",
+              "sellable_units",
               "rows"
             ],
             "type": "object"
