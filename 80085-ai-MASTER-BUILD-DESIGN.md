@@ -36,9 +36,39 @@ Your job is to:
 
 ### Core thesis
 
-> If an AI agent can discover a proven executable solution faster and
-> more reliably than it can recreate that solution, the agent should
-> naturally reuse it.
+**Amended 2026-08-26 by benchmark. See DECISIONS 71--74.** The original
+thesis read: *"If an AI agent can discover a proven executable solution
+faster and more reliably than it can recreate that solution, the agent
+should naturally reuse it."* Both halves were measured and both are
+false. Treatment cost 3.6x to 5.8x more input tokens than an agent with
+a `bash` tool and no registry, with no reliable time benefit (71). On
+the correctness cases an unaided agent scored 11 of 12 without us (72).
+An agent is not a naive library call; it reads the file.
+
+The thesis that survived measurement:
+
+> An agent reuses a proven executable solution only when the answer
+> depends on knowledge it cannot reach by inspection --- knowledge that
+> is not in the input and not in its training --- and only when it is
+> instructed to prefer a verified result over its own reading.
+
+Control scored 0 of 9 on three capabilities of that class: never right,
+never an error, always a plausible silent wrong answer. Treatment, with
+recall, sandbox, verifier, evidence gate and ranking all working,
+scored 2 of 9 --- the agent fetched the verified answer and then
+adjudicated it against its own reading of the file and preferred
+itself. One paragraph of deference guidance took treatment to 9 of 9;
+control stayed 0 of 9 (73--74).
+
+The consequence for everything below: **the registry was never the
+product.** The product is the handoff across the trust boundary. Most
+of this document specifies the registry, and that specification still
+stands --- but no feature in it moves the number that matters unless
+the handoff holds.
+
+Known open risk: an agent instructed to defer will also defer to a
+*wrong* Experience. That makes the evidence gate load bearing in a way
+it was not before, and it has not been tested.
 
 ### Product definition
 
@@ -48,6 +78,12 @@ Your job is to:
 It is **not** another coding agent. It is **not** primarily a container
 registry. It is **not** a chat application. It is infrastructure that
 lets agents reuse capabilities discovered by other agents.
+
+**Amended 2026-08-26.** It is **not** a memory either. Storage and
+recall were never the bottleneck --- they worked perfectly through nine
+runs that delivered nothing. Read the definition above as: a way for
+knowledge an agent cannot derive to win an argument against the agent's
+own confidence. DECISIONS 74.
 
 ------------------------------------------------------------------------
 
@@ -1381,18 +1417,34 @@ agent with 80085
 
 Measure:
 
--   time to successful outcome;
+-   pass rate on the task;
 -   tool calls;
--   tokens;
+-   tokens (input and output, cache reads and writes reported
+    separately, caching on for both arms or neither);
 -   cost;
--   success rate;
--   failures.
+-   failures, and whether they are loud or silent.
 
 Primary metric:
 
-# TIME TO SUCCESSFUL OUTCOME
+# PASS RATE ON NON-DERIVABLE TASKS
 
-The product exists to reduce the amount of work agents must recreate.
+**Amended 2026-08-26. See DECISIONS 71 and 74.** This section previously
+named TIME TO SUCCESSFUL OUTCOME. Time is not measurable at any sample
+size this project can afford: the same arm on the same task took 34.4s,
+65.6s and 88.7s across three runs, and the variance swamps the effect.
+Every threshold derived from those timings was withdrawn as
+pattern-matching on noise.
+
+Pass rate is binary and needs few repeats. It must be scored on tasks
+whose rule is absent from the input, because that is the only class
+where the metric can move: control scored 0 of 9 there and 11 of 12 on
+the tasks an agent can read the answer out of. A benchmark task whose
+rule leaks into its own fixture measures nothing and is thrown out
+(`part_supersede_orbital`, DECISIONS 74).
+
+The product does not exist to reduce the work agents recreate. It
+exists to supply the answers they cannot derive, and to have those
+answers believed.
 
 ------------------------------------------------------------------------
 

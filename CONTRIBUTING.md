@@ -56,16 +56,43 @@ So before proposing one, answer this in the pull request:
 
 > **What does the obvious implementation return, and why does nobody notice?**
 
-A good answer looks like `csv.Sniffer` returning `''` for a German CSV export
+A good answer looks like `csv.Sniffer` returning `'
+'` for a German CSV export
 — which `csv.reader` then rejects as a bad delimiter — or a last-business-day
 routine returning 2021-12-31 when New Year's Day 2022 fell on a Saturday and
 was observed on Friday the 31st. In both cases nothing crashes, the answer is
 well-formed, and it is wrong.
 
 **A crash gets fixed. A plausible wrong answer gets shipped and believed.**
-That gap is the entire value of this corpus, and a capability that does not sit
-in it is one we would rather not carry. If your case belongs in
-`benchmarks/correctness.py`, it belongs in the corpus.
+
+**And that bar is necessary but not sufficient — we measured it.** Four
+capabilities were built where the *naive library call* is wrong, and an unaided
+agent got them right anyway: 11 of 12. An agent is not a library call; it reads
+the file. So "the obvious implementation is wrong" is not enough on its own
+(decision 72).
+
+The bar that actually holds is stricter. Ask:
+
+> **Is the rule that decides the answer present in the input at all?**
+
+If a sufficiently careful reader could recover it from the data, an agent will,
+and your capability is overhead. It qualifies when the rule lives somewhere the
+data does not: a counterparty's convention, an internal system's undocumented
+behaviour, an organisation's own workaround, a fact established after a model's
+training cutoff. On that class, an unaided agent scored **0 out of 9** — never
+right, never an error, always a plausible silent wrong answer (decisions 73-74).
+
+Worked examples in the corpus: `remittance_nwf` (amounts in tenths of a cent),
+`apilog_zenith` (`299` is this gateway's success code), `sku_meridian`
+(quantities in cases of twelve). And one counter-example kept deliberately:
+`part_supersede_orbital` was **disqualified** because its rule leaked into its
+own fixture, and an unaided agent scored 3/3. A capability whose rule is
+recoverable from its own inputs tests nothing.
+
+**One more thing, and it is new.** Since agents are now instructed to *defer* to
+a verified result rather than weigh it against their own reading (decision 74), a
+wrong Experience is no longer ignored -- it is believed. Do not contribute a
+capability you are not confident is correct.
 
 ## Pull requests
 

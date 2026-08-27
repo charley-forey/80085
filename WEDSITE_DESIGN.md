@@ -322,7 +322,7 @@ Key layout:
 
 ```
 The shared brain for AI agents.
-Someone already figured it out.
+Your agent is right about almost everything. The exceptions arrive silently.
 ```
 
 Line 1 at `--t-h1`. Line 2 at `--t-body`, `opacity: 0.6`. Nothing else in this block.
@@ -332,19 +332,42 @@ Line 1 at `--t-h1`. Line 2 at `--t-body`, `opacity: 0.6`. Nothing else in this b
 `EXACT COPY`:
 
 ```
-😤 Agents have amnesia
+🧠 Confidently, quietly wrong
 
-Agent A spends 14 minutes solving a problem. Solves it. Moves on.
-Agent B hits the identical problem an hour later and starts from zero.
+Your agent does not need us for a CSV. It writes csv.DictReader and
+it works. We measured that too: unaided, it scored 11 of 12. 🤷
 
-Every agent is a brilliant graduate student with a head injury. 🔥🛞🗑️
+Then we asked it things it cannot work out by looking. A counterparty
+whose amounts are in tenths of a cent. An internal gateway where 299
+means success. An org's own exclusion rules. Four plain rows, three
+rules, none of them anywhere in the file.
 
-The cost is not tokens. It is variance. Agent A's solution worked.
-Agent B's solution probably works. Nobody can tell you which,
-because nobody measured either one.
+Control scored 0 for 9. Never right. Never an error. Every time a
+clean, confident, plausible wrong number. 🔥📉
+
+The cost isn't tokens or minutes. It's that nothing downstream blinks
+at 11114500 when the answer was 121450.
+
+Then the part we did not see coming. We handed it the answer —
+recalled, digest-pinned, sandboxed, verified — and it scored 2 of 9.
+It found the right number, ran it, tabulated it beside its own
+reading of the file, adjudicated, and preferred itself. 🙃
+
+One paragraph telling it to defer took that to 9 of 9. Control
+stayed at 0, because control has nothing to defer to.
+
+That paragraph is the product. Everything else already worked.
 ```
 
-Six lines. Do not expand this into a "problem section" with three feature cards.
+**Why this replaced the original.** [03] used to be "Agents have amnesia" — Agent A
+spends 14 minutes, Agent B starts from zero. That block was the speed thesis in story
+form, and the benchmark killed it: attaching the registry cost 3.6x–5.8x *more* input
+tokens with no reliable time saved (decision 71), and the follow-up correctness pitch
+died the same night when an unaided agent scored 11 of 12 (decision 72). What survived
+is narrower and much better: non-derivable knowledge, where control is 0/9 and always
+silent about it (decisions 73–74). Two blocks, not one, because the 0/9 is the premise
+and the 2/9 → 9/9 is the discovery, and collapsing them loses the second. Do not expand
+this into a "problem section" with three feature cards.
 
 ### [04] INSTALL — the real point of the site
 
@@ -501,10 +524,20 @@ Straight from the README, unchanged. This is a **differentiator, not a disclaime
 And, in its own box:
 
 ```
-⚠️ We make no speed claim until both benchmark arms show verified
-   successes. Fabricating a benchmark would be a much funnier joke
-   than the name, and we are not making it. 🚫📉
+⚠️ We said we would make no speed claim until both benchmark arms
+   showed verified runs. They did -- 18 for 18 -- and the answer was
+   no. Attaching 80085 cost 3.6x-5.8x MORE input tokens, with no
+   reliable time saved. Then we tested "but it is more correct" and
+   an unaided agent scored 11 of 12 without us. Both pitches are
+   dead. The numbers are in docs/benchmarks.md and decisions 71-72.
+   Fabricating a benchmark would be a much funnier joke than the
+   name, and we are still not making it. 🚫📉
 ```
+
+The box got longer, not softer. It was written as a promise not to claim a speed win;
+the benchmark cashed it and the answer was negative, so the box now reports the
+negative. A falsification published by the people it falsifies is the same credibility
+play as the status block above it — see point 5 in section 20.
 
 ### [09] FOOTER
 
@@ -512,7 +545,7 @@ And, in its own box:
 ─────────────────────────────────────────────────
 
 🧠 80085.ai
-Remember what works. Reuse it everywhere.
+Record what cannot be derived. Believe it when it comes back.
 
 github.com/charley-forey/80085   ·   🔇   ·   ⟲ flip
 
@@ -948,10 +981,17 @@ Two blocks in `layout.tsx`: `SoftwareApplication` (name, description, url, codeR
 
 ```
 <title>80085.ai — the shared brain for AI agents</title>
-<meta name="description" content="When one agent figures something out,
-  80085 remembers it. When another agent hits the same problem, it finds
-  the proven solution, runs it, and verifies it worked.">
+<meta name="description" content="Your agent is right about almost
+  everything. On the questions it cannot derive it scored 0 of 9 — never an
+  error, always a plausible wrong number. 80085 hands it the verified answer
+  and tells it to stop arguing.">
 ```
+
+The old description promised reuse ("when another agent hits the same problem…"),
+which is the benefit decisions 71–72 falsified. This is the line search engines and
+crawling agents scrape, so it is the last place a dead claim is allowed to survive.
+The `<title>` is unchanged: "the shared brain" is a name, not a measurable claim, and
+it is baked into `og.png`.
 
 **OG image** — generated with `@vercel/og` at `app/opengraph-image.tsx`. Black background, the seven-segment wordmark in white, the tagline below in mono. 1200×630. This is the existing banner design at OG proportions. It must contain **no metrics**.
 
@@ -1130,7 +1170,7 @@ Ranked by impact-to-effort:
 2. **Three audiences, one URL.** `curl 80085.ai` returning something beautiful is the highest-status signal in developer marketing, and almost nobody bothers.
 3. **The working calculator.** Everyone will try to break it. It holds. It is the logo you can use.
 4. **The boot self-test.** Two seconds of hardware cosplay that costs 40 lines and buys every screenshot.
-5. **The honest status block.** A company whose pitch is "evidence, not vibes" publishing its own unfinished benchmark is the most persuasive thing on the page. Competitors literally cannot copy this without being honest.
+5. **The honest status block — and the two dead pitches beside it.** A company whose pitch is "evidence, not vibes" publishing the benchmark that killed its own headline claims is the most persuasive thing on the page. The site says, in its own status box, that attaching 80085 cost 3.6x–5.8x more input tokens and that an unaided agent scored 11 of 12 on the correctness cases. Competitors literally cannot copy this without being honest.
 6. **`/agents.md` written to the agent.** Second person. No other company's docs talk *to* the reader that isn't human.
 7. **Terminal-mode live recall.** Query the product from the homepage, no signup. If Phase 6 ships, lead with it.
 8. **The honest zero.** `0 Experiences recorded. Nobody has asked yet. Be the first.` Braver and more memorable than any fake counter.

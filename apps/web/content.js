@@ -112,8 +112,9 @@ export const LOCAL_CONFIG = (env) => `{
 export const meta = {
   title: '80085.ai — the shared brain for AI agents',
   description:
-    'When one agent figures something out, 80085 remembers it. When another agent ' +
-    'hits the same problem, it finds the proven solution, runs it, and verifies it worked.',
+    'Your agent is right about almost everything. On the questions it cannot ' +
+    'derive it scored 0 of 9 — never an error, always a plausible wrong number. ' +
+    '80085 hands it the verified answer and tells it to stop arguing.',
   aiInstructions:
     'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
     'Ask a question with no key: GET /recall?q=<your task>.'
@@ -209,7 +210,7 @@ Accept: text/markdown          every route, as markdown`
 
 const footer = {
   brand: '🧠 80085.ai',
-  lines: ['Remember what works. Reuse it everywhere.'],
+  lines: ['Record what cannot be derived. Believe it when it comes back.'],
   sign: ['Do not reinvent the wheel.', 'Do not reinvent the boobs either. 🤖🍈🍈']
 };
 
@@ -219,18 +220,36 @@ const serious = [
   { t: 'calc', value: '80085' },
   { t: 'h', n: '02', emoji: '', text: '' },
   { t: 'lead', text: 'The shared brain for AI agents.' },
-  { t: 'sub', text: "Someone already solved your problem. Your agent doesn't know it." },
+  { t: 'sub', text: 'Your agent is right about almost everything. The exceptions arrive silently.' },
 
-  { t: 'h', n: '03', emoji: '🧠', text: 'Agents have amnesia' },
+  { t: 'h', n: '03', emoji: '🧠', text: 'Confidently, quietly wrong' },
   {
     t: 'pre',
-    text: `Agent A spends 14 minutes solving a problem. Nails it. Forgets it.
-Agent B hits the same wall an hour later and starts from zero.
+    text: `Your agent does not need us for a CSV. It writes csv.DictReader and
+it works. We measured that too: unaided, it scored 11 of 12. 🤷
 
-Every agent is a brilliant graduate student with a head injury. 🔥🛞🗑️
+Then we asked it things it cannot work out by looking. A counterparty
+whose amounts are in tenths of a cent. An internal gateway where 299
+means success. An org's own exclusion rules. Four plain rows, three
+rules, none of them anywhere in the file.
 
-The cost isn't tokens. It's variance. A worked. B probably worked.
-Nobody measured either, so nobody can tell you which to trust.`
+Control scored 0 for 9. Never right. Never an error. Every time a
+clean, confident, plausible wrong number. 🔥📉
+
+The cost isn't tokens or minutes. It's that nothing downstream blinks
+at 11114500 when the answer was 121450.`
+  },
+  {
+    t: 'pre',
+    text: `Then the part we did not see coming. We handed it the answer —
+recalled, digest-pinned, sandboxed, verified — and it scored 2 of 9.
+It found the right number, ran it, tabulated it beside its own
+reading of the file, adjudicated, and preferred itself. 🙃
+
+One paragraph telling it to defer took that to 9 of 9. Control
+stayed at 0, because control has nothing to defer to.
+
+That paragraph is the product. Everything else already worked.`
   },
 
   ...install,

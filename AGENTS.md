@@ -5,19 +5,67 @@ states the rules that are not obvious from the code.
 
 ## What this is
 
-**80085 is a shared, evidence-backed memory of executable solutions that AI
-agents can discover, run, verify, and improve.**
+**80085 is a way for knowledge an agent cannot derive to win an argument
+against the agent's own confidence.** It carries that knowledge as a
+digest-pinned artifact, an executable run, and an independent verdict.
 
 It is not a coding agent, not a chat app, and not primarily a container
-registry. The thesis it exists to prove:
+registry. It is also not a memory. Storage and recall were never the
+bottleneck.
 
-> If an agent can discover a proven executable solution faster and more
-> reliably than it can recreate it, the agent will reuse it.
+The founding thesis was that an agent reuses a proven solution when
+discovering it is faster and more reliable than recreating it. Both halves
+were benchmarked and both are false. Treatment cost **3.6x to 5.8x more input
+tokens** than an agent with a `bash` tool and no registry, and nothing about
+time is measurable at achievable sample sizes — the same arm on the same task
+took 34.4s, 65.6s and 88.7s (DECISIONS 71). On the correctness cases an
+unaided agent scored **11 of 12**: it does not need us to be right about a
+delimiter it can read for itself (DECISIONS 72). The naive baselines in
+`benchmarks/correctness.py` are what a naive *library call* does, and an agent
+is not a library call.
+
+What replaced it, tested on four synthetic capabilities built for the purpose:
+
+> Value exists only for knowledge an agent cannot reach by inspection, because
+> it is not in the input and not in training. Recall, execution and
+> verification deliver none of that value unless the agent is also told to
+> prefer a verified result over its own reading.
+
+**Control scored 0 of 9** on the three valid capabilities (`remittance_nwf`,
+`sku_meridian`, `apilog_zenith`): never right, never an error, always a
+plausible silent wrong answer. `part_supersede_orbital` is disqualified —
+its rule leaked into its own fixture and control scored 3/3 on it.
+
+**Treatment, with every part of the system working, scored 2 of 9.** The
+traces say why. The agent called `recall_experience`, `get_experience` and
+`run_experience`, received the verified answer, tabulated it against its own
+reading of the raw file, adjudicated between the two, and preferred itself.
+The failure was not disbelief. It was arbitration. One paragraph instructing
+the agent to defer to a verified result took treatment from **2/9 to 9/9**;
+control stayed 0/9 (DECISIONS 73-74).
+
+So the registry was never the product. Recall, the sandbox, the verifier, the
+evidence gate and the ranking all worked perfectly at 2/9. What was missing
+was integration guidance, and it is worth more than anything on the roadmap.
+Direction of travel is private and self-hosted deployment inside
+organisations, where non-derivable knowledge actually lives — counterparty
+file conventions, internal system behaviour, org-specific workarounds. The
+public corpus is proof and on-ramp, not the product.
+
+**Open risk, do not paper over it.** An agent instructed to defer will also
+defer to a *wrong* Experience. Deference makes the evidence gate load bearing
+in a way it was not when nobody was listening, so DECISIONS 70's collapse of
+first-party organizations matters more now, not less. The deference paragraph
+has been measured on the class it was written for and never against a wrong
+Experience. That is untested, not safe.
 
 Six operations matter: **DISCOVER, RECALL, EXECUTE, VERIFY, RECORD, REUSE.**
 
-The single test that proves the product is
-`tests/e2e/test_cross_agent_reuse.py`. If it fails, nothing else here matters.
+`tests/e2e/test_cross_agent_reuse.py` proves the loop closes, and it is
+necessary but no longer sufficient: it passed for every one of the 2/9 runs.
+What proves the product is `benchmarks/agent_correctness.py` on the
+non-derivable capabilities, plus `tests/unit/test_mcp_tools.py`, which fails
+first if `EXECUTION_NOTICE` loses the deference paragraph.
 
 ## Naming
 
@@ -104,8 +152,8 @@ make test              # unit + integration
 uv run pytest tests/unit          # pure, no services
 uv run pytest tests/integration   # real Postgres: triggers, tenancy, filters
 uv run pytest tests/security      # real containers: escape and exhaustion
-uv run pytest tests/e2e           # THE test: cross-agent reuse
-make benchmark                    # control vs treatment
+uv run pytest tests/e2e           # the reuse loop, end to end
+make benchmark                    # control vs treatment; see benchmarks/
 ```
 
 Service-backed tests **skip loudly** rather than mock. A mocked sandbox proves
@@ -154,8 +202,8 @@ Treat every artifact as hostile.
 
 | Tool | Use |
 |---|---|
-| `recall_experience` | Ask whether a verified solution exists. Call before solving anything non-trivial. |
-| `run_experience` | Execute one exact version in the sandbox; returns output plus an independent verdict. |
+| `recall_experience` | Ask whether a verified solution exists. Call when the answer turns on a convention you cannot read out of the input — not on everything; on `csv_to_json` the same call is pure overhead. |
+| `run_experience` | Execute one exact version in the sandbox; returns output plus an independent verdict. When verification passed, those values are the answer — they are not a second opinion to be weighed against your own reading. |
 | `record_experience` | Contribute a solution you proved works. `lineage` connects a fork to what it forked. |
 | `get_execution` | Poll a run that had not finished when `run_experience` stopped waiting. |
 | `get_experience` | Re-read a known id's status and evidence without a recall. |
@@ -179,6 +227,12 @@ verifier is satisfied by any container that returns 0, so a capability that
 does nothing earns the same evidence as one that works. Every capability in the
 manifest writes `result.json` describing what it produced — including the digest
 of its own output — and the verifier reads that.
+
+**A new capability needs a documented case where the obvious implementation
+returns a plausible wrong answer**, and the rule that produces it must not
+appear anywhere in the fixture. If an agent can read the rule out of the input
+it is testing nothing: control scored 3/3 on `part_supersede_orbital` for
+exactly that reason and the capability was thrown out. DECISIONS 71, 74.
 
 **Output must be deterministic.** Evidence is only worth something if the same
 input produces the same bytes: sort keys, pin separators and line terminators,

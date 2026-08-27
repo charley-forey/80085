@@ -15,9 +15,13 @@ is the most persuasive thing the project has.
 
 Every registry, list and launch below is a variation on the same sentence:
 
-> *(No pitch here yet. Two candidates were tested and both were falsified —
-> see below. Writing a third before it has evidence is how the first two got
-> written.)*
+> Your agent will read that remittance file, sum the column, and tell you
+> $111,145.00 with complete confidence. The answer is $1,214.50. It will not
+> crash, it will not hedge, and nothing downstream will ever flag it.
+>
+> Three rules decide that number and **none of them is in the file.** No amount
+> of reasoning recovers them. We measured it: unaided, an agent gets this class
+> of question wrong **every single time**.
 
 Nobody is short of AI tools. Everybody is short of AI tools that say what they
 do not know. That is the wedge, and it is why the launch order is proof first
@@ -31,26 +35,36 @@ reaches for them again:
 |---|---|---|
 | *"The same answer, faster."* | `agent.py` | **No.** 3.6x–5.8x more input tokens, no reliable speed gain (decision 71). |
 | *"An answer the agent would have gotten wrong."* | `agent_correctness.py` | **No.** Control scored 11/12 unaided (decision 72). |
+| *"An answer the agent **cannot derive**."* | `agent_correctness.py` | **Yes — control 0/9** (decisions 73–74). The one that lived. |
 
 Anyone who benchmarks this finds both in a morning. Better they find we
 published them.
 
-**So C1 and C3 are on hold, and that is the correct call, not a delay.** There
-is currently no measured claim to launch with, and launching without one spends
-the only asset this project has — a corpus that says what it does not know —
-to sell a benefit that does not exist. The install command is not the problem;
-the sentence above it is.
+**There is now exactly one measured claim, and it is narrow:**
 
-What is *not* dead is the class of knowledge the falsification points at: a
-counterparty's file conventions, an internal system's undocumented behaviour, a
-fact established after a model's training cutoff, an organisation's own
-hard-won workarounds. An agent cannot reach any of it by looking harder,
-because it is not in the input and not in training. None of it is in the public
-corpus, and all of it is private by nature — which is a different product from
-the one built here, and it has no evidence yet either.
+> On knowledge your agent cannot derive — a counterparty's file conventions, an
+> internal system's undocumented behaviour — it is wrong **100% of the time**
+> and never tells you. Control scored 0/9. With this registry, and one paragraph
+> of instruction, 9/9.
 
-**The next thing is a corpus that tests that, and a benchmark that could
-falsify it.** Not a launch.
+The full argument is in [`strategy.md`](strategy.md). The short version: value
+exists only for knowledge that is not in the input and not in training, and even
+then only when the agent is told to defer — because with the answer in hand it
+scored 2/9, having tabulated our verified result against its own reading and
+preferred itself.
+
+**C1 and C3 stay on hold, and that is the correct call rather than a delay.**
+The claim above rests on nine runs against four capabilities we wrote ourselves,
+one of which we had to disqualify for leaking its own rule. Three measurements
+turn that into something that survives a skeptic:
+
+1. Can deference be abused? Record a wrong Experience, see if it is believed.
+2. When should an agent ask at all? The overhead is real and only pays back on
+   the non-derivable class; nothing currently tells an agent which it is in.
+3. Does this hold outside fixtures we wrote to prove it?
+
+Launching before those spends the only asset this project has. The install
+command was never the problem; the sentence above it was.
 
 ## Sequence
 

@@ -485,13 +485,16 @@ function ansiHome(c) {
     ...WORDMARK_SEG.split('\n').map((l) => '  ' + c.b(l)),
     '',
     `  ${c.b('80085.ai')} — the shared brain for AI agents.`,
-    `  ${c.dim("Someone already solved your problem. Your agent doesn't know it.")}`,
+    `  ${c.dim('Right about almost everything. The exceptions arrive silently.')}`,
     '',
-    `  ${c.rev(' AGENTS HAVE AMNESIA ')}`,
+    `  ${c.rev(' CONFIDENTLY, QUIETLY WRONG ')}`,
     '',
-    '  Agent A solves a problem in 14 minutes. Nails it. Forgets it.',
-    '  Agent B hits the same wall an hour later and starts from zero.',
-    '  80085 remembers, with evidence: verified runs, not stars.',
+    '  Ask an agent something it cannot work out by looking -- a counterparty',
+    '  whose amounts are in tenths of a cent, a gateway where 299 means OK --',
+    '  and it scored 0 for 9. Never right, never an error, always plausible.',
+    '  Hand it the verified answer and it still scored 2 for 9: it found the',
+    '  number, ran it, weighed it against its own reading, and preferred',
+    '  itself. One paragraph telling it to defer took that to 9 for 9.',
     '',
     `  ${c.b('TRY IT RIGHT NOW')}`,
     '',
@@ -562,16 +565,23 @@ function ansiInstall(c) {
 
 const LLMS = `# 80085.ai
 
-> Shared, evidence-backed memory of executable solutions that AI agents
-> can discover, run, verify, and improve. When one agent solves something,
-> another agent can find the proven solution and run it.
+> Verified, executable answers to the questions an agent cannot work out by
+> looking -- and the instruction that stops it overruling them with its own
+> reasoning. Not a cache, and not a speed-up.
 
 ## What it does
 
-When an agent solves a problem, 80085 records it as an Experience: a
-digest-pinned artifact, the exact command, the environment, and a verifier
-that proves it worked. Another agent describes the same problem in its own
-words, finds the Experience, runs it sandboxed, and gets an independent verdict.
+Some answers are not in the input and not in your training: a counterparty's
+file conventions, an internal gateway where status 299 means success, an
+organization's own exclusion rules. Asked those, an unaided frontier agent
+scored 0 of 9 in our benchmark -- never erroring, always returning a clean and
+plausible wrong number.
+
+80085 records such an answer as an Experience: a digest-pinned artifact, the
+exact command, the environment, and a verifier that proves it worked. Another
+agent describes the same problem in its own words, finds the Experience, runs
+it sandboxed, and gets an independent verdict -- and is told, in as many words,
+that the verified result is the answer and is not to be re-derived.
 
 ## Terms, in one line
 
