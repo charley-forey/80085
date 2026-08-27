@@ -1,22 +1,16 @@
 {
   "$comment": "The corpus. scripts/seed.py records these against a running API; tests/unit/test_capabilities.py runs each one against capabilities/fixtures/<name>/ with no Docker. Every entry declares a strong verifier: an exit_code verifier is satisfied by any container that exits 0, which makes evidence forgeable.",
-  "defaults": {
-    "environment": {
-      "os": "linux",
-      "architecture": "amd64",
-      "runtime": "python",
-      "runtime_version": "3.13"
-    },
-    "constraints": {
-      "network": false
-    },
-    "visibility": "public"
-  },
   "capabilities": {
     "archive_create": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "output.tar",
+        "tar"
+      ],
       "goal": {
-        "statement": "Create a reproducible tar, tar.gz or zip archive with zeroed timestamps and ownership",
         "intent": "archive_create",
+        "statement": "Create a reproducible tar, tar.gz or zip archive with zeroed timestamps and ownership",
         "tags": [
           "archive",
           "tar",
@@ -25,25 +19,31 @@
           "packaging"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "output.tar",
-        "tar"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "format",
-              "entries",
-              "output",
-              "sha256"
-            ],
             "properties": {
+              "entries": {
+                "items": {
+                  "properties": {
+                    "bytes": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "bytes"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "format": {
                 "enum": [
                   "tar",
@@ -51,39 +51,33 @@
                   "zip"
                 ]
               },
-              "entries": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "bytes"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "bytes": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
-              },
               "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               }
-            }
+            },
+            "required": [
+              "format",
+              "entries",
+              "output",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "archive_extract": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "archive.tar",
+        "extracted"
+      ],
       "goal": {
-        "statement": "Safely extract a zip or tar archive, refusing path traversal, absolute paths and link entries",
         "intent": "archive_extract",
+        "statement": "Safely extract a zip or tar archive, refusing path traversal, absolute paths and link entries",
         "tags": [
           "archive",
           "zip",
@@ -92,18 +86,61 @@
           "security"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "archive.tar",
-        "extracted"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "extracted": {
+                "items": {
+                  "properties": {
+                    "bytes": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "bytes"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "format": {
+                "enum": [
+                  "zip",
+                  "tar"
+                ]
+              },
+              "refused": {
+                "items": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "total_bytes": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
             "required": [
               "format",
               "destination",
@@ -111,72 +148,13 @@
               "refused",
               "total_bytes"
             ],
-            "properties": {
-              "format": {
-                "enum": [
-                  "zip",
-                  "tar"
-                ]
-              },
-              "total_bytes": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "extracted": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "bytes"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "bytes": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
-              },
-              "refused": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "reason"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "reason": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  }
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "base64_codec": {
-      "goal": {
-        "statement": "Base64 encode or decode a file, standard or URL-safe alphabet",
-        "intent": "base64_codec",
-        "tags": [
-          "base64",
-          "encoding",
-          "decoding",
-          "text"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -184,12 +162,46 @@
         "output.b64",
         "encode"
       ],
+      "goal": {
+        "intent": "base64_codec",
+        "statement": "Base64 encode or decode a file, standard or URL-safe alphabet",
+        "tags": [
+          "base64",
+          "encoding",
+          "decoding",
+          "text"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "alphabet": {
+                "enum": [
+                  "standard",
+                  "urlsafe"
+                ]
+              },
+              "bytes_in": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "bytes_out": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "mode": {
+                "enum": [
+                  "encode",
+                  "decode"
+                ]
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "mode",
               "alphabet",
@@ -198,40 +210,21 @@
               "output",
               "sha256"
             ],
-            "properties": {
-              "mode": {
-                "enum": [
-                  "encode",
-                  "decode"
-                ]
-              },
-              "alphabet": {
-                "enum": [
-                  "standard",
-                  "urlsafe"
-                ]
-              },
-              "bytes_in": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "bytes_out": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "business_days": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Business-day arithmetic with holidays and the observed-holiday rule: last business day of a month, the Nth, and N business days from a date",
         "intent": "business_day_arithmetic",
+        "statement": "Business-day arithmetic with holidays and the observed-holiday rule: last business day of a month, the Nth, and N business days from a date",
         "tags": [
           "calendar",
           "business-days",
@@ -241,17 +234,106 @@
           "arithmetic"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "effective_closures": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "holidays": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "observe_weekend_holidays": {
+                "type": "boolean"
+              },
+              "observed_moves": {
+                "items": {
+                  "properties": {
+                    "falls_on": {
+                      "minLength": 6,
+                      "type": "string"
+                    },
+                    "holiday": {
+                      "minLength": 10,
+                      "type": "string"
+                    },
+                    "observed": {
+                      "minLength": 10,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "holiday",
+                    "falls_on",
+                    "observed"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "queries": {
+                "items": {
+                  "properties": {
+                    "count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "enum": [
+                        "last_business_day",
+                        "nth_business_day",
+                        "add_business_days",
+                        "count_business_days"
+                      ]
+                    },
+                    "weekday": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "date"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "weekend": {
+                "items": {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "weekend_days": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
             "required": [
               "weekend",
               "weekend_days",
@@ -262,110 +344,22 @@
               "queries",
               "sha256"
             ],
-            "properties": {
-              "weekend": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 6
-                }
-              },
-              "weekend_days": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "holidays": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "effective_closures": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "observe_weekend_holidays": {
-                "type": "boolean"
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              "observed_moves": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "holiday",
-                    "falls_on",
-                    "observed"
-                  ],
-                  "properties": {
-                    "holiday": {
-                      "type": "string",
-                      "minLength": 10
-                    },
-                    "falls_on": {
-                      "type": "string",
-                      "minLength": 6
-                    },
-                    "observed": {
-                      "type": "string",
-                      "minLength": 10
-                    }
-                  }
-                }
-              },
-              "queries": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "kind",
-                    "date"
-                  ],
-                  "properties": {
-                    "kind": {
-                      "enum": [
-                        "last_business_day",
-                        "nth_business_day",
-                        "add_business_days",
-                        "count_business_days"
-                      ]
-                    },
-                    "date": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "weekday": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "checksum_manifest": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "sha256",
+        "SHA256SUMS"
+      ],
       "goal": {
-        "statement": "Generate a checksum manifest of every input file using sha256, sha1, sha512 or md5",
         "intent": "checksum_manifest",
+        "statement": "Generate a checksum manifest of every input file using sha256, sha1, sha512 or md5",
         "tags": [
           "hash",
           "sha256",
@@ -374,23 +368,10 @@
           "integrity"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "sha256",
-        "SHA256SUMS"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "algorithm",
-              "files",
-              "output"
-            ],
             "properties": {
               "algorithm": {
                 "enum": [
@@ -401,57 +382,84 @@
                 ]
               },
               "files": {
-                "type": "array",
                 "items": {
-                  "type": "object",
+                  "properties": {
+                    "bytes": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "digest": {
+                      "pattern": "^[0-9a-f]{32,128}$",
+                      "type": "string"
+                    },
+                    "name": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
                   "required": [
                     "name",
                     "digest",
                     "bytes"
                   ],
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "digest": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{32,128}$"
-                    },
-                    "bytes": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
+                  "type": "object"
+                },
+                "type": "array"
               }
-            }
+            },
+            "required": [
+              "algorithm",
+              "files",
+              "output"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "cron_next_runs": {
-      "goal": {
-        "statement": "Compute the next run times of a cron expression from a given instant",
-        "intent": "schedule",
-        "tags": [
-          "cron",
-          "schedule",
-          "time"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
         "input.json",
         "output.json"
       ],
+      "goal": {
+        "intent": "schedule",
+        "statement": "Compute the next run times of a cron expression from a given instant",
+        "tags": [
+          "cron",
+          "schedule",
+          "time"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "count": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "first": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+                "type": "string"
+              },
+              "last": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+                "type": "string"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "count",
               "first",
@@ -459,36 +467,23 @@
               "output",
               "sha256"
             ],
-            "properties": {
-              "count": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "first": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
-              },
-              "last": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_dedupe": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv",
+        "deduped.csv",
+        "email"
+      ],
       "goal": {
-        "statement": "Remove duplicate rows from a CSV file, keyed on all columns or a chosen subset",
         "intent": "csv_dedupe",
+        "statement": "Remove duplicate rows from a CSV file, keyed on all columns or a chosen subset",
         "tags": [
           "csv",
           "dedupe",
@@ -497,19 +492,35 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv",
-        "deduped.csv",
-        "email"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "duplicates_removed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "key": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "rows_in": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "rows_out": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows_in",
               "rows_out",
@@ -518,39 +529,21 @@
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows_in": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "rows_out": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "duplicates_removed": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "key": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "minItems": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_dialect_sniff": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv"
+      ],
       "goal": {
-        "statement": "Detect the delimiter, quoting, header and structural damage of a real-world CSV file",
         "intent": "sniff_csv_dialect",
+        "statement": "Detect the delimiter, quoting, header and structural damage of a real-world CSV file",
         "tags": [
           "csv",
           "dialect",
@@ -560,17 +553,114 @@
           "encoding"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "bom": {
+                "type": "boolean"
+              },
+              "column_count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "decimal_comma_suspected": {
+                "type": "boolean"
+              },
+              "delimiter": {
+                "maxLength": 1,
+                "minLength": 1,
+                "type": "string"
+              },
+              "duplicate_columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "embedded_newline_fields": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "encoding": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "has_header": {
+                "type": "boolean"
+              },
+              "line_terminator": {
+                "enum": [
+                  "lf",
+                  "crlf",
+                  "cr",
+                  "mixed",
+                  "none"
+                ]
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "physical_lines": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "quotechar": {
+                "maxLength": 1,
+                "minLength": 1,
+                "type": "string"
+              },
+              "ragged_count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ragged_records": {
+                "items": {
+                  "properties": {
+                    "fields": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "record": {
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "record",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "records": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "unbalanced_quotes": {
+                "type": "boolean"
+              },
+              "width_consistency": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
             "required": [
               "delimiter",
               "quotechar",
@@ -584,118 +674,22 @@
               "sha256",
               "notes"
             ],
-            "properties": {
-              "delimiter": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 1
-              },
-              "quotechar": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 1
-              },
-              "records": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "physical_lines": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "column_count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "duplicate_columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "has_header": {
-                "type": "boolean"
-              },
-              "encoding": {
-                "type": "string",
-                "minLength": 1
-              },
-              "bom": {
-                "type": "boolean"
-              },
-              "line_terminator": {
-                "enum": [
-                  "lf",
-                  "crlf",
-                  "cr",
-                  "mixed",
-                  "none"
-                ]
-              },
-              "decimal_comma_suspected": {
-                "type": "boolean"
-              },
-              "unbalanced_quotes": {
-                "type": "boolean"
-              },
-              "embedded_newline_fields": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "ragged_count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "ragged_records": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "record",
-                    "fields"
-                  ],
-                  "properties": {
-                    "record": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "fields": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
-              },
-              "width_consistency": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              "notes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_schema_infer": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv",
+        "schema.json"
+      ],
       "goal": {
-        "statement": "Infer a JSON Schema describing the rows of a CSV file",
         "intent": "csv_schema_infer",
+        "statement": "Infer a JSON Schema describing the rows of a CSV file",
         "tags": [
           "csv",
           "schema",
@@ -704,41 +698,19 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv",
-        "schema.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "rows",
-              "columns",
-              "output",
-              "sha256"
-            ],
             "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
               "columns": {
-                "type": "array",
                 "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "type",
-                    "nullable"
-                  ],
                   "properties": {
                     "name": {
                       "type": "string"
+                    },
+                    "nullable": {
+                      "type": "boolean"
                     },
                     "type": {
                       "enum": [
@@ -747,26 +719,49 @@
                         "number",
                         "boolean"
                       ]
-                    },
-                    "nullable": {
-                      "type": "boolean"
                     }
-                  }
-                }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "nullable"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
               },
               "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               }
-            }
+            },
+            "required": [
+              "rows",
+              "columns",
+              "output",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_select": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv",
+        "output.csv",
+        "spec.json"
+      ],
       "goal": {
-        "statement": "Select and rename CSV columns from a declarative spec",
         "intent": "csv_select",
+        "statement": "Select and rename CSV columns from a declarative spec",
         "tags": [
           "csv",
           "columns",
@@ -775,49 +770,48 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv",
-        "output.csv",
-        "spec.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows",
               "columns",
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_to_json": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv",
+        "output.json"
+      ],
       "goal": {
-        "statement": "Convert a CSV file into a normalized JSON array of objects",
         "intent": "csv_to_json",
+        "statement": "Convert a CSV file into a normalized JSON array of objects",
         "tags": [
           "csv",
           "json",
@@ -825,29 +819,29 @@
           "tabular"
         ]
       },
+      "verification": {
+        "config": {
+          "file": "output.json",
+          "schema": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "verifier": "json_schema"
+      }
+    },
+    "csv_to_jsonl": {
       "command": [
         "python",
         "/app/main.py",
         "input.csv",
-        "output.json"
+        "output.jsonl"
       ],
-      "verification": {
-        "verifier": "json_schema",
-        "config": {
-          "file": "output.json",
-          "schema": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        }
-      }
-    },
-    "csv_to_jsonl": {
       "goal": {
-        "statement": "Convert a CSV file into newline-delimited JSON, one object per line",
         "intent": "csv_to_jsonl",
+        "statement": "Convert a CSV file into newline-delimited JSON, one object per line",
         "tags": [
           "csv",
           "jsonl",
@@ -856,102 +850,101 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv",
-        "output.jsonl"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows",
               "columns",
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_to_markdown_table": {
-      "goal": {
-        "statement": "Render a CSV file as a Markdown table",
-        "intent": "csv_to_markdown",
-        "tags": [
-          "csv",
-          "markdown",
-          "table"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
         "input.csv",
         "output.md"
       ],
+      "goal": {
+        "intent": "csv_to_markdown",
+        "statement": "Render a CSV file as a Markdown table",
+        "tags": [
+          "csv",
+          "markdown",
+          "table"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows",
               "columns",
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "csv_validate": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.csv"
+      ],
       "goal": {
-        "statement": "Validate the structure of a CSV file and report ragged rows, duplicate headers and invalid UTF-8",
         "intent": "csv_validate",
+        "statement": "Validate the structure of a CSV file and report ragged rows, duplicate headers and invalid UTF-8",
         "tags": [
           "csv",
           "validation",
@@ -959,52 +952,52 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.csv"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "errors": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            },
             "required": [
               "valid",
               "errors",
               "rows",
               "columns"
             ],
-            "properties": {
-              "valid": {
-                "type": "boolean"
-              },
-              "errors": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "date_parse": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Parse dates and report day/month and century ambiguity explicitly instead of guessing",
         "intent": "parse_dates",
+        "statement": "Parse dates and report day/month and century ambiguity explicitly instead of guessing",
         "tags": [
           "date",
           "parsing",
@@ -1013,26 +1006,19 @@
           "validation"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "prefer",
-              "count",
-              "ambiguous_count",
-              "unparsed_count",
-              "values",
-              "sha256"
-            ],
             "properties": {
+              "ambiguous_count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
               "prefer": {
                 "enum": [
                   "none",
@@ -1040,43 +1026,55 @@
                   "mdy"
                 ]
               },
-              "count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "ambiguous_count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "unparsed_count": {
-                "type": "integer",
-                "minimum": 0
-              },
               "self_disambiguating_count": {
-                "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "type": "integer"
               },
               "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "unparsed_count": {
+                "minimum": 0,
+                "type": "integer"
               },
               "values": {
-                "type": "array",
                 "items": {
-                  "type": "object",
-                  "required": [
-                    "input",
-                    "iso",
-                    "kind",
-                    "ambiguous",
-                    "interpretations",
-                    "has_offset",
-                    "reason",
-                    "notes"
-                  ],
                   "properties": {
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "has_offset": {
+                      "type": "boolean"
+                    },
                     "input": {
                       "type": "string"
+                    },
+                    "interpretations": {
+                      "items": {
+                        "properties": {
+                          "date": {
+                            "minLength": 10,
+                            "type": "string"
+                          },
+                          "order": {
+                            "enum": [
+                              "iso",
+                              "ymd",
+                              "dmy",
+                              "mdy",
+                              "either",
+                              "textual"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "order",
+                          "date"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "iso": {
                       "type": [
@@ -1091,70 +1089,49 @@
                         null
                       ]
                     },
-                    "ambiguous": {
-                      "type": "boolean"
-                    },
-                    "has_offset": {
-                      "type": "boolean"
+                    "notes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "reason": {
                       "type": [
                         "string",
                         "null"
                       ]
-                    },
-                    "notes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "interpretations": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "required": [
-                          "order",
-                          "date"
-                        ],
-                        "properties": {
-                          "order": {
-                            "enum": [
-                              "iso",
-                              "ymd",
-                              "dmy",
-                              "mdy",
-                              "either",
-                              "textual"
-                            ]
-                          },
-                          "date": {
-                            "type": "string",
-                            "minLength": 10
-                          }
-                        }
-                      }
                     }
-                  }
-                }
+                  },
+                  "required": [
+                    "input",
+                    "iso",
+                    "kind",
+                    "ambiguous",
+                    "interpretations",
+                    "has_offset",
+                    "reason",
+                    "notes"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
               }
-            }
+            },
+            "required": [
+              "prefer",
+              "count",
+              "ambiguous_count",
+              "unparsed_count",
+              "values",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "delimiter_convert": {
-      "goal": {
-        "statement": "Convert a delimited text file between CSV, TSV, pipe and semicolon without corrupting quoted fields",
-        "intent": "delimiter_convert",
-        "tags": [
-          "csv",
-          "tsv",
-          "delimiter",
-          "conversion",
-          "tabular"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -1163,28 +1140,33 @@
         "csv",
         "tsv"
       ],
+      "goal": {
+        "intent": "delimiter_convert",
+        "statement": "Convert a delimited text file between CSV, TSV, pipe and semicolon without corrupting quoted fields",
+        "tags": [
+          "csv",
+          "tsv",
+          "delimiter",
+          "conversion",
+          "tabular"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "rows",
-              "columns",
-              "source_format",
-              "target_format",
-              "output",
-              "sha256"
-            ],
             "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
               "columns": {
-                "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "type": "integer"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               },
               "source_format": {
                 "enum": [
@@ -1201,20 +1183,31 @@
                   "pipe",
                   "semicolon"
                 ]
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
               }
-            }
+            },
+            "required": [
+              "rows",
+              "columns",
+              "source_format",
+              "target_format",
+              "output",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "dst_shift": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Shift a local time across a daylight saving transition, separating wall-clock arithmetic from elapsed time",
         "intent": "shift_local_time",
+        "statement": "Shift a local time across a daylight saving transition, separating wall-clock arithmetic from elapsed time",
         "tags": [
           "timezone",
           "dst",
@@ -1223,70 +1216,55 @@
           "arithmetic"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "zone",
-              "start",
-              "shifts",
-              "crossed_transition",
-              "sha256"
-            ],
             "properties": {
-              "zone": {
-                "type": "string",
-                "minLength": 1
-              },
               "crossed_transition": {
                 "type": "boolean"
               },
               "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              "start": {
-                "type": "object",
-                "required": [
-                  "local",
-                  "utc",
-                  "offset",
-                  "nonexistent",
-                  "ambiguous"
-                ],
-                "properties": {
-                  "local": {
-                    "type": "string",
-                    "minLength": 19
-                  },
-                  "utc": {
-                    "type": "string",
-                    "minLength": 19
-                  },
-                  "offset": {
-                    "type": "string",
-                    "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
-                  },
-                  "nonexistent": {
-                    "type": "boolean"
-                  },
-                  "ambiguous": {
-                    "type": "boolean"
-                  }
-                }
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               },
               "shifts": {
-                "type": "array",
                 "items": {
-                  "type": "object",
+                  "properties": {
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "elapsed_matches_request": {
+                      "type": "boolean"
+                    },
+                    "elapsed_seconds": {
+                      "type": "integer"
+                    },
+                    "local": {
+                      "minLength": 19,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "enum": [
+                        "wall",
+                        "absolute"
+                      ]
+                    },
+                    "nonexistent": {
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$",
+                      "type": "string"
+                    },
+                    "resolution": {
+                      "type": "string"
+                    },
+                    "utc": {
+                      "minLength": 19,
+                      "type": "string"
+                    }
+                  },
                   "required": [
                     "mode",
                     "local",
@@ -1298,52 +1276,67 @@
                     "ambiguous",
                     "resolution"
                   ],
-                  "properties": {
-                    "mode": {
-                      "enum": [
-                        "wall",
-                        "absolute"
-                      ]
-                    },
-                    "local": {
-                      "type": "string",
-                      "minLength": 19
-                    },
-                    "utc": {
-                      "type": "string",
-                      "minLength": 19
-                    },
-                    "offset": {
-                      "type": "string",
-                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
-                    },
-                    "elapsed_seconds": {
-                      "type": "integer"
-                    },
-                    "elapsed_matches_request": {
-                      "type": "boolean"
-                    },
-                    "nonexistent": {
-                      "type": "boolean"
-                    },
-                    "ambiguous": {
-                      "type": "boolean"
-                    },
-                    "resolution": {
-                      "type": "string"
-                    }
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "start": {
+                "properties": {
+                  "ambiguous": {
+                    "type": "boolean"
+                  },
+                  "local": {
+                    "minLength": 19,
+                    "type": "string"
+                  },
+                  "nonexistent": {
+                    "type": "boolean"
+                  },
+                  "offset": {
+                    "pattern": "^[-+][0-9]{2}:[0-9]{2}$",
+                    "type": "string"
+                  },
+                  "utc": {
+                    "minLength": 19,
+                    "type": "string"
                   }
-                }
+                },
+                "required": [
+                  "local",
+                  "utc",
+                  "offset",
+                  "nonexistent",
+                  "ambiguous"
+                ],
+                "type": "object"
+              },
+              "zone": {
+                "minLength": 1,
+                "type": "string"
               }
-            }
+            },
+            "required": [
+              "zone",
+              "start",
+              "shifts",
+              "crossed_transition",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "encoding_detect": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.txt"
+      ],
       "goal": {
-        "statement": "Detect the character encoding of a text file, reporting BOM, ambiguity and mixed-encoding damage",
         "intent": "detect_encoding",
+        "statement": "Detect the character encoding of a text file, reporting BOM, ambiguity and mixed-encoding damage",
         "tags": [
           "encoding",
           "unicode",
@@ -1354,17 +1347,68 @@
           "detection"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.txt"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "alternatives": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "ambiguous": {
+                "type": "boolean"
+              },
+              "bom": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bytes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "confidence": {
+                "enum": [
+                  "certain",
+                  "high",
+                  "low"
+                ]
+              },
+              "decodable": {
+                "type": "boolean"
+              },
+              "encoding": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "mixed_encoding": {
+                "type": "boolean"
+              },
+              "mojibake_suspected": {
+                "type": "boolean"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "undecodable_lines": {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "type": "array"
+              }
+            },
             "required": [
               "encoding",
               "confidence",
@@ -1376,122 +1420,72 @@
               "mixed_encoding",
               "notes"
             ],
-            "properties": {
-              "encoding": {
-                "type": "string",
-                "minLength": 1
-              },
-              "bom": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "confidence": {
-                "enum": [
-                  "certain",
-                  "high",
-                  "low"
-                ]
-              },
-              "ambiguous": {
-                "type": "boolean"
-              },
-              "alternatives": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "decodable": {
-                "type": "boolean"
-              },
-              "bytes": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              "mojibake_suspected": {
-                "type": "boolean"
-              },
-              "mixed_encoding": {
-                "type": "boolean"
-              },
-              "undecodable_lines": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "minimum": 1
-                }
-              },
-              "notes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "html_to_markdown": {
-      "goal": {
-        "statement": "Convert an HTML document into Markdown, preserving headings, links, lists and code blocks",
-        "intent": "html_to_markdown",
-        "tags": [
-          "html",
-          "markdown",
-          "conversion"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
         "input.html",
         "output.md"
       ],
+      "goal": {
+        "intent": "html_to_markdown",
+        "statement": "Convert an HTML document into Markdown, preserving headings, links, lists and code blocks",
+        "tags": [
+          "html",
+          "markdown",
+          "conversion"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "headings": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "links": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "headings",
               "links",
               "output",
               "sha256"
             ],
-            "properties": {
-              "headings": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "links": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "ini_to_json": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.ini",
+        "output.json"
+      ],
       "goal": {
-        "statement": "Convert an INI configuration file into JSON",
         "intent": "ini_to_json",
+        "statement": "Convert an INI configuration file into JSON",
         "tags": [
           "ini",
           "json",
@@ -1499,50 +1493,50 @@
           "conversion"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.ini",
-        "output.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "keys": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sections": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "sections",
               "keys",
               "output",
               "sha256"
             ],
-            "properties": {
-              "sections": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "keys": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "json_diff": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "left.json",
+        "right.json"
+      ],
       "goal": {
-        "statement": "Structurally diff two JSON documents and report added, removed and changed paths",
         "intent": "json_diff",
+        "statement": "Structurally diff two JSON documents and report added, removed and changed paths",
         "tags": [
           "json",
           "diff",
@@ -1550,70 +1544,54 @@
           "structural"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "left.json",
-        "right.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "equal",
-              "changes",
-              "change_count"
-            ],
             "properties": {
-              "equal": {
-                "type": "boolean"
-              },
               "change_count": {
-                "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "type": "integer"
               },
               "changes": {
-                "type": "array",
                 "items": {
-                  "type": "object",
-                  "required": [
-                    "path",
-                    "op"
-                  ],
                   "properties": {
-                    "path": {
-                      "type": "string",
-                      "minLength": 1
-                    },
                     "op": {
                       "enum": [
                         "added",
                         "removed",
                         "changed"
                       ]
+                    },
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
                     }
-                  }
-                }
+                  },
+                  "required": [
+                    "path",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "equal": {
+                "type": "boolean"
               }
-            }
+            },
+            "required": [
+              "equal",
+              "changes",
+              "change_count"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "json_merge_patch": {
-      "goal": {
-        "statement": "Apply an RFC 7386 JSON Merge Patch to a JSON document",
-        "intent": "json_merge_patch",
-        "tags": [
-          "json",
-          "patch",
-          "merge",
-          "rfc7386"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -1621,41 +1599,41 @@
         "patch.json",
         "output.json"
       ],
+      "goal": {
+        "intent": "json_merge_patch",
+        "statement": "Apply an RFC 7386 JSON Merge Patch to a JSON document",
+        "tags": [
+          "json",
+          "patch",
+          "merge",
+          "rfc7386"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "output",
               "sha256"
             ],
-            "properties": {
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "json_reformat": {
-      "goal": {
-        "statement": "Pretty-print or minify a JSON document with sorted keys",
-        "intent": "json_reformat",
-        "tags": [
-          "json",
-          "format",
-          "minify",
-          "pretty-print"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -1663,17 +1641,20 @@
         "output.json",
         "pretty"
       ],
+      "goal": {
+        "intent": "json_reformat",
+        "statement": "Pretty-print or minify a JSON document with sorted keys",
+        "tags": [
+          "json",
+          "format",
+          "minify",
+          "pretty-print"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "mode",
-              "output",
-              "sha256"
-            ],
             "properties": {
               "mode": {
                 "enum": [
@@ -1682,18 +1663,31 @@
                 ]
               },
               "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               }
-            }
+            },
+            "required": [
+              "mode",
+              "output",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "json_to_csv": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json",
+        "output.csv"
+      ],
       "goal": {
-        "statement": "Convert a JSON array of objects into a CSV file",
         "intent": "json_to_csv",
+        "statement": "Convert a JSON array of objects into a CSV file",
         "tags": [
           "json",
           "csv",
@@ -1701,58 +1695,43 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json",
-        "output.csv"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows",
               "columns",
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "json_validate": {
-      "goal": {
-        "statement": "Validate a JSON document against a JSON Schema and report errors",
-        "intent": "validate_json",
-        "tags": [
-          "json",
-          "schema",
-          "validation"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -1760,35 +1739,50 @@
         "schema.json",
         "result.json"
       ],
+      "goal": {
+        "intent": "validate_json",
+        "statement": "Validate a JSON document against a JSON Schema and report errors",
+        "tags": [
+          "json",
+          "schema",
+          "validation"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "errors": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            },
             "required": [
               "valid",
               "errors"
             ],
-            "properties": {
-              "valid": {
-                "type": "boolean"
-              },
-              "errors": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "jsonl_to_csv": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.jsonl",
+        "output.csv"
+      ],
       "goal": {
-        "statement": "Convert newline-delimited JSON records into a CSV file",
         "intent": "jsonl_to_csv",
+        "statement": "Convert newline-delimited JSON records into a CSV file",
         "tags": [
           "jsonl",
           "ndjson",
@@ -1797,101 +1791,102 @@
           "tabular"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.jsonl",
-        "output.csv"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "columns": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "rows": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "rows",
               "columns",
               "output",
               "sha256"
             ],
-            "properties": {
-              "rows": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "columns": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "jwt_decode": {
-      "goal": {
-        "statement": "Decode a JSON Web Token's header and payload without verifying the signature",
-        "intent": "decode_jwt",
-        "tags": [
-          "jwt",
-          "token",
-          "decode"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
         "input.txt",
         "output.json"
       ],
+      "goal": {
+        "intent": "decode_jwt",
+        "statement": "Decode a JSON Web Token's header and payload without verifying the signature",
+        "tags": [
+          "jwt",
+          "token",
+          "decode"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "algorithm": {
+                "type": "string"
+              },
+              "claims": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "algorithm",
               "claims",
               "output",
               "sha256"
             ],
-            "properties": {
-              "algorithm": {
-                "type": "string"
-              },
-              "claims": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "line_endings": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.txt",
+        "output.txt",
+        "lf"
+      ],
       "goal": {
-        "statement": "Normalise line endings to LF, CRLF or CR and strip a UTF-8 byte order mark",
         "intent": "line_endings",
+        "statement": "Normalise line endings to LF, CRLF or CR and strip a UTF-8 byte order mark",
         "tags": [
           "text",
           "newline",
@@ -1900,19 +1895,30 @@
           "encoding"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.txt",
-        "output.txt",
-        "lf"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "bom_removed": {
+                "type": "boolean"
+              },
+              "lines": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "style": {
+                "enum": [
+                  "lf",
+                  "crlf",
+                  "cr"
+                ]
+              }
+            },
             "required": [
               "style",
               "lines",
@@ -1920,34 +1926,22 @@
               "output",
               "sha256"
             ],
-            "properties": {
-              "style": {
-                "enum": [
-                  "lf",
-                  "crlf",
-                  "cr"
-                ]
-              },
-              "lines": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "bom_removed": {
-                "type": "boolean"
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "mojibake_repair": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.txt",
+        "output.txt"
+      ],
       "goal": {
-        "statement": "Repair mojibake: UTF-8 text that was decoded as cp1252 or latin-1 and saved again as UTF-8",
         "intent": "repair_mojibake",
+        "statement": "Repair mojibake: UTF-8 text that was decoded as cp1252 or latin-1 and saved again as UTF-8",
         "tags": [
           "encoding",
           "mojibake",
@@ -1958,18 +1952,56 @@
           "text"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.txt",
-        "output.txt"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "bom_removed": {
+                "type": "boolean"
+              },
+              "changed": {
+                "type": "boolean"
+              },
+              "characters_after": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "characters_before": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "encoding": {
+                "enum": [
+                  "utf-8",
+                  "cp1252",
+                  "latin-1"
+                ]
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "passes": {
+                "maximum": 3,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "repaired_runs": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "output",
               "sha256",
@@ -1982,60 +2014,21 @@
               "changed",
               "notes"
             ],
-            "properties": {
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              },
-              "passes": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 3
-              },
-              "repaired_runs": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "characters_before": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "characters_after": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "encoding": {
-                "enum": [
-                  "utf-8",
-                  "cp1252",
-                  "latin-1"
-                ]
-              },
-              "bom_removed": {
-                "type": "boolean"
-              },
-              "changed": {
-                "type": "boolean"
-              },
-              "notes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "money_allocate": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Split a money amount into weighted shares that add back up to exactly the total, in the currency's own minor units",
         "intent": "allocate_money",
+        "statement": "Split a money amount into weighted shares that add back up to exactly the total, in the currency's own minor units",
         "tags": [
           "money",
           "currency",
@@ -2045,17 +2038,63 @@
           "accounting"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "allocations": {
+                "items": {
+                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "exact": {
+                "const": true
+              },
+              "exponent": {
+                "maximum": 6,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "method": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minor_units": {
+                "type": "integer"
+              },
+              "redistributed_units": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sum": {
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              "total": {
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              "weights": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
             "required": [
               "exponent",
               "total",
@@ -2068,67 +2107,21 @@
               "redistributed_units",
               "sha256"
             ],
-            "properties": {
-              "currency": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "exponent": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 6
-              },
-              "total": {
-                "type": "string",
-                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-              },
-              "sum": {
-                "type": "string",
-                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-              },
-              "weights": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "allocations": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                  "type": "string",
-                  "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-                }
-              },
-              "exact": {
-                "const": true
-              },
-              "method": {
-                "type": "string",
-                "minLength": 1
-              },
-              "minor_units": {
-                "type": "integer"
-              },
-              "redistributed_units": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "money_parse": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Parse money written in any locale into an exact decimal, reporting values whose thousands separator and decimal point cannot be told apart",
         "intent": "parse_money",
+        "statement": "Parse money written in any locale into an exact decimal, reporting values whose thousands separator and decimal point cannot be told apart",
         "tags": [
           "money",
           "currency",
@@ -2138,26 +2131,19 @@
           "ambiguity"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "hint",
-              "count",
-              "ambiguous_count",
-              "unparsed_count",
-              "values",
-              "sha256"
-            ],
             "properties": {
+              "ambiguous_count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
               "hint": {
                 "enum": [
                   "none",
@@ -2165,26 +2151,87 @@
                   "eu"
                 ]
               },
-              "count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "ambiguous_count": {
-                "type": "integer",
-                "minimum": 0
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
               },
               "unparsed_count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+                "minimum": 0,
+                "type": "integer"
               },
               "values": {
-                "type": "array",
                 "items": {
-                  "type": "object",
+                  "properties": {
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "currency": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "input": {
+                      "type": "string"
+                    },
+                    "interpretations": {
+                      "items": {
+                        "properties": {
+                          "style": {
+                            "enum": [
+                              "us",
+                              "eu",
+                              "plain",
+                              "grouped"
+                            ]
+                          },
+                          "value": {
+                            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "style",
+                          "value"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "negative": {
+                      "type": "boolean"
+                    },
+                    "notes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "scale": {
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
                   "required": [
                     "input",
                     "value",
@@ -2196,88 +2243,34 @@
                     "reason",
                     "notes"
                   ],
-                  "properties": {
-                    "input": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "scale": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ],
-                      "minimum": 0
-                    },
-                    "negative": {
-                      "type": "boolean"
-                    },
-                    "currency": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "ambiguous": {
-                      "type": "boolean"
-                    },
-                    "reason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "notes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "interpretations": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "required": [
-                          "style",
-                          "value"
-                        ],
-                        "properties": {
-                          "style": {
-                            "enum": [
-                              "us",
-                              "eu",
-                              "plain",
-                              "grouped"
-                            ]
-                          },
-                          "value": {
-                            "type": "string",
-                            "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+                  "type": "object"
+                },
+                "type": "array"
               }
-            }
+            },
+            "required": [
+              "hint",
+              "count",
+              "ambiguous_count",
+              "unparsed_count",
+              "values",
+              "sha256"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "recurrence_expand": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.json"
+      ],
       "goal": {
-        "statement": "Expand a recurring local appointment into the UTC instants it happens at across DST transitions",
         "intent": "expand_recurrence",
+        "statement": "Expand a recurring local appointment into the UTC instants it happens at across DST transitions",
         "tags": [
           "timezone",
           "dst",
@@ -2287,72 +2280,76 @@
           "calendar"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
-            "required": [
-              "zone",
-              "rule",
-              "interval",
-              "count",
-              "anchor_day",
-              "occurrences",
-              "utc_shifts",
-              "sha256",
-              "notes"
-            ],
             "properties": {
-              "zone": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rule": {
-                "enum": [
-                  "daily",
-                  "weekly",
-                  "monthly"
-                ]
-              },
-              "interval": {
-                "type": "integer",
-                "minimum": 1
+              "anchor_day": {
+                "maximum": 31,
+                "minimum": 1,
+                "type": "integer"
               },
               "count": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "anchor_day": {
-                "type": "integer",
                 "minimum": 1,
-                "maximum": 31
+                "type": "integer"
               },
-              "utc_shifts": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
+              "interval": {
+                "minimum": 1,
+                "type": "integer"
               },
               "notes": {
-                "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "type": "array"
               },
               "occurrences": {
-                "type": "array",
-                "minItems": 1,
                 "items": {
-                  "type": "object",
+                  "properties": {
+                    "adjustment": {
+                      "type": "string"
+                    },
+                    "ambiguous": {
+                      "type": "boolean"
+                    },
+                    "clamped": {
+                      "type": "boolean"
+                    },
+                    "index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "local": {
+                      "minLength": 19,
+                      "type": "string"
+                    },
+                    "nonexistent": {
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$",
+                      "type": "string"
+                    },
+                    "utc": {
+                      "minLength": 19,
+                      "type": "string"
+                    },
+                    "utc_shifted": {
+                      "type": "boolean"
+                    },
+                    "weekday": {
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ]
+                    }
+                  },
                   "required": [
                     "index",
                     "local",
@@ -2365,67 +2362,49 @@
                     "utc_shifted",
                     "adjustment"
                   ],
-                  "properties": {
-                    "index": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "local": {
-                      "type": "string",
-                      "minLength": 19
-                    },
-                    "utc": {
-                      "type": "string",
-                      "minLength": 19
-                    },
-                    "offset": {
-                      "type": "string",
-                      "pattern": "^[-+][0-9]{2}:[0-9]{2}$"
-                    },
-                    "weekday": {
-                      "enum": [
-                        "Monday",
-                        "Tuesday",
-                        "Wednesday",
-                        "Thursday",
-                        "Friday",
-                        "Saturday",
-                        "Sunday"
-                      ]
-                    },
-                    "nonexistent": {
-                      "type": "boolean"
-                    },
-                    "ambiguous": {
-                      "type": "boolean"
-                    },
-                    "clamped": {
-                      "type": "boolean"
-                    },
-                    "utc_shifted": {
-                      "type": "boolean"
-                    },
-                    "adjustment": {
-                      "type": "string"
-                    }
-                  }
-                }
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "rule": {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ]
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "utc_shifts": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "zone": {
+                "minLength": 1,
+                "type": "string"
               }
-            }
+            },
+            "required": [
+              "zone",
+              "rule",
+              "interval",
+              "count",
+              "anchor_day",
+              "occurrences",
+              "utc_shifts",
+              "sha256",
+              "notes"
+            ],
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "regex_extract": {
-      "goal": {
-        "statement": "Extract every match of a regular expression from a text file",
-        "intent": "extract_text",
-        "tags": [
-          "regex",
-          "text",
-          "extraction"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -2433,50 +2412,96 @@
         "input.txt",
         "output.json"
       ],
+      "goal": {
+        "intent": "extract_text",
+        "statement": "Extract every match of a regular expression from a text file",
+        "tags": [
+          "regex",
+          "text",
+          "extraction"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "output": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
             "required": [
               "count",
               "truncated",
               "output",
               "sha256"
             ],
-            "properties": {
-              "count": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "truncated": {
-                "type": "boolean"
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
+      }
+    },
+    "remittance_nwf": {
+      "command": [
+        "python",
+        "/app/main.py"
+      ],
+      "goal": {
+        "intent": "unknown",
+        "statement": "Settle an NWF-REMIT-V3 remittance advice from Northwind Freight into a cleared total",
+        "tags": [
+          "remittance",
+          "settlement",
+          "counterparty",
+          "finance",
+          "private-format"
+        ]
+      },
+      "verification": {
+        "config": {
+          "file": "result.json",
+          "schema": {
+            "properties": {
+              "format": {
+                "const": "NWF-REMIT-V3"
+              },
+              "held_count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "rows": {
+                "type": "array"
+              },
+              "settled_total_cents": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "format",
+              "settled_total_cents",
+              "held_count",
+              "rows"
+            ],
+            "type": "object"
+          }
+        },
+        "verifier": "json_schema"
       }
     },
     "text_diff": {
-      "goal": {
-        "statement": "Produce a unified diff between two text files",
-        "intent": "text_diff",
-        "tags": [
-          "diff",
-          "text",
-          "unified",
-          "patch"
-        ]
-      },
       "command": [
         "python",
         "/app/main.py",
@@ -2484,12 +2509,37 @@
         "right.txt",
         "output.patch"
       ],
+      "goal": {
+        "intent": "text_diff",
+        "statement": "Produce a unified diff between two text files",
+        "tags": [
+          "diff",
+          "text",
+          "unified",
+          "patch"
+        ]
+      },
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "added": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "equal": {
+                "type": "boolean"
+              },
+              "removed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "equal",
               "added",
@@ -2497,31 +2547,22 @@
               "output",
               "sha256"
             ],
-            "properties": {
-              "equal": {
-                "type": "boolean"
-              },
-              "added": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "removed": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "toml_to_json": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.toml",
+        "output.json"
+      ],
       "goal": {
-        "statement": "Convert a TOML document into JSON",
         "intent": "toml_to_json",
+        "statement": "Convert a TOML document into JSON",
         "tags": [
           "toml",
           "json",
@@ -2529,43 +2570,43 @@
           "config"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.toml",
-        "output.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "keys": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "keys",
               "output",
               "sha256"
             ],
-            "properties": {
-              "keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     },
     "xml_to_json": {
+      "command": [
+        "python",
+        "/app/main.py",
+        "input.xml",
+        "output.json"
+      ],
       "goal": {
-        "statement": "Convert an XML document into a structured JSON tree of tags, attributes and text",
         "intent": "xml_to_json",
+        "statement": "Convert an XML document into a structured JSON tree of tags, attributes and text",
         "tags": [
           "xml",
           "json",
@@ -2573,41 +2614,47 @@
           "parsing"
         ]
       },
-      "command": [
-        "python",
-        "/app/main.py",
-        "input.xml",
-        "output.json"
-      ],
       "verification": {
-        "verifier": "json_schema",
         "config": {
           "file": "result.json",
           "schema": {
-            "type": "object",
+            "properties": {
+              "bytes_in": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "root": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
             "required": [
               "root",
               "bytes_in",
               "output",
               "sha256"
             ],
-            "properties": {
-              "root": {
-                "type": "string",
-                "minLength": 1
-              },
-              "bytes_in": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            }
+            "type": "object"
           }
-        }
+        },
+        "verifier": "json_schema"
       }
     }
+  },
+  "defaults": {
+    "constraints": {
+      "network": false
+    },
+    "environment": {
+      "architecture": "amd64",
+      "os": "linux",
+      "runtime": "python",
+      "runtime_version": "3.13"
+    },
+    "visibility": "public"
   }
 }

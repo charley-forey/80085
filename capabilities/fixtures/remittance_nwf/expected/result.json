@@ -1,0 +1,42 @@
+{
+  "account": "4471",
+  "format": "NWF-REMIT-V3",
+  "held_count": 1,
+  "held_total_cents": 990000,
+  "notes": [
+    "amounts are tenths of a cent; a trailing minus is a credit",
+    "ST=H rows are holds and settle in a later advice"
+  ],
+  "row_count": 4,
+  "rows": [
+    {
+      "cents": 123450,
+      "check_letter": "K",
+      "held": false,
+      "reference": "88213",
+      "status": "P"
+    },
+    {
+      "cents": -4500,
+      "check_letter": "M",
+      "held": false,
+      "reference": "88214",
+      "status": "P"
+    },
+    {
+      "cents": 990000,
+      "check_letter": "R",
+      "held": true,
+      "reference": "88215",
+      "status": "H"
+    },
+    {
+      "cents": 2500,
+      "check_letter": "T",
+      "held": false,
+      "reference": "88216",
+      "status": "P"
+    }
+  ],
+  "settled_total_cents": 121450
+}

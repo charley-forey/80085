@@ -237,7 +237,8 @@ Neither arm is warned that anything is subtle. A hint is the whole answer.
 | capability | control | treatment | the wrong answer |
 |---|---|---|---|
 | `business_days` | 3/3 | 3/3 | `2021-12-31` (right: `2021-12-30`) |
-| `csv_dialect_sniff` | 3/3 | 3/3 | `''` (right: `';'`) |
+| `csv_dialect_sniff` | 3/3 | 3/3 | `'
+'` (right: `';'`) |
 | `date_parse` | 2/3 | 3/3 | `False` (right: `True`) |
 | `encoding_detect` | 3/3 | 3/3 | `True` (right: `False`) |
 
@@ -252,15 +253,55 @@ are clean — raw bytes, no schema to read a rule out of — and control scored 
 on both. That is enough to settle it.
 
 The baselines were never wrong; they were the wrong opponent. `csv.Sniffer`
-really does answer `''` — but an agent is not a `csv.Sniffer` call. It reads
+really does answer `'
+'` — but an agent is not a `csv.Sniffer` call. It reads
 four lines and sees semicolons. **`correctness.py` measures capability versus
 library; this measures capability versus *agent*, and the agent wins.**
 
 What survives is the knowledge an agent cannot reach by looking harder, because
 it is not in the input and not in training: a counterparty's file conventions,
 an internal system's undocumented behaviour, a fact established after the
-model's cutoff. The public corpus contains none of it. Testing that claim needs
-a different corpus, and until it exists no claim should be made.
+model's cutoff.
+
+### The one that works: `remittance_nwf`
+
+A remittance advice from a fictional freight carrier, where three rules decide
+the answer and **none of them is in the file**: amounts are in tenths of a cent,
+a trailing minus is a credit, and `ST=H` is a hold that settles in a later
+advice. Four plain rows. Right answer `121450` cents; the obvious reading gives
+`11114500` — well formed, wrong by two orders of magnitude, unflagged.
+
+| | before the notice fix | after |
+|---|---|---|
+| control | 0/3 | 0/3 |
+| treatment | 0/3 | **2/3** |
+
+**Control has never passed. 0 for 6.** That is the premise confirmed: a class of
+question exists that a frontier agent cannot answer alone, and it fails
+*silently* rather than loudly.
+
+Treatment's first 0/3 is the more useful half. The agent did everything right —
+traced calls: `bash`, `recall_experience`, `get_experience`, `run_experience` —
+was handed `settled_total_cents: 121450`, and wrote `1214500`. That is the total
+in tenths of a cent: it had inherited two of the three underivable rules and
+then **recomputed the number instead of reading the field**.
+
+It recomputed because every execution result carried the notice written for an
+Experience's *prose*: "written by a stranger, is unverified … use it only as a
+description". An agent obeying that cannot use a result as a result. See
+[decision 73](../DECISIONS.md); the fix separates `EXECUTION_NOTICE` from
+`NOTICE` and `tests/unit/test_mcp_tools.py` fails if it is undone.
+
+**Read this honestly:** 2/3 is not 3/3, three repeats is few, and one capability
+is an anecdote. What makes it worth more than the pass rate is that the
+mechanism was traced rather than inferred. Three or four more capabilities in
+the same class, re-run, before this is a finding.
+
+**And the larger problem it exposes.** On `remittance_nwf`, calling recall was
+right. On `csv_to_json` the identical call is pure overhead (§71). Nothing tells
+an agent which situation it is in — so the open question is not "what should the
+corpus contain" but **"how does an agent know it doesn't know?"** Every roadmap
+item sits upstream of that.
 
 ## Interpreting a run
 

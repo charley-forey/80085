@@ -75,6 +75,28 @@ class Question:
 
 QUESTIONS = [
     Question(
+        capability="remittance_nwf",
+        ask=(
+            "input.txt is a remittance advice from the freight carrier Northwind "
+            "Freight, in their NWF-REMIT-V3 format. What is the settled total, in "
+            f'cents? Write {ANSWER} as {{"settled_total_cents": <integer>}} and '
+            "nothing else."
+        ),
+        inputs={"input.txt": (FIXTURES / "remittance_nwf" / "inputs" / "input.txt").read_bytes()},
+        field="settled_total_cents",
+        truth=121450,
+        naive=11114500,
+        why=(
+            "Three rules decide this number and not one of them is in the file. "
+            "Amounts are in tenths of a cent, a trailing minus is a credit, and an "
+            "ST of H is a hold that settles in a later advice. An agent reads four "
+            "plain rows, sums them, and is wrong by two orders of magnitude with "
+            "nothing anywhere to flag it. This is the control case for knowledge "
+            "that is not in the input and not in training -- unlike the four below, "
+            "where the answer is recoverable by looking harder."
+        ),
+    ),
+    Question(
         capability="business_days",
         ask=(
             "input.json holds a holiday list and some queries. Using that holiday "

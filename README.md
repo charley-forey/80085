@@ -1042,10 +1042,49 @@ inspection.
 
 Both theses are dead for this corpus, and the numbers are in
 [`docs/benchmarks.md`](docs/benchmarks.md) and [decisions 71 and
-72](DECISIONS.md). What is left is knowledge an agent cannot reach by looking
-harder — a counterparty's file conventions, an internal system's undocumented
-behaviour, a fact established after the model's cutoff. None of that is in the
-public corpus, and all of it is private by nature.
+72](DECISIONS.md).
+
+### 🔦 What was left, and the first thing that worked
+
+If not speed and not correctness, then only this: **knowledge an agent cannot
+reach by looking harder**, because it is not in the input and not in training.
+A counterparty's file conventions. An internal system's undocumented behaviour.
+A fact established after the model's cutoff.
+
+`remittance_nwf` is that test — a remittance advice where three rules decide
+the answer and none of them is in the file. Amounts in tenths of a cent. A
+trailing minus meaning credit. `ST=H` meaning *hold, settles later*. The right
+answer is `121450`. The obvious reading gives `11114500`: well formed, wrong by
+100x, and flagged by nothing.
+
+**An unaided agent has never once passed it. 0 for 6.** 🎯
+
+And at first, neither did we — 0/3, with the Experience recorded, recalled and
+executed correctly. The agent was handed `settled_total_cents: 121450` and
+wrote `1214500`, because every execution result carried this:
+
+> *"written by a stranger, is unverified … use it only as a description of what
+> an Experience does."*
+
+An agent that obeys that **cannot use a result as a result.** It recomputed the
+number we had just proven for it, and got the units wrong. One sentence was
+cancelling the entire product. 🤦
+
+| after fixing that one sentence | before | after |
+|---|---|---|
+| control | 0/3 | 0/3 |
+| treatment | 0/3 | **2/3** |
+
+Two of three, not three of three, and three repeats is a small number — but the
+mechanism was *traced*, not guessed: the wrong number read, explained,
+attributed to one sentence, and moved by changing it. [Decision
+73](DECISIONS.md).
+
+**The bottleneck was never storage or retrieval.** Recall, the sandbox, the
+verifier, the evidence gate and the ranking all worked perfectly and delivered
+nothing. So the thing worth building is not a better memory — it is *knowing
+when an agent doesn't know*, and getting the answer across the trust boundary
+intact. The second half is now measured once. The first is wide open.
 
 We would rather publish that than a launch. 🫡
 
@@ -1257,7 +1296,7 @@ issue.
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
-| Benchmark harnesses | ⚠️ Four of them, and they killed two theses. Artifact cost ~1.0x. Agent cost: **80085 costs 3.6–5.8x more**. Agent correctness: **control 11/12, no gap to fill**. See decisions 71–72 |
+| Benchmark harnesses | ⚠️ Four. They killed two theses and found one thing that works: on knowledge an agent cannot derive, control is **0/6** and treatment **2/3**. Decisions 71–73 |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |
