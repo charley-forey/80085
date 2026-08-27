@@ -3369,3 +3369,82 @@ one.
 disagreement surfacing ("this differs from your reading by 100x, here is why"),
 or requiring the agent to state what convention it is accepting. All are guesses
 until measured.
+
+---
+
+### 76. The agent knows what it does not know, and is never asked
+
+Three measured problems, and the suspicion they were one: asking costs 3.6x-5.8x
+and only pays on the non-derivable class with nothing to say which class a task
+is in (71); on that class an agent scores 0/9, never an error, always a
+confident plausible wrong answer (73, 74); told to defer it adopts a lie 3/3
+where un-instructed it rejects the same lie 3/3 (75).
+
+All three are one missing faculty: nothing tells the agent when the answer turns
+on something it has no way to determine. So `agent_selfknowledge.py` asks it
+directly, before it answers, with a shell and the file in front of it.
+
+| capability | truth | flagged |
+|---|---|---|
+| `remittance_nwf` | not derivable | **3/3** |
+| `sku_meridian` | not derivable | **3/3** |
+| `apilog_zenith` | not derivable | **3/3** |
+| `csv_dialect_sniff` | derivable | **0/3** |
+| `date_parse` | derivable | 2/3 |
+| `business_days` | derivable | 3/3 |
+| `encoding_detect` | derivable | 3/3 |
+
+**Sensitivity 9/9.** And `csv_dialect_sniff` at 0/3 is the control that matters:
+it is discriminating, not hedging.
+
+What it says is the striking part. The same agent that returns `11114500` with
+no hesitation replies, when asked first: *"nothing defines which ST codes count
+as settled, whether the trailing minus in `45000-` denotes a negative"*. It can
+name the exact convention it is missing.
+
+**So the 0/9 was never a reasoning failure.** The gap is fully legible to the
+agent. Nothing in the loop asks.
+
+**The calibration attempt failed, and instructively.** A second probe asked
+about the outcome -- would you actually be *wrong* -- rather than the input:
+
+| probe | sensitivity | false alarms |
+|---|---|---|
+| "is anything unstated?" | **9/9** | 8/12 |
+| "will you be wrong?" | 7/9 | 6/12 |
+
+`remittance_nwf` fell to 1/3. Two points of detection traded for two fewer
+false alarms, on the capability where the error is a factor of a hundred.
+
+Two things are wrong with that trade. The first is mine: the second probe ended
+"You are good at this; most of the time the answer is no", which is a nudge
+toward under-reporting, written because fewer false alarms were wanted. The
+signal that matters was suppressed on request.
+
+The second survives fixing the prompt. **The costs are asymmetric.** A false
+alarm wastes one recall. A miss ships a confident wrong number that nothing
+downstream flags. A detector for silent failure should over-fire, and the
+conservative phrasing is correct *because* it does.
+
+**And most of the false alarms are not false.** On `business_days` the agent
+says the observance convention is unstated, and it is -- it then guesses right.
+Scoring that as a false alarm assumes the guess is reliable, which is the
+assumption the 0/9 destroys.
+
+**What this changes.** The architecture is not "always ask, then always defer".
+It is: detect, then ask only there, then defer only there. Deference stops being
+a loaded gun, because it fires exactly where the agent has independently
+established it is missing something -- which is where its own judgement was
+worth nothing anyway. And the overhead objection from 71 dissolves: detection is
+one cheap call with no sandbox, no artifact and no execution, and the expensive
+lookup happens only when it fires.
+
+It also says something about the product that is uncomfortable and probably
+right. Storage and retrieval are commodity. The measurement of silent failure,
+and the check that precedes it, are not.
+
+**Open:** whether this holds outside fixtures we wrote to be non-derivable;
+whether it holds on models other than `claude-opus-5`, which decides if it is a
+mechanism or a model property; and whether an agent that has *named* the missing
+convention still swallows a wrong result that fails to supply it -- the clean
+version of decision 75, and the one that would close the loop.

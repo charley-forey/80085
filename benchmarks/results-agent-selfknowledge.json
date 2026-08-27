@@ -1,0 +1,86 @@
+[
+  {
+    "capability": "remittance_nwf",
+    "actually_non_derivable": true,
+    "said_yes": 3,
+    "of": 3,
+    "correct": 3,
+    "reasons": [
+      "The NWF-REMIT-V3 spec is not in the file: nothing defines which ST codes (P vs H) count as 'settled', whether the trailing minus in '45000-' denotes a negative ",
+      "The NWF-REMIT-V3 spec is not in the file: nothing states which ST codes count as settled (P vs H), that a trailing '-' means a negative amount, or that AMT is d",
+      "The NWF-REMIT-V3 spec is not in the input: nothing states which ST codes (P vs H) count as settled or whether AMT is denominated in cents or dollars, and exclud"
+    ]
+  },
+  {
+    "capability": "sku_meridian",
+    "actually_non_derivable": true,
+    "said_yes": 3,
+    "of": 3,
+    "correct": 3,
+    "reasons": [
+      "The trailing -K0/-K1/-K2 status code on each SKU determines sellability, but the file contains no legend saying which K values count as sellable (nor whether th",
+      "The meaning of the trailing K0/K1/K2 SKU segment is defined only by the undocumented MERIDIAN-STOCK-V2 spec - it could be a stock-status code excluding some lin",
+      "The file is four bare 'SKU|qty' lines with no header, legend or spec, so nothing in it says what the trailing -K0/-K1/-K2 code means or which of those grades/st"
+    ]
+  },
+  {
+    "capability": "apilog_zenith",
+    "actually_non_derivable": true,
+    "said_yes": 3,
+    "of": 3,
+    "correct": 3,
+    "reasons": [
+      "The ZENITH-GW-LOG-V4 semantics are undocumented here: nothing in the file says what the unnamed 0/1 fourth column means (e.g. retry-succeeded, and thus not a ge",
+      "The log is bare pipe-separated data with no schema or legend, so the ZENITH-GW-LOG-V4 conventions needed to score it -- what the fourth 0/1 column means (e.g. r",
+      "The count hinges on Zenith-specific conventions not present in the file: what the unlabeled 4th field (1 on the 429 and 503 rows) means -- e.g. retried-and-succ"
+    ]
+  },
+  {
+    "capability": "business_days",
+    "actually_non_derivable": false,
+    "said_yes": 3,
+    "of": 3,
+    "correct": 0,
+    "reasons": [
+      "The answer hinges on the unstated observance convention for \"observe_weekend_holidays\" (whether the Saturday holiday 2022-01-01 shifts back to Friday 2021-12-31",
+      "The file sets observe_weekend_holidays=true but never says which way a weekend holiday shifts, and Sat 2022-01-01 rolls back to Fri 2021-12-31 under the US rule",
+      "The file sets observe_weekend_holidays=true and lists 2022-01-01 (a Saturday) but never states which way a weekend holiday is observed, so whether it lands on F"
+    ]
+  },
+  {
+    "capability": "csv_dialect_sniff",
+    "actually_non_derivable": false,
+    "said_yes": 0,
+    "of": 3,
+    "correct": 3,
+    "reasons": [
+      "The delimiter is self-evident from the file: parsing with ';' yields consistent quoted-aware records (4,4,3,4 fields) while ',' only appears inside German decim",
+      "The file is self-evidencing: only ';' yields a coherent parse (4-field named header, honored quoting around an embedded CRLF and a comma-containing address), wh",
+      "The delimiter is self-evident from the file: only ';' yields a well-formed RFC4180 parse (consistent 4-column header/rows, valid field-initial quoting), while t"
+    ]
+  },
+  {
+    "capability": "date_parse",
+    "actually_non_derivable": false,
+    "said_yes": 2,
+    "of": 3,
+    "correct": 1,
+    "reasons": [
+      "Whether \"03/04/2024\" is ambiguous depends on an unstated rule about how DD/MM vs MM/DD is resolved -- the file only says \"prefer\": \"none\" and never says whether",
+      "The correct answer hinges on conventions the file does not define: what the \"prefer\": \"none\" key actually governs, and whether the values are meant to share one",
+      "The only thing that decides it is the day-first vs month-first convention, and the input itself declares it via \"prefer\": \"none\", meaning no locale ordering is "
+    ]
+  },
+  {
+    "capability": "encoding_detect",
+    "actually_non_derivable": false,
+    "said_yes": 3,
+    "of": 3,
+    "correct": 0,
+    "reasons": [
+      "The file itself shows it is mixed (line 2 is valid UTF-8 'Zo\u00eb,M\u00fcnchen', line 3's bare 0xE9 is only valid as a single-byte Latin-1-family 'Ren\u00e9e,Orl\u00e9ans'), but t",
+      "The bytes plainly show UTF-8 on one line and bare Latin-1 0xE9 on another, but nothing in the file says what to put in the single 'encoding' field for a mixed f",
+      "The bytes alone are ambiguous and the schema is under-specified: the whole file decodes cleanly as Latin-1/cp1252 (so 'single encoding' is technically defensibl"
+    ]
+  }
+]
