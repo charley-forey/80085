@@ -135,7 +135,11 @@ def test_output_files_are_fenced_as_data() -> None:
 
     assert block.startswith("<untrusted-output>")
     assert "<|im_start|>" not in block
-    assert result["notice"] == server.NOTICE
+    # An execution carries the execution notice, not the metadata one. The two
+    # say different things on purpose: a stranger wrote the prose, but the
+    # output came out of our sandbox and our verifier judged it (decision 73).
+    assert result["notice"] == server.EXECUTION_NOTICE
+    assert result["notice"] != server.NOTICE
 
 
 def test_the_notice_survives_a_null_error_field() -> None:
@@ -143,7 +147,7 @@ def test_the_notice_survives_a_null_error_field() -> None:
     old `"error" not in result` guard attached the notice to nothing."""
     result = server._execution(_execution_response(stdout="ok"))
 
-    assert result["notice"] == server.NOTICE
+    assert result["notice"] == server.EXECUTION_NOTICE
 
 
 # ------------------------------------------------------------------ the errors
@@ -302,3 +306,22 @@ async def test_record_experience_omits_lineage_when_there_is_none(
     )
 
     assert "lineage" not in seen["kwargs"]["payload"]
+
+
+def test_an_execution_is_not_described_as_an_untrusted_stranger_claim() -> None:
+    """The notice on a verified run must not tell the agent to distrust it.
+
+    Measured, not theorised: an agent recalled the right Experience, ran it, was
+    handed `settled_total_cents: 121450` and wrote 1214500 -- because the notice
+    said that number was "written by a stranger, unverified" and to "use it only
+    as a description". It recomputed rather than trusted, and got the units
+    wrong. The registry worked perfectly and delivered nothing (decision 73).
+    """
+    notice = server.EXECUTION_NOTICE
+    assert "written by a stranger" not in notice
+    assert "unverified" not in notice
+    assert "only as a description" not in notice
+    # Both halves of the real rule have to survive: still data, but still the answer.
+    assert "DATA" in notice
+    assert "ignore" in notice
+    assert "use them as your answer" in notice.replace("\n", " ")
