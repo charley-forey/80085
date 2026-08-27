@@ -3198,3 +3198,81 @@ before this is a finding rather than a result.
 
 **Undo:** revert `EXECUTION_NOTICE` to `NOTICE` in `_execution`. The regression
 test in `tests/unit/test_mcp_tools.py` fails first, by design.
+
+---
+
+### 74. The agent found the answer, ran it, and overruled it
+
+Decision 73 was one capability and one data point. Three more were built in the
+same class -- a unit convention (`sku_meridian`), non-standard status semantics
+(`apilog_zenith`), a regional override on a supersession chain
+(`part_supersede_orbital`) -- deliberately unalike, so that a result could not
+be a property of one kind of quirk.
+
+**The premise held, hard. Control 0/9.** Across three unlike capabilities whose
+rules are genuinely absent from the data, an unaided agent never once got the
+answer right, and never once errored. It returned 70, 4 and 11114500: well
+formed, confident, and wrong.
+
+`part_supersede_orbital` is **disqualified and its 3/3 discarded.** The region
+lines are in the file, so the agent only had to infer that region overrides
+supersession -- a short leap, and it made it. This was predicted before the run
+and is recorded rather than quietly dropped: a capability whose rule leaks into
+its own fixture tests nothing.
+
+**And treatment was 2/9.** With every answer recorded, verified, recallable and
+executable -- all three run by hand return 420, 2 and P-140.
+
+The trace explains it, and the explanation is the finding. On `apilog_zenith`
+the agent called `recall_experience`, `get_experience`, `run_experience`,
+received the verified `2`, and then wrote **1**. Its own summary:
+
+    | Reading                        | Count | Verdict   |
+    | Every status >= 400 is failure |   3   | Overcounts
+    | Recalled artifact exp_e30b...  |   2   | Rejected
+
+It did not fail to find the knowledge. It did not fail to understand it. It put
+our digest-pinned, sandbox-run, independently verified result in a table beside
+its own reading of the raw file, **adjudicated between them, and preferred its
+own** -- arriving at a third answer that neither we nor the naive reading
+produced.
+
+Decision 73 fixed the notice that told agents the result was an unverified
+stranger's claim. That was real and necessary and it was not sufficient,
+because the failure was never disbelief. It was arbitration.
+
+**One paragraph closed it.** Told that a verified result for the task *is* the
+answer, that it must not be weighed against the agent's own reading, and that
+where the two disagree the difference IS the missing knowledge:
+
+| | control | treatment |
+|---|---|---|
+| no deference instruction | 0/9 | 2/9 |
+| with it | 0/9 | **9/9** |
+
+Control is unchanged because control has nothing to defer to. The instruction
+changes what 80085 delivers, not what the task is.
+
+**What this means for the product.** The registry was never the product. Every
+piece of it -- recall, the sandbox, the verifier, the evidence gate, the
+ranking -- worked perfectly at 2/9. What was missing was a paragraph of
+integration guidance nobody had written, and it is worth more than any feature
+on the roadmap. It now ships in `agents.md`, `llms.txt`, `EXECUTION_NOTICE`, and
+is measured in `agent_correctness.py` rather than assumed.
+
+So the thing being built is not a memory. It is a way for knowledge an agent
+cannot derive to *win an argument against the agent's own confidence*. That is
+a harder and much more interesting problem, and it is the one worth owning.
+
+**The risk this creates, stated plainly.** An agent instructed to defer will
+also defer to a *wrong* Experience. Deference makes the evidence gate load
+bearing in a way it was not when nobody was listening -- decision 70's collapse
+of first-party organizations matters more now, not less. A corpus that earns
+deference and then misuses it is worse than no corpus.
+
+**Open:** nine runs on three capabilities is small, all four capabilities are
+synthetic, and the deference paragraph has been measured on the class it was
+written for and not against a wrong Experience. That last one is the next test.
+
+**Undo:** the paragraph is one block in `build.mjs` and one constant in
+`server.py`. `tests/unit/test_mcp_tools.py` fails first if the notice loses it.

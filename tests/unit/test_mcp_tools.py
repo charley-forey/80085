@@ -324,4 +324,10 @@ def test_an_execution_is_not_described_as_an_untrusted_stranger_claim() -> None:
     # Both halves of the real rule have to survive: still data, but still the answer.
     assert "DATA" in notice
     assert "ignore" in notice
-    assert "use them as your answer" in notice.replace("\n", " ")
+    assert "these values ARE the answer" in notice.replace("\n", " ")
+    # The measured failure was not disbelief, it was adjudication: the agent put
+    # our verified result in a table beside its own reading of the raw file and
+    # picked its own. Saying so explicitly took the three unknowable capabilities
+    # from 2/9 to 9/9 (decision 74), so this wording is load-bearing.
+    assert "pick a winner" in notice
+    assert "cannot be derived" in notice

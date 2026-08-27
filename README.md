@@ -1080,11 +1080,48 @@ mechanism was *traced*, not guessed: the wrong number read, explained,
 attributed to one sentence, and moved by changing it. [Decision
 73](DECISIONS.md).
 
-**The bottleneck was never storage or retrieval.** Recall, the sandbox, the
-verifier, the evidence gate and the ranking all worked perfectly and delivered
-nothing. So the thing worth building is not a better memory — it is *knowing
-when an agent doesn't know*, and getting the answer across the trust boundary
-intact. The second half is now measured once. The first is wide open.
+Then three more capabilities in the same class — a unit convention, non-standard
+status semantics, a regional override — and the premise held hard:
+
+**Control 0/9.** Three unlike questions whose rules are genuinely absent from the
+data, and an unaided agent never once got one right. It never errored either.
+
+**Treatment was 2/9** — with every answer recorded, verified and executable. The
+trace says why, and it is the whole story. On one run the agent called recall,
+ran the Experience, received the verified `2`, and wrote `1`:
+
+```
+| Reading                          | Count | Verdict    |
+| Every status >= 400 is a failure |   3   | Overcounts |
+| Recalled artifact exp_e30b...    |   2   | REJECTED   |
+```
+
+It didn't fail to find the knowledge or to understand it. It put our
+digest-pinned, sandbox-run, independently verified result in a table beside its
+own reading, **adjudicated, and preferred itself** — landing on a third answer
+neither we nor the naive reading produced.
+
+**One paragraph closed it.** 🎤
+
+| | control | treatment |
+|---|---|---|
+| no deference instruction | 0/9 | 2/9 |
+| with it | 0/9 | **9/9** |
+
+So the registry was never the product. Recall, the sandbox, the verifier, the
+evidence gate and the ranking all worked perfectly at 2/9. What was missing was
+a paragraph of integration guidance nobody had written — now shipped in
+[`agents.md`](https://api.80085.ai/agents.md), `llms.txt` and the MCP execution
+notice, and *measured* rather than assumed. [Decision 74](DECISIONS.md).
+
+**This is not a memory product.** It is a way for knowledge an agent cannot
+derive to **win an argument against the agent's own confidence**. Harder, more
+interesting, and the one worth owning.
+
+⚠️ **And it cuts both ways:** an agent instructed to defer will also defer to a
+*wrong* Experience. Deference makes the evidence gate load-bearing in a way it
+never was while nobody was listening. A corpus that earns deference and misuses
+it is worse than no corpus at all.
 
 We would rather publish that than a launch. 🫡
 
@@ -1296,7 +1333,7 @@ issue.
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
-| Benchmark harnesses | ⚠️ Four. They killed two theses and found one thing that works: on knowledge an agent cannot derive, control is **0/6** and treatment **2/3**. Decisions 71–73 |
+| Benchmark harnesses | ⚠️ Four. They killed two theses and found the real one: on knowledge an agent cannot derive, control **0/9**, treatment **2/9** — and **9/9** once told to defer. Decisions 71–74 |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |

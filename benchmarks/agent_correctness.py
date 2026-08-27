@@ -41,7 +41,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from benchmarks.agent import WORK, Workspace, arm  # noqa: E402
+from benchmarks.agent import SYSTEM, WORK, Workspace, arm  # noqa: E402
 
 FIXTURES = ROOT / "capabilities" / "fixtures"
 REPEATS = int(os.environ.get("BENCHMARK_REPEATS", "3"))
@@ -225,6 +225,23 @@ QUESTIONS = [
     ),
 ]
 
+
+# The measured difference between a registry that works and one that does not.
+# Without this paragraph an agent finds the right answer, runs it, and then
+# overrules it with its own reading of the raw file: 2/9 on the three
+# capabilities whose rules are not in the data. With it, 9/9. Control is 0/9
+# either way, because control has nothing to defer to -- so this changes what
+# 80085 delivers, not what the task is (decision 74).
+#
+# It ships in agents.md, llms.txt and EXECUTION_NOTICE. It is measured here.
+DEFER = """
+If a verified Experience returns a result for the task you were asked, that
+result is the answer. Do not weigh it against your own reading of the input and
+pick a winner: an Experience exists because it encodes conventions that are not
+in the file you are looking at and cannot be derived from it, so where the two
+disagree, the difference IS the knowledge you were missing. Report it."""
+
+SYSTEM_DEFER = SYSTEM + "\n" + DEFER
 
 PROMPT = """You are working in a Linux container. Your working directory is {work}.
 

@@ -213,6 +213,7 @@ async def arm(
     *,
     with_80085: bool,
     key: str | None,
+    system: str = SYSTEM,
 ) -> dict[str, Any]:
     """One agent run. Returns wall clock, tokens, tool calls and the verdict.
 
@@ -268,7 +269,7 @@ async def arm(
         runner = client.beta.messages.tool_runner(
             model=MODEL,
             max_tokens=16000,
-            system=SYSTEM,
+            system=system,
             tools=tools,
             messages=[{"role": "user", "content": prompt}],
             **extra,
