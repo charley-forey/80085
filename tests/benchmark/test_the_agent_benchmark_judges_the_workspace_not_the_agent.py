@@ -25,18 +25,18 @@ def test_every_task_has_a_harness_check() -> None:
 @pytest.mark.integration
 @pytest.mark.parametrize("task", TASKS, ids=lambda task: task.name)
 async def test_an_agent_that_does_nothing_does_not_pass(task, docker: None) -> None:
-    with Workspace(task, "test") as workspace:
-        assert await verified(workspace, task) is False
+    with Workspace(task.name, task.inputs, "test") as workspace:
+        assert await verified(workspace, task=task) is False
 
 
 @pytest.mark.integration
 async def test_a_real_output_passes(docker: None) -> None:
     task = next(task for task in TASKS if task.name == "csv_to_json")
-    with Workspace(task, "test") as workspace:
+    with Workspace(task.name, task.inputs, "test") as workspace:
         # What a working solution leaves behind, and nothing else.
         _, code = workspace.sh(
             'python -c "import csv,json;'
             "json.dump(list(csv.DictReader(open('input.csv'))), open('output.json','w'))\""
         )
         assert code == 0
-        assert await verified(workspace, task) is True
+        assert await verified(workspace, task=task) is True

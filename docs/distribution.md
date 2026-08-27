@@ -15,26 +15,42 @@ is the most persuasive thing the project has.
 
 Every registry, list and launch below is a variation on the same sentence:
 
-> Your agent will confidently tell you the last business day of December 2021
-> was the 31st. It was the 30th. It will not crash, it will not flag it, and
-> you will ship it. This registry remembers the edge cases somebody already
-> paid to discover — and it will not call one proven until someone other than
-> its author has proven it. Ours are not proven yet.
+> *(No pitch here yet. Two candidates were tested and both were falsified —
+> see below. Writing a third before it has evidence is how the first two got
+> written.)*
 
 Nobody is short of AI tools. Everybody is short of AI tools that say what they
 do not know. That is the wedge, and it is why the launch order is proof first
 and reach second — reach spends credibility, and there is only one first
 impression per channel.
 
-**Do not pitch speed.** `agent.py` measured it and 80085 lost: on conversion
-tasks it costs 3.6x–5.8x more input tokens than letting the agent write the
-code. That is a real finding about where this belongs, not a flaw to hide, and
-publishing it is what makes the correctness claim believable. Anyone who
-benchmarks us will find it in a morning; better they find we published it.
+**Two pitches have been measured and both are dead.** Recorded here so nobody
+reaches for them again:
 
-The claim that survives contact with a benchmark is correctness, and it has the
-useful property of *not eroding as models improve*: a better model closes the
-speed gap and cannot deduce a fact about the 2021 US holiday calendar.
+| Pitch | Benchmark | Verdict |
+|---|---|---|
+| *"The same answer, faster."* | `agent.py` | **No.** 3.6x–5.8x more input tokens, no reliable speed gain (decision 71). |
+| *"An answer the agent would have gotten wrong."* | `agent_correctness.py` | **No.** Control scored 11/12 unaided (decision 72). |
+
+Anyone who benchmarks this finds both in a morning. Better they find we
+published them.
+
+**So C1 and C3 are on hold, and that is the correct call, not a delay.** There
+is currently no measured claim to launch with, and launching without one spends
+the only asset this project has — a corpus that says what it does not know —
+to sell a benefit that does not exist. The install command is not the problem;
+the sentence above it is.
+
+What is *not* dead is the class of knowledge the falsification points at: a
+counterparty's file conventions, an internal system's undocumented behaviour, a
+fact established after a model's training cutoff, an organisation's own
+hard-won workarounds. An agent cannot reach any of it by looking harder,
+because it is not in the input and not in training. None of it is in the public
+corpus, and all of it is private by nature — which is a different product from
+the one built here, and it has no evidence yet either.
+
+**The next thing is a corpus that tests that, and a benchmark that could
+falsify it.** Not a launch.
 
 ## Sequence
 

@@ -41,7 +41,31 @@ A good capability:
 - does one thing, and does it deterministically;
 - runs in the sandbox — no network, no root, read-only filesystem;
 - declares its inputs and outputs honestly;
-- ships with at least one runnable check that fails if the logic breaks.
+- ships with at least one runnable check that fails if the logic breaks;
+- **and answers a question the obvious implementation gets *plausibly wrong*.**
+
+That last one is new, and it is the bar that matters most. We measured it:
+`benchmarks/agent.py` found that attaching this registry to an agent costs
+3.6x–5.8x more input tokens than letting the agent write the code, on tasks
+where the naive implementation is right (decision 71). An agent writes
+`csv.DictReader` and it works the first time. There is nothing to inherit, and
+a capability that competes with three lines of standard library is a capability
+that makes its users worse off.
+
+So before proposing one, answer this in the pull request:
+
+> **What does the obvious implementation return, and why does nobody notice?**
+
+A good answer looks like `csv.Sniffer` returning `''` for a German CSV export
+— which `csv.reader` then rejects as a bad delimiter — or a last-business-day
+routine returning 2021-12-31 when New Year's Day 2022 fell on a Saturday and
+was observed on Friday the 31st. In both cases nothing crashes, the answer is
+well-formed, and it is wrong.
+
+**A crash gets fixed. A plausible wrong answer gets shipped and believed.**
+That gap is the entire value of this corpus, and a capability that does not sit
+in it is one we would rather not carry. If your case belongs in
+`benchmarks/correctness.py`, it belongs in the corpus.
 
 ## Pull requests
 

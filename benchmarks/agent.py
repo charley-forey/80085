@@ -26,12 +26,14 @@ Needs Docker, and for the treatment arm an API with a worker attached.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import statistics
 import subprocess
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -104,9 +106,9 @@ class Workspace:
     that could `pip install` would be measuring PyPI rather than either arm.
     """
 
-    def __init__(self, task: Task, label: str) -> None:
-        self.name = f"bench-agent-{label}-{task.name}-{int(time.time() * 1000)}"
-        self.task = task
+    def __init__(self, name: str, inputs: dict[str, bytes], label: str = "run") -> None:
+        self.name = f"bench-agent-{label}-{name}-{int(time.time() * 1000)}"
+        self.inputs = inputs
 
     def __enter__(self) -> Workspace:
         subprocess.run(
@@ -130,7 +132,7 @@ class Workspace:
             check=True,
         )
         self.sh(f"mkdir -p {WORK}")
-        for filename, blob in self.task.inputs.items():
+        for filename, blob in self.inputs.items():
             staged = Path(os.environ.get("TMPDIR", "/tmp")) / filename
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_bytes(blob)
@@ -170,7 +172,7 @@ class Workspace:
         return {filename: done.stdout} if done.returncode == 0 else {}
 
 
-async def verified(workspace: Workspace, task: Task) -> bool:
+async def verified(workspace: Workspace, *, task: Task) -> bool:
     """The harness's own verdict, from the same verifier the platform uses."""
     from boobs_domain.entities import VerificationSpec
     from boobs_domain.protocols import ExecutionStatus, SandboxResult
@@ -203,15 +205,27 @@ def _outputs(task: Task) -> str:
     return wanted or "output.csv"
 
 
-async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any]:
-    """One agent run. Returns wall clock, tokens, tool calls and the verdict."""
+async def arm(
+    name: str,
+    prompt: str,
+    inputs: dict[str, bytes],
+    judge: Callable[[Workspace], Awaitable[bool]],
+    *,
+    with_80085: bool,
+    key: str | None,
+) -> dict[str, Any]:
+    """One agent run. Returns wall clock, tokens, tool calls and the verdict.
+
+    `judge` is the harness's own check, run after the agent stops. Nothing the
+    agent says about its own success is read.
+    """
     import anthropic
     from anthropic import beta_tool
 
     client = anthropic.Anthropic()
     started = time.monotonic()
 
-    with Workspace(task, "treatment" if with_80085 else "control") as workspace:
+    with Workspace(name, inputs, "treatment" if with_80085 else "control") as workspace:
 
         @beta_tool
         def bash(command: str) -> str:
@@ -256,17 +270,7 @@ async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any
             max_tokens=16000,
             system=SYSTEM,
             tools=tools,
-            messages=[
-                {
-                    "role": "user",
-                    "content": PROMPT.format(
-                        work=WORK,
-                        goal=task.goal,
-                        inputs=", ".join(task.inputs),
-                        outputs=_outputs(task),
-                    ),
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             **extra,
         )
 
@@ -285,7 +289,7 @@ async def arm(task: Task, *, with_80085: bool, key: str | None) -> dict[str, Any
             calls += sum(1 for block in message.content if block.type == "tool_use")
 
         seconds = time.monotonic() - started
-        passed = await verified(workspace, task)
+        passed = await judge(workspace)
 
     return {
         "seconds": seconds,
@@ -369,7 +373,21 @@ async def main() -> int:
         for repeat in range(REPEATS):
             for arm_name, flag in (("control", False), ("treatment", True)):
                 print(f"  {task.name} {arm_name} {repeat + 1}/{REPEATS}", file=sys.stderr)
-                got[arm_name].append(await arm(task, with_80085=flag, key=key))
+                got[arm_name].append(
+                    await arm(
+                        task.name,
+                        PROMPT.format(
+                            work=WORK,
+                            goal=task.goal,
+                            inputs=", ".join(task.inputs),
+                            outputs=_outputs(task),
+                        ),
+                        task.inputs,
+                        functools.partial(verified, task=task),
+                        with_80085=flag,
+                        key=key,
+                    )
+                )
 
         rows.append(
             {

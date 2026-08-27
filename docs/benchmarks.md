@@ -218,6 +218,50 @@ variance would need far more than it is worth.
 A benchmark that found its own product's limit is worth more than one that
 confirmed the pitch. This one did that on its first run.
 
+## The fourth benchmark: does the agent get it *wrong*?
+
+```bash
+ANTHROPIC_API_KEY=... BOOBS_API_KEY=... uv run python benchmarks/agent_correctness.py
+```
+
+If the value is not speed, the obvious replacement claim is **an answer the
+agent would have gotten wrong**. `agent_correctness.py` asks the four
+`correctness.py` questions of a real agent, in a container, with and without
+80085 — and scores **pass rate, not time**, because pass rate is binary and
+needs few repeats where timing at the observed variance needs far more.
+
+Neither arm is warned that anything is subtle. A hint is the whole answer.
+
+**Result, `claude-opus-5`, three repeats:**
+
+| capability | control | treatment | the wrong answer |
+|---|---|---|---|
+| `business_days` | 3/3 | 3/3 | `2021-12-31` (right: `2021-12-30`) |
+| `csv_dialect_sniff` | 3/3 | 3/3 | `''` (right: `';'`) |
+| `date_parse` | 2/3 | 3/3 | `False` (right: `True`) |
+| `encoding_detect` | 3/3 | 3/3 | `True` (right: `False`) |
+
+**Control scored 11 of 12, so the thesis is falsified.** Treatment's 12 of 12 is
+one case better at three repeats, which is not a result.
+
+Two rows are confounded and are reported rather than dropped:
+`business_days/input.json` contains `observe_weekend_holidays: true` and
+`date_parse/input.json` contains `prefer: none`, so the fixture hands the agent
+the rule the naive baseline ignores. `csv_dialect_sniff` and `encoding_detect`
+are clean — raw bytes, no schema to read a rule out of — and control scored 3/3
+on both. That is enough to settle it.
+
+The baselines were never wrong; they were the wrong opponent. `csv.Sniffer`
+really does answer `''` — but an agent is not a `csv.Sniffer` call. It reads
+four lines and sees semicolons. **`correctness.py` measures capability versus
+library; this measures capability versus *agent*, and the agent wins.**
+
+What survives is the knowledge an agent cannot reach by looking harder, because
+it is not in the input and not in training: a counterparty's file conventions,
+an internal system's undocumented behaviour, a fact established after the
+model's cutoff. The public corpus contains none of it. Testing that claim needs
+a different corpus, and until it exists no claim should be made.
+
 ## Interpreting a run
 
 * `verified: NO` on either arm invalidates that row. A fast wrong answer is

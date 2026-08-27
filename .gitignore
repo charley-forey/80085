@@ -16,6 +16,7 @@ capabilities/digests.json
 *.log
 benchmarks/results.json
 benchmarks/results-agent.json
+benchmarks/results-agent-correctness.json
 .claude/
 
 # Live credentials for the deployed environment.

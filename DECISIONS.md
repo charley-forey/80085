@@ -3061,3 +3061,59 @@ Consequences, in order:
 **Undo:** nothing to undo. The numbers are in `results-agent.json`, which is
 gitignored, because a benchmark result is a property of the machine and the
 model that ran it.
+
+---
+
+### 72. The correctness thesis failed too, and that is the finding
+
+Decision 71 killed the speed claim and proposed a replacement: 80085's value is
+not "the same answer, faster" but "an answer the agent would have gotten wrong".
+`benchmarks/agent_correctness.py` tested it against the four `correctness.py`
+cases, scored on pass rate, three repeats, `claude-opus-5`:
+
+| capability | control | treatment | the wrong answer |
+|---|---|---|---|
+| `business_days` | 3/3 | 3/3 | `2021-12-31` (right: `2021-12-30`) |
+| `csv_dialect_sniff` | 3/3 | 3/3 | `'\r'` (right: `';'`) |
+| `date_parse` | 2/3 | 3/3 | `False` (right: `True`) |
+| `encoding_detect` | 3/3 | 3/3 | `True` (right: `False`) |
+
+**Control scored 11 of 12.** The unaided agent did not return `2021-12-31`. It
+did not trust `csv.Sniffer`. Treatment's 12 of 12 is one case better at three
+repeats, which is not a result.
+
+Two of the four are confounded and it is worth saying so rather than quietly
+dropping them: `business_days/input.json` contains `observe_weekend_holidays:
+true` and `date_parse/input.json` contains `prefer: none`, so the fixture hands
+the agent the very rule the naive baseline ignores. Those rows prove nothing.
+
+`csv_dialect_sniff` and `encoding_detect` are clean -- raw bytes, no hints, no
+schema to read a rule out of -- and control scored 3/3 on both. That is enough.
+
+**The naive baselines were never wrong; they were the wrong opponent.**
+`correctness.py` compares the capability against a naive *library call*, and
+that comparison is honest and still holds: `csv.Sniffer` really does answer
+`'\r'`. But an agent is not a naive library call. It looks at the file. Asked
+for a delimiter it reads four lines and sees semicolons; asked about encoding it
+notices one line is multi-byte UTF-8 and another is not. The gap the corpus was
+built to fill is one a frontier model closes by inspection.
+
+So both theses are dead for this corpus:
+
+* **Speed** -- 3.6x to 5.8x more input tokens, no reliable time benefit (71).
+* **Correctness** -- the agent already gets it right (this).
+
+What is left is the class of knowledge an agent cannot get by *looking harder*,
+because it is not in the input and not in training: a specific counterparty's
+file conventions, an internal system's undocumented behaviour, a fact
+established after the model's cutoff, an organisation's own hard-won
+workarounds. None of those are in the public corpus, and all of them are
+private by nature. That is a different product from the one being built, and
+the corpus as it stands does not test it.
+
+**This is why the benchmark was built before the launch.** Two theses died in
+one evening for the price of about forty agent runs. Neither would have died in
+a Show HN thread; they would have died in someone else's benchmark, in public,
+after we had asked people to attach workers.
+
+**Undo:** nothing. `results-agent-correctness.json` is gitignored like the rest.

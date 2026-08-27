@@ -1028,14 +1028,26 @@ says something useful rather than something bad: all three are tasks where the
 *naive implementation is right*. An agent writes `csv.DictReader` and it works.
 There is nothing to inherit, so carrying a registry to fetch it is overhead.
 
-Which means the claim worth making is not "the same answer, faster" — it is
-**an answer the agent would have gotten wrong**. That is
-[`correctness.py`](benchmarks/correctness.py), where all four cases diverge and
-each divergence is a plausible wrong answer rather than a crash. A crash gets
-fixed. A plausible wrong answer gets shipped and believed. 🎯
+So we tested the obvious replacement claim — *an answer the agent would have
+gotten wrong* — with [`agent_correctness.py`](benchmarks/agent_correctness.py),
+against the four `correctness.py` cases, scored on pass rate.
 
-Full numbers, including the speed claim we withdrew after finding the variance
-swamped it, are in [`docs/benchmarks.md`](docs/benchmarks.md).
+**That failed too. Control scored 11 of 12.** 🪦
+
+The unaided agent did not return `2021-12-31` for the last business day. It did
+not trust `csv.Sniffer`. `correctness.py`'s baselines are honest about what a
+naive *library call* does — but an agent is not a library call. It reads the
+file. The gap this corpus was built to fill is one a frontier model closes by
+inspection.
+
+Both theses are dead for this corpus, and the numbers are in
+[`docs/benchmarks.md`](docs/benchmarks.md) and [decisions 71 and
+72](DECISIONS.md). What is left is knowledge an agent cannot reach by looking
+harder — a counterparty's file conventions, an internal system's undocumented
+behaviour, a fact established after the model's cutoff. None of that is in the
+public corpus, and all of it is private by nature.
+
+We would rather publish that than a launch. 🫡
 
 > ⚠️ **Read this before quoting numbers.** `results.json` and
 > `results-agent.json` are both gitignored, because a benchmark result is a
@@ -1245,7 +1257,7 @@ issue.
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
 | Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
-| Benchmark harnesses | ⚠️ Three of them. Artifact cost: ~1.0x, a wash. Agent-in-the-loop: **80085 costs more on conversion tasks**. Correctness: all four cases diverge — the one claim that holds |
+| Benchmark harnesses | ⚠️ Four of them, and they killed two theses. Artifact cost ~1.0x. Agent cost: **80085 costs 3.6–5.8x more**. Agent correctness: **control 11/12, no gap to fill**. See decisions 71–72 |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
 | Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |
