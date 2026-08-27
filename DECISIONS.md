@@ -2950,3 +2950,58 @@ having cheaply.
 
 **Undo:** delete the six directories and manifest entries; nothing else
 references them until they are recorded.
+
+---
+
+### 70. The trust gate counts parties, not organization rows
+
+**Found by reading the live API against our own README.** `GET
+/v1/experiences/exp_cd9bf...` returned `status: verified`, `verification_level:
+proven`, `distinct_organizations: 2`, and recall answered `use`. Four
+paragraphs into the README, the project claimed the opposite:
+
+> We could run them from our second seeded org and clear the gate tonight; that
+> is precisely the Sybil pattern the gate exists to stop, so we have not.
+
+We had. [Decision 65](#65-the-corpus-is-corroborated-by-a-script-and-watched-by-a-routine)
+ran `scripts/corroborate.py` with the consumer key, then again with the
+producer key -- "because `use` needs both sides" -- and `acme-research` and
+`globex-labs` are both ours. Decision 65's own closing paragraph forbids the
+nightly routine from executing anything, on the grounds that "a bot that runs
+the corpus is a bot manufacturing its own corroboration, which is the one thing
+this product must never do to itself." The instinct was exactly right and the
+script did it by hand anyway.
+
+Neither half was dishonest on its own. The gate asks "how many distinct
+organizations", organizations are free, and the operator is the one actor who
+can mint a second one without it feeling like cheating -- because it *is* the
+same party, doing the same corroboration it always intended, in the only way
+available before anyone else showed up. That is what made it invisible.
+
+**The gate now counts parties.** `EVIDENCE_FIRST_PARTY_ORGANIZATIONS` names the
+operator's own organizations, and `evidence.collapse` folds all of them into
+one when `recompute` counts. Consequences, deliberately:
+
+* **Counted, not recorded.** The organization ids in the checkpoint are
+  immutable history; which of them are the operator's is a fact about today.
+  Adding a name re-derives every score correctly on the next fold, and removing
+  one puts it back. No migration, no backfill, and no rewriting of what
+  happened.
+* **`distinct_organizations` means independent organizations.** The
+  `EvidencePolicy` docstring already said the number that matters is "how many
+  *independent* organizations have proven it". The field now is that number.
+  Reporting 2 for one party in two hats was the bug.
+* **Empty by default,** so nothing changes for anyone who has not told the
+  registry who they are. A single-tenant private deployment where *every*
+  organization is first-party wants `min_promotion_organizations: 1` instead --
+  collapsing everything to one party and then demanding two is a corpus that
+  can never recommend anything.
+* **Our corpus returns to `consider`.** That is the point. It is where the
+  evidence honestly put it, and the first `use` will now cost an outsider's
+  run rather than our own second key.
+
+An operator who can quietly clear their own trust gate does not have a trust
+gate. The corpus is worth less this week and the gate is worth having.
+
+**Undo:** unset `EVIDENCE_FIRST_PARTY_ORGANIZATIONS`; the next evidence job
+restores the previous counts exactly, because no row was changed.

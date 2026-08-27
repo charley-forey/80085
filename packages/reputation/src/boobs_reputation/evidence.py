@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import ColumnElement, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,7 @@ from boobs_schemas.tables import (
     ExecutionStat,
     Experience,
     ExperienceVersion,
+    Organization,
     Verification,
 )
 
@@ -89,6 +90,57 @@ DURATION_SAMPLES = 200
 # Ceiling: a version whose runs all share one timestamp never folds. Upgrade
 # path is a monotonic sequence on `executions` to cursor over instead of a clock.
 BOUNDARY_LIMIT = 64
+
+
+async def independent_organizations(db: AsyncSession, organizations: set[str]) -> int:
+    """How many distinct *parties* ran this, not how many organization rows.
+
+    Organizations are free, so the operator of a registry can seed a corpus as
+    one organization, execute it as a second, and watch its own artifacts
+    promote themselves to `use` -- which is the Sybil pattern the gate exists
+    to stop, performed by the one actor the gate never thought to check.
+
+    `EVIDENCE_FIRST_PARTY_ORGANIZATIONS` names the operator's own
+    organizations, and every one of them counts once between them. The rest
+    count individually, because nothing is known about them and nothing is
+    claimed: this buys independence from the operator, not identity.
+
+    Counted here rather than recorded at execution time on purpose. The set of
+    organization ids in the checkpoint is immutable history; which of them are
+    the operator's is a fact about today. Adding a name to the list re-derives
+    every score correctly on the next fold, and removing one puts them back.
+    """
+    first_party = settings().evidence.first_party()
+    if not first_party or not organizations:
+        return len(organizations)
+
+    # A trailing `*` matches by prefix, because some of our own organizations
+    # are named per run -- `smoke-producer-<run id>` is first-party every time
+    # and never twice by the same name. A list that cannot express them would
+    # be a list that quietly leaves the hole it was written to close.
+    exact = {name for name in first_party if not name.endswith("*")}
+    match: list[ColumnElement[bool]] = [
+        Organization.name.startswith(name[:-1]) for name in first_party if name.endswith("*")
+    ]
+    if exact:
+        match.append(Organization.name.in_(exact))
+
+    ours = set(
+        (
+            await db.execute(
+                select(Organization.id).where(Organization.id.in_(organizations), or_(*match))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return collapse(organizations, ours)
+
+
+def collapse(organizations: set[str], first_party: set[str]) -> int:
+    """Every first-party organization counts once between them, together."""
+    ours = organizations & first_party
+    return len(organizations - ours) + (1 if ours else 0)
 
 
 def corroborated(distinct_organizations: int) -> bool:
@@ -374,7 +426,7 @@ async def recompute(db: AsyncSession, experience_version_id: str) -> ExecutionSt
     if state is None or not await _extend(db, experience_version_id, state):
         state = await _rebuild(db, experience_version_id)
 
-    distinct_organizations = len(state.organizations)
+    distinct_organizations = await independent_organizations(db, state.organizations)
     durations = sorted(state.durations)
     total = state.successful + state.failed
     experience_id = (

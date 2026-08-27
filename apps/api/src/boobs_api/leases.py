@@ -11,9 +11,9 @@ credentials, and no datastore exposed to the internet. See DECISIONS.md 17.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boobs_common.clock import now
@@ -107,6 +107,22 @@ async def claim_next(
         )
     )
     return (await db.execute(select(Execution).where(Execution.id == candidate))).scalar_one()
+
+
+async def last_lease(db: AsyncSession) -> datetime | None:
+    """When a worker last took work, or None if one never has.
+
+    Queue depth on its own cannot tell the two failures apart. Twelve queued
+    with a lease a second ago is a worker that is busy; twelve queued with a
+    lease four hours ago is no worker at all, and only the second one is
+    anybody's emergency. Reported beside the depth so the distinction needs no
+    second request and no access to the worker's host.
+
+    `started_at` is set by `claim_next` and by nothing else, so the newest one
+    is the last time a lease was granted -- no heartbeat column, no worker
+    registry, and nothing to keep alive.
+    """
+    return (await db.execute(select(func.max(Execution.started_at)))).scalar_one_or_none()
 
 
 async def depth(db: AsyncSession) -> int:

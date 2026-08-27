@@ -97,6 +97,32 @@ class EvidencePolicy(BaseSettings):
 
     min_promotion_organizations: int = Field(default=2, ge=1)
 
+    first_party_organizations: str = ""
+    """Organization names run by whoever runs this registry, comma-separated.
+
+    Minting an organization costs nothing, which is the whole reason promotion
+    counts organizations rather than runs -- and it is equally the reason the
+    operator can defeat its own gate without noticing. Seeding records the
+    corpus as one organization and a second one executes it; both belong to the
+    same party, and two hats is not two opinions.
+
+    Every name listed here collapses into a single party when organizations are
+    counted, so an operator corroborating its own corpus reaches one, not two.
+    It is deliberately a *name* list and not a flag on the row: an operator
+    adding itself is an honest act, and it should read as one line of
+    configuration that anyone can check against the corpus.
+
+    Empty by default. A private single-tenant deployment where every
+    organization is first-party wants `min_promotion_organizations` at 1
+    instead -- collapsing everything to one party and then demanding two is a
+    corpus that can never recommend anything.
+    """
+
+    def first_party(self) -> frozenset[str]:
+        return frozenset(
+            name.strip() for name in self.first_party_organizations.split(",") if name.strip()
+        )
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

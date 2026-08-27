@@ -109,8 +109,10 @@ A service that started is not evidence. This is:
 # On the host: it should say worker_started, then nothing but empty leases.
 journalctl -u 80085-worker -o cat -f
 
-# From anywhere: queue depth should not climb.
-curl -s https://api.80085.ai/v1/ready | jq '.queued_executions'
+# From anywhere: depth should not climb, and the last lease should be recent.
+# Depth alone is ambiguous -- a backlog with a fresh lease is a worker keeping
+# up badly, and a backlog with a stale one is no worker at all.
+curl -s https://api.80085.ai/v1/ready | jq '{queued: .queued_executions, workers}'
 
 # End to end -- records an Experience, executes it, checks a verifier proved
 # it, and confirms a second organization can recall it by paraphrase.
@@ -134,8 +136,13 @@ Revoke it and mint another.
 
 ## When to add a second
 
-`queued_executions` climbing and not draining. That is the only signal that
-means "add a worker"; everything else about the read path scales separately.
+`queued_executions` climbing and not draining **while
+`workers.last_lease_age_seconds` stays small**. That combination is the only
+signal that means "add a worker"; everything else about the read path scales
+separately.
+
+A depth that climbs while the lease age climbs with it means the opposite: the
+worker is gone, and a second one would only join it in not running.
 
 Two workers on two hosts need no coordination and no shared state. Two workers
 on the *same* host will both lease and both run, which works but halves the

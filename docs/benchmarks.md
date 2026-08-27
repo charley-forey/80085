@@ -80,9 +80,10 @@ a longer table.
 
 To make the timing numbers mean more, in order of value:
 
-1. Drive both arms with a real coding agent and measure wall clock, tokens and
-   tool calls (§38's full metric set). This is the only change that makes the
-   control arm include the part that actually costs anything.
+1. ✅ **Done** — drive both arms with a real coding agent and measure wall
+   clock, tokens and tool calls (§38's full metric set). This is the only
+   change that makes the control arm include the part that actually costs
+   anything. It is the third benchmark below.
 2. Measure the cold path: no base image cached, as a new environment would
    experience it.
 
@@ -122,6 +123,49 @@ The script **exits non-zero if any case stops diverging**, and CI runs it. A
 case that agrees means either the capability regressed to the naive answer or
 the baseline was weakened, and both are findings. A benchmark whose claim
 nobody re-checks is how the site came to publish three different corpus sizes.
+
+## The third benchmark: the agent in the loop
+
+```bash
+ANTHROPIC_API_KEY=... uv run python benchmarks/agent.py
+```
+
+`run.py` compares a `docker build` against a container pull. `agent.py`
+compares **an agent that has to work it out against an agent that does not**,
+which is the claim the product actually makes.
+
+| Arm | What it does |
+|---|---|
+| **CONTROL** | A real model, in a real container, with a `bash` tool and no 80085. Decide what to write, write it, run it, get the output right. |
+| **TREATMENT** | The same model, same container, same prompt, same `bash` tool, plus the 80085 MCP toolset over the [MCP connector](https://docs.claude.com/en/docs/agents-and-tools/mcp-connector). |
+
+Metrics per task, median of N repeats: **wall clock, input and output tokens,
+tool calls, and pass rate**. Pass rate is the one that matters most — it is the
+variance argument made measurable, and the reason a mean of timings is the
+wrong summary.
+
+**Neither arm reports its own verdict.** The workspace is a throwaway container
+with `--network none`; when the agent stops, *the harness* runs a check inside
+it and hands the result to the same `RegistryVerifier` the platform uses. An
+agent that says it finished without producing the file fails, and a row
+containing a failure may not be quoted for speed. `tests/benchmark/` holds the
+test for exactly that property, because a timed arm that could self-certify
+would turn the whole benchmark into a measurement of model confidence.
+
+The two arms are kept comparable by giving them the **same** tool surface and
+differing in one thing: whether 80085 is attached. Treatment has to land the
+output in its own workspace like control does — reading it out of
+`run_experience` and writing it down with `bash` — so both arms are judged on
+the same artifact in the same place.
+
+Both `--network none` and the stdlib-only task set are load-bearing: an agent
+that could `pip install` would be measuring PyPI rather than either arm.
+
+> ⚠️ **No result may be committed without a model key.** The harness refuses to
+> run without one rather than falling back to anything simulated. `agent.py`
+> writes `benchmarks/results-agent.json`, which is gitignored for the same
+> reason `results.json` is: a benchmark result is a property of the machine
+> and the model that ran it.
 
 ## Interpreting a run
 

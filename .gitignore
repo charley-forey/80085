@@ -15,6 +15,7 @@ node_modules/
 capabilities/digests.json
 *.log
 benchmarks/results.json
+benchmarks/results-agent.json
 .claude/
 
 # Live credentials for the deployed environment.

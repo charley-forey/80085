@@ -40,12 +40,32 @@
 | **MCP endpoint** | `https://mcp.80085.ai/mcp` (streamable-http) |
 | **Artifact registry** | `registry-production-ca7f.up.railway.app` |
 
-Seeded with 24 Experiences: the 21-capability corpus plus the original three.
-Every one sits at `candidate` / `consider`, not `verified` / `use`, because
-every one has evidence from exactly one organization — ours. We could run them
-from our second seeded org and clear the gate tonight; that is precisely the
-Sybil pattern the gate exists to stop, so we have not. Executions need a worker
-attached — see [Deployment](infrastructure/railway/README.md).
+Seeded from the 36-capability corpus in
+[`capabilities/manifest.json`](capabilities/manifest.json). Executions need a
+worker attached — see [Deployment](infrastructure/railway/README.md).
+
+> 🚨 **We defeated our own gate, and this paragraph used to deny it.**
+>
+> Promotion to `use` needs runs from two distinct organizations, so that an
+> artifact cannot promote itself the first time its author runs it. This README
+> said we could clear that gate from our second seeded org and **had not**,
+> because it is the Sybil pattern the gate exists to stop.
+>
+> Then [decision 65](DECISIONS.md) ran `scripts/corroborate.py` with the
+> consumer key, and again with the producer key, "because `use` needs both
+> sides". `acme-research` and `globex-labs` are both ours. The gate counted two
+> organizations and saw two opinions; it was one party in two hats, and the
+> live corpus has been recommending `use` on that basis since 2026-08-24.
+>
+> The gate now counts **parties, not rows**: every organization named in
+> `EVIDENCE_FIRST_PARTY_ORGANIZATIONS` collapses into one, so ours count once
+> between them. With that set, the corpus returns to `consider` — where it
+> honestly was all along — and the first Experience to reach `use` will do so
+> because somebody who is not us ran it. If that is you,
+> [we would like to hear about it](CONTRIBUTING.md).
+>
+> An operator who can quietly clear their own trust gate does not have a trust
+> gate. Finding that out is worth more than a corpus full of green ticks.
 
 ---
 
@@ -58,7 +78,7 @@ attached — see [Deployment](infrastructure/railway/README.md).
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
 | **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
-| **Meta** | [Naming](#-about-the-name-yes-really) · [Roadmap](#️-roadmap) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
+| **Meta** | [Naming](#-about-the-name-yes-really) · [Roadmap](#️-roadmap) · [Distribution](docs/distribution.md) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
 
 ---
 
@@ -981,17 +1001,38 @@ no layer cache for a solution that did not exist a moment ago.
 
 **What this measures honestly:** the cost of producing and running a *verified
 executable artifact*. **What it does not measure:** an LLM token and tool-call
-cost, which needs a real agent harness and real model credentials. Those
-columns stay empty rather than invented. 📏
+cost. 📏
 
-> ⚠️ **Read this before quoting numbers.** `benchmarks/results.json` is
-> gitignored, because a benchmark result is a property of the machine that ran
-> it, not of the repository. The last local run recorded a **treatment arm that
-> did not pass verification** (`"verified": "NO"`, treatment slower than
-> control). Treat the harness as working and the numbers as unproven. 80085
-> makes no speed claim until that file shows verified successes on both arms.
-> Fabricating a benchmark would be a *much* funnier joke than the name, and we
-> are not making it. 🚫📉
+And that is the whole problem with it. The last local run passed verification
+on **both** arms and reported a speedup of **1.01x–1.06x** — because both arms
+are ~8.6 seconds of container start wrapped around a 20-line stdlib script that
+is already written and already known to be correct. That number is true, and it
+is not the product's claim.
+
+The claim is about the reasoning that never happens. So there are two more
+harnesses, and this one is the floor. 🪜
+
+| Harness | Asks | Answer today |
+|---|---|---|
+| [`run.py`](benchmarks/run.py) | Is fetching a proven artifact faster than rebuilding one? | **~1.0x.** A wash. The reuse path is complete, correct, and not slower. |
+| [`correctness.py`](benchmarks/correctness.py) | Is the proven artifact *right* where a fresh implementation is subtly wrong? | **All four cases diverge**, and each divergence is a plausible wrong answer rather than a crash. |
+| [`agent.py`](benchmarks/agent.py) | Does an agent that inherits a solution beat one that has to derive it? | ⏳ **Not yet run.** Needs a model key. |
+
+`agent.py` gives a real model a real container and a `bash` tool, and changes
+exactly one thing between arms: whether the 80085 MCP tools are attached. It
+measures wall clock, tokens, tool calls and **pass rate** — the variance
+argument from the top of this README, made measurable.
+
+> ⚠️ **Read this before quoting numbers.** `results.json` and
+> `results-agent.json` are both gitignored, because a benchmark result is a
+> property of the machine and the model that ran it, not of the repository.
+> Neither harness lets an arm finish by asserting success: in `agent.py` the
+> *harness* runs the check inside the container after the agent stops, so an
+> agent that says it is done without producing the file fails. No speed claim
+> will be made from any row containing a failure, and `agent.py` refuses to run
+> at all without a real model key rather than falling back to anything
+> simulated. Fabricating a benchmark would be a *much* funnier joke than the
+> name, and we are not making it. 🚫📉
 
 ---
 
@@ -1189,11 +1230,12 @@ issue.
 | Record → recall → execute → verify → evidence | ✅ Implemented end to end |
 | Cross-agent reuse test | ✅ Exists, and is the acceptance criterion |
 | Sandbox isolation suite | ✅ Real containers, real escape attempts |
-| Example capabilities | ✅ 21, stdlib-only, live — and none corroborated yet |
-| Benchmark harness | ⚠️ Runs; the checked-in results are **not** a performance claim |
+| Example capabilities | ✅ 36 in the manifest, stdlib-only — and **none independently corroborated**, see decision 70 |
+| Benchmark harnesses | ⚠️ Three of them. Artifact cost: ~1.0x, a wash. Correctness: all four cases diverge. Agent-in-the-loop: **not yet run** |
 | `apps/web` public surface | ✅ Built — landing page, `llms.txt`, integration docs |
 | `npx @80085-ai/cli init` | ✅ Wires the MCP server into Claude, Cursor, Windsurf and friends |
-| `docs/` | ✅ `architecture.md`, `security.md`, `benchmarks.md`; decisions in `DECISIONS.md` |
+| Always-on worker | ✅ Live on a dedicated x86 host, `Restart=always`, leasing continuously |
+| `docs/` | ✅ `architecture.md`, `security.md`, `benchmarks.md`, `distribution.md`; decisions in `DECISIONS.md` |
 | License | ✅ Code under [Elastic License 2.0](LICENSE); corpus under [`TERMS.md`](TERMS.md) |
 
 ---

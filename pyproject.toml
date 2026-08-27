@@ -41,6 +41,10 @@ dev = [
     # Windows ships none, so without this the timezone capability tests pass in
     # CI and fail on half the machines that run them locally.
     "tzdata>=2024.1",
+    # benchmarks/agent.py only. The product never calls a model -- an agent
+    # brings its own -- so this is a dependency of measuring the claim, not of
+    # serving it, and it stays out of every runtime image.
+    "anthropic>=0.69",
 ]
 
 [tool.ruff]

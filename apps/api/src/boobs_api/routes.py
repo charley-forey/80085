@@ -149,7 +149,24 @@ async def ready(db: DbSession, response: Response) -> dict[str, Any]:
         "ready": ok,
         "checks": checks,
         "queued_executions": await leases.depth(db),
+        "workers": await _worker_age(db),
         "jobs": await _job_ages(db),
+    }
+
+
+async def _worker_age(db: DbSession) -> dict[str, Any]:
+    """How long since any worker took a job.
+
+    A depth on its own is ambiguous exactly when it matters: a backlog with a
+    fresh lease is a worker keeping up badly, and a backlog with a stale one is
+    no worker at all. Only the second is an outage, and to an agent whose run
+    sits at `queued` the two are indistinguishable -- which is the failure that
+    reads from outside as "this product does not work".
+    """
+    at = await leases.last_lease(db)
+    return {
+        "last_lease_at": at.isoformat() if at else None,
+        "last_lease_age_seconds": int((now() - at).total_seconds()) if at else None,
     }
 
 

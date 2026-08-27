@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from boobs_common.config import EvidencePolicy, Settings
-from boobs_reputation.evidence import corroborated
+from boobs_reputation.evidence import collapse, corroborated
 from boobs_schemas.api import VerifyRequest
 
 
@@ -49,3 +49,36 @@ def test_verify_refuses_a_substituted_verifier() -> None:
         VerifyRequest(verifier="exit_code")
     with pytest.raises(ValidationError):
         VerifyRequest(config={"expected": 0})
+
+
+def test_an_operators_own_organizations_count_as_one_party() -> None:
+    """The gate counts organizations because organizations are free. So is
+    minting a second one for yourself, which is how a registry corroborates its
+    own corpus without ever meaning to cheat."""
+    ours = {"org_seed", "org_consumer"}
+
+    # Two hats, one opinion: not enough to promote anything.
+    assert collapse(ours, ours) == 1
+    assert not corroborated(collapse(ours, ours))
+
+    # One genuine outsider is what the gate was always asking for.
+    assert collapse(ours | {"org_stranger"}, ours) == 2
+    assert corroborated(collapse(ours | {"org_stranger"}, ours))
+
+
+def test_organizations_nobody_claimed_still_count_individually() -> None:
+    """This buys independence from the operator, not identity. Two strangers
+    are two, and an empty first-party list changes nothing."""
+    assert collapse({"a", "b"}, set()) == 2
+    assert collapse({"a", "b"}, {"c"}) == 2
+    assert collapse(set(), {"a"}) == 0
+
+
+def test_first_party_organizations_are_named_in_one_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVIDENCE_FIRST_PARTY_ORGANIZATIONS", "acme-research, globex-labs ,smoke-*")
+    assert EvidencePolicy().first_party() == frozenset({"acme-research", "globex-labs", "smoke-*"})
+    # Unset means the gate behaves exactly as it did before.
+    monkeypatch.delenv("EVIDENCE_FIRST_PARTY_ORGANIZATIONS")
+    assert EvidencePolicy().first_party() == frozenset()
