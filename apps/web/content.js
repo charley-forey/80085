@@ -295,7 +295,7 @@ Your claim is not evidence. 🙅`
       ['✅', 'keyless recall', 'reading is free', true],
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
-      ['⚠️', 'benchmark harness', 'runs; checked-in results are NOT a claim', false],
+      ['⚠️', 'benchmark harnesses', 'four of them; two of them killed a thesis', false],
       ['⚠️', `${CORPUS}-capability corpus`, 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
@@ -304,9 +304,14 @@ Your claim is not evidence. 🙅`
     t: 'box',
     emoji: '⚠️',
     title: '',
-    text: `We make no speed claim until both benchmark arms show verified
-successes. Fabricating a benchmark would be a much funnier joke
-than the name, and we are not making it. 🚫📉`
+    text: `We said we would make no speed claim until both benchmark arms
+showed verified runs. They did -- 18 for 18 -- and the answer was
+no. Attaching 80085 cost 3.6x-5.8x MORE input tokens, with no
+reliable time saved. Then we tested "but it is more correct" and
+an unaided agent scored 11 of 12 without us. Both pitches are
+dead. The numbers are in docs/benchmarks.md and decisions 71-72.
+Fabricating a benchmark would be a much funnier joke than the
+name, and we are still not making it. 🚫📉`
   }
 ];
 

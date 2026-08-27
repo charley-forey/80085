@@ -74,7 +74,7 @@ work for `mojibake_repair` as for `csv_to_json` — the difficulty of a
 capability lives in the edge cases someone already discovered, and the control
 arm never rediscovers them. Wiring nine hard capabilities into `TASKS` would
 multiply the row count and move the ratio by roughly nothing, while making the
-table *look* like it had been extended. The corpus grew from 3 to 30 and this
+table *look* like it had been extended. The corpus grew from 3 to 37 and this
 number stayed at 3 tasks; the fix for that is the second benchmark below, not
 a longer table.
 

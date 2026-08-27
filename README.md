@@ -1143,7 +1143,7 @@ Record → recall → execute → verify → evidence, proven by the cross-agent
 **Phase 1 — Reach**
 - 🌍 `apps/web`: public discovery surface, `llms.txt`, integration docs
 - 🤖 Agent SDK, so `recall` is one line in any harness
-- ✅ **Done:** the 21-capability corpus in `capabilities/manifest.json` is pushed
+- ✅ **Done:** the corpus in `capabilities/manifest.json` is pushed
   to the registry and recorded against the live API — and recommended by
   nothing, until an organization that is not ours runs one
 
