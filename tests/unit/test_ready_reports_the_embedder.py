@@ -28,6 +28,12 @@ class _Result:
     def scalars(self) -> list[Any]:
         return []
 
+    def scalar_one_or_none(self) -> Any:
+        # Nothing has ever run against this fake, so no worker has ever leased.
+        # Readiness must still answer -- a probe that needs an execution history
+        # to work is a probe that fails hardest on a fresh deployment.
+        return None
+
 
 class _Session:
     """A database that answers, which is all readiness asks of it here."""
