@@ -25,3 +25,5 @@ DEPLOYMENT.md
 benchmarks/results-agent-selfknowledge-*.json
 benchmarks/results-agent-gated-trust-*.json
 benchmarks/results-agent-halt-*.json
+benchmarks/results-agent-halt-pressure-*.json
+benchmarks/results-real-conventions-*.json

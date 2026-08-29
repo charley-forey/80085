@@ -1229,6 +1229,40 @@ not. **A corpus fed by real halts cannot grow in a direction nothing asked
 for.** It stops being an answer store and becomes a record of questions already
 answered. 🔁
 
+### 🏭 Then we tested it on conventions we did not invent
+
+Six drawn from how industries actually work — FTE proration, `2/10 net 30`,
+6-second call billing, cumulative meters, exclusive end dates, allocated stock:
+
+| convention | kind | unaided | with halt |
+|---|---|---|---|
+| `payroll_fte` | scaling | 3 right | 3 halted |
+| `ap_early_payment` | inclusion | 3 right | 3 right |
+| `telecom_billed_seconds` | rounding | **3 wrong** | 3 halted |
+| `utility_meter_reads` | derivation | 3 right | 3 right |
+| `policy_coverage_days` | timing | **3 wrong** | 3 halted |
+| `inventory_available` | inclusion | 3 right | 3 halted |
+
+**Silent wrong answers: 6/18 → 0/18.**
+
+**And two of our six were badly designed, which is the better finding.**
+`2/10 net 30` and FTE proration are standard practice — not in the file, but
+firmly in training — and the agent got them right unaided. It should have.
+
+So the target class is narrower and sharper than "knowledge not in the data":
+
+> **A choice between conventions the agent has no basis to make.**
+
+It knows both readings of an end date. It cannot know which one *your* company
+uses — and it picks one silently, wrong, 3 times out of 3. That answer is a fact
+about your organisation, not about the world, which is why it **cannot** live in
+a public corpus. [Decision 81](DECISIONS.md)
+
+One halt was also better than the fixture testing it: on `inventory_available`
+we wrote the ambiguity as allocated stock, and the agent additionally flagged
+whether in-transit counts toward availability — a real second convention we had
+not thought of. 🎯
+
 We would rather publish that than a launch. 🫡
 
 > ⚠️ **Read this before quoting numbers.** `results.json` and

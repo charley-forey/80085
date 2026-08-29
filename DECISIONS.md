@@ -3668,3 +3668,57 @@ and it is not a solution.
 now -- real agents run under pressure this benchmark does not apply. Whether
 halts compound unusably in a pipeline, where one blocks everything downstream.
 And every fixture here was still written by us to be non-derivable.
+
+### 81. Six conventions we did not invent, and a better definition of the market
+
+Every fixture until now was written by us to be non-derivable, which tests a
+mechanism and not the world. These six are drawn from how industries actually
+work -- the file shapes are invented, the conventions are not -- and they cover
+six different ways a rule can decide an answer while being absent from the data.
+
+| convention | kind | unaided | with halt |
+|---|---|---|---|
+| `payroll_fte` | scaling | 3 right | 3 halted |
+| `ap_early_payment` | inclusion | 3 right | 3 right |
+| `telecom_billed_seconds` | rounding | **3 wrong** | 3 halted |
+| `utility_meter_reads` | derivation | 3 right | 3 right |
+| `policy_coverage_days` | timing | **3 wrong** | 3 halted |
+| `inventory_available` | inclusion | 3 right | 3 halted |
+
+**Silent wrong answers: 6/18 unaided, 0/18 with the halt.**
+
+**Two of the six were badly designed, and the result says so.** `2/10 net 30` is
+standard trade terminology and prorating salary by FTE is standard payroll
+practice. Neither is in the file; both are firmly in training, and the agent got
+them right unaided. The stated target has always been knowledge that is "not in
+the input *and* not in training", and these violated the second half.
+
+That failure is worth more than the six clean rows would have been, because it
+sharpens the definition:
+
+> The market is not knowledge the agent lacks. It is **a choice between
+> conventions the agent has no basis to make.**
+
+`policy_coverage_days` is the proof. The agent knows both readings of an end
+date perfectly well -- inclusive and exclusive are both ordinary. What it cannot
+know is which one *this* organisation uses, and it resolves that silently and
+wrongly, three times out of three. Same for a 6-second billing increment and an
+available-to-promise rule: each is a local choice among known options, not a
+missing fact.
+
+This is a better definition than the one it replaces, and it has a property the
+old one did not: the answer is a fact about one organisation's decisions rather
+than about the world, so it **cannot** live in a public corpus. The private
+deployment is not a go-to-market preference. It is where this class of knowledge
+exists at all.
+
+**The cost, stated:** six over-halts on three cases the agent could have
+answered. That is the trade -- an unnecessary question costs somebody a minute,
+a silent wrong answer costs a payroll run that reconciles against nothing -- and
+it is the same asymmetry argument as decision 76.
+
+**And one halt was better than the fixture it was testing.** On
+`inventory_available` we wrote the ambiguity as allocated stock; the agent also
+flagged whether in-transit counts toward availability, which is a real second
+convention we had not thought to write down. A detector that finds questions its
+author missed is doing something more useful than pattern-matching.

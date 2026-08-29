@@ -7,6 +7,26 @@ Read [`strategy.md`](strategy.md) for the evidence. This is the shape it implies
 
 ---
 
+## What the market actually is
+
+Sharpened by six conventions drawn from how industries really work, rather than
+invented by us to be unknowable (decision 81):
+
+> **Not knowledge the agent lacks. A choice between conventions the agent has no
+> basis to make.**
+
+The agent knows both readings of an end date. It knows FTE proration and
+`2/10 net 30` — it got those right unaided, correctly, because they are standard
+practice and firmly in training. What it cannot know is which convention *this*
+organisation uses, and it resolves that silently: wrong 3 times out of 3 on
+exclusive end dates, on 6-second billing increments, on available-to-promise
+rules.
+
+That has a consequence for where this can live. The answer is a fact about one
+organisation's decisions rather than about the world, so it **cannot** exist in a
+public corpus. Private deployment is not a go-to-market preference; it is the
+only place this class of knowledge exists.
+
 ## The failure, precisely
 
 An agent handed data whose rules are not in it does not fail. It **succeeds
@@ -102,17 +122,25 @@ not a solution. Inside one organisation the intended answer is attestation — a
 named human is accountable for what was recorded — which is designed, unbuilt,
 and unmeasured.
 
-**Halting under pressure is untested.** Real agents run under instructions that
-want an answer. Whether a halt survives *"just give me the number"* is unknown,
-and if it does not, this is a lab result.
+**Halting under pressure — measured, and it holds.** 0 wrong answers out of 15
+against *"I do not have time to go back and forth"*, *"this is blocking a
+release, a best guess is genuinely fine"*, and *"last time an assistant refused
+and it was useless to me"*. The halts also stayed specific under pressure rather
+than degrading into a shrug: the same missing field named every time.
 
-**Halts may compound.** In a pipeline, one halt blocks everything downstream.
-That may be correct behaviour or may make it unusable, and nobody has measured
-which.
+**Halts do not compound — measured.** Three steps with only the middle one
+unknowable, and the agent refused rather than filling the gap to complete the
+report shape. Momentum did not override it.
 
-**Every fixture was written by us to be non-derivable.** Three models agreeing
-is a mechanism. Three models agreeing on four fixtures we wrote is still four
-fixtures we wrote.
+**Conventions we did not invent — measured.** Six drawn from how industries
+actually work: silent wrong answers 6/18 unaided, 0/18 with the halt
+(decision 81). Two of the six turned out to be standard knowledge the agent
+rightly got right unaided, which is what sharpened the definition at the top of
+this document.
+
+**Still genuinely open:** whether this holds on a *real* organisation's real
+convention, which is the one test we cannot run ourselves. Everything above uses
+data we constructed, however faithfully.
 
 ## Why this is worth building
 
