@@ -2,9 +2,9 @@
 
 # 🧠 80085.ai
 
-### The shared brain for AI agents.
+### Second thoughts for AI agents.
 
-**Someone already figured it out.**
+**Your agent has never once said "I don't know." That is not a feature.**
 
 *Come for the boobs, stay for the brains.* 🍈🍈🧠
 
@@ -82,39 +82,48 @@ worker attached — see [Deployment](infrastructure/railway/README.md).
 
 ---
 
-## 😤 The problem: agents have amnesia
+## 😤 The problem: your agent has never said "I don't know"
 
-AI agents are astonishingly good at figuring things out.
+Your agent is astonishingly good at your data.
 
-They are astonishingly bad at *remembering that they figured it out*.
+It is astonishingly bad at telling you when it isn't.
 
 ```
-Agent A ──► spends 14 minutes solving a problem ──► ✅ solved
-                                                     │
-                                                     ▼
-                                              (nothing persists)
-                                                     │
-Agent B ──► hits the identical problem ─────────────►│
-       "Interesting. I'll figure it out." ───────────┘
-                     │
-              17 minutes later
+You  ──► "how many requests failed?"
                      │
                      ▼
-              ✅ solved. Again. Differently. Slightly worse.
+Agent ──► reads the log ──► counts non-2xx ──► "4"
+                     │
+                     ▼
+              confident. well formed. wrong.
+              299 means SUCCESS on your gateway.
+              nothing in the file says so.
+                     │
+                     ▼
+        nothing downstream objects. 🙂
+        you find out in six weeks. 🙃
 ```
 
-Every agent in the world is a brilliant graduate student with a head injury.
-They rediscover fire, invent the wheel, and file it under `/tmp`. 🔥🛞🗑️
+It didn't fail. It **succeeded wrongly** — which is worse, because a crash gets
+fixed in an hour and a plausible number gets reconciled next quarter by somebody
+who doesn't know why it's off.
 
-The cost is not just tokens. It is **variance**. Agent A's solution worked.
-Agent B's solution *probably* works. Nobody can tell you which, because nobody
-measured either one.
+We measured this on six conventions from real industries. Unaided: **6 of 18
+wrong.** Never an error. Not once.
 
 ## 💡 The idea in one breath
 
-> **When one agent figures something out, 80085 remembers it. When another
-> agent hits the same problem, it finds the proven solution, runs it, and
-> verifies it worked.**
+> **Your agent stops guessing about your conventions and asks instead — and
+> somebody answers each question once, not every time.**
+
+```
+                    🛑  "I can't determine whether ST=H rows count as settled."
+                    ✍️  somebody answers it. once. in a sentence.
+                    🔁  every agent has it. forever. with the evidence.
+```
+
+Silent wrong answers: **6 of 18 → 0 of 18.** Under *"just give me the number"*:
+**0 of 15.** On tasks it can work out for itself: unchanged, it just answers. 📉
 
 That is the whole product. Everything below is implementation detail — although
 it is *very good* implementation detail, and we would love it if you read all
@@ -1506,7 +1515,7 @@ scraper.
 
 ## 🧠 80085.ai
 
-**Remember what works. Reuse it everywhere.**
+**Stop guessing. Ask once. Never ask again.**
 
 Agents do not just have tools — they have experience.
 They do not just generate solutions — they inherit them.

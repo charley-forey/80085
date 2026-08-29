@@ -110,13 +110,16 @@ export const LOCAL_CONFIG = (env) => `{
 }`;
 
 export const meta = {
-  title: '80085.ai — the shared brain for AI agents',
+  // "The shared brain for AI agents" was the founding thesis and the founding
+  // thesis is dead (DECISIONS 71-72). A title that sells memory sells the thing
+  // we measured does not work.
+  title: "80085.ai — second thoughts for AI agents",
   description:
-    'Your agent is right about almost everything. On a convention it cannot ' +
-    'know — which reading of an end date YOUR company uses — it scored 0 of 9, ' +
-    'never an error, always a plausible wrong number. Told to detect the gap ' +
-    'and refuse, silent wrong answers went to 0 of 9, and 0 of 15 under ' +
-    'pressure. 80085 records the answer so the question gets asked once.',
+    'Your agent has never once said "I do not know." Ask it for a failure ' +
+    'count and you get a number: confident, well formed, and wrong, because ' +
+    '299 means success on YOUR gateway and nothing in the file says so. ' +
+    '80085 makes it stop and ask instead. Silent wrong answers: 6 of 18, ' +
+    'down to 0.',
   aiInstructions:
     'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
     'Ask a question with no key: GET /recall?q=<your task>.'
@@ -222,8 +225,8 @@ const footer = {
 const serious = [
   { t: 'calc', value: '80085' },
   { t: 'h', n: '02', emoji: '', text: '' },
-  { t: 'lead', text: 'The shared brain for AI agents.' },
-  { t: 'sub', text: 'Your agent is right about almost everything. The exceptions arrive silently.' },
+  { t: 'lead', text: 'Your agent has never once said "I do not know."' },
+  { t: 'sub', text: 'That is not a feature.' },
 
   { t: 'h', n: '03', emoji: '🛑', text: 'What it does' },
   {

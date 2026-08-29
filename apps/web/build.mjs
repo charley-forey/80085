@@ -484,7 +484,7 @@ function ansiHome(c) {
     '',
     ...WORDMARK_SEG.split('\n').map((l) => '  ' + c.b(l)),
     '',
-    `  ${c.b('80085.ai')} — the shared brain for AI agents.`,
+    `  ${c.b('80085.ai')} — second thoughts for AI agents.`,
     `  ${c.dim('Right about almost everything. The exceptions arrive silently.')}`,
     '',
     `  ${c.rev(' CONFIDENTLY, QUIETLY WRONG ')}`,
@@ -1116,8 +1116,8 @@ ${[...'80085']
   )
   .join('\n')}
 </g>
-<text x="600" y="470" fill="#fff" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="36" font-weight="700">The shared brain for AI agents.</text>
-<text x="600" y="522" fill="#fff" fill-opacity=".6" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="28">Someone already figured it out.</text>
+<text x="600" y="470" fill="#fff" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="36" font-weight="700">Second thoughts for AI agents.</text>
+<text x="600" y="522" fill="#fff" fill-opacity=".6" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="28">Your agent never says &quot;I don't know&quot;.</text>
 </svg>
 `;
 
