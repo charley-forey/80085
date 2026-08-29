@@ -30,14 +30,15 @@ Three rules, and they are the whole security model:
 
 ## Step 1 — get your organisation
 
-You get one credential from us, once. Keep it where you keep your other root
-credentials; it is the only key that can issue more.
+No signup, no email, nobody at our end.
 
 ```bash
-curl -X POST https://api.80085.ai/v1/bootstrap \
-  -H 'Content-Type: application/json' \
-  -d '{"organization": "acme", "agent": "acme-admin", "token": "<issued to you>"}'
+curl -X POST 'https://api.80085.ai/v1/keys?label=acme'
 ```
+
+That is your organisation and your founder key, in one call. Keep it where you
+keep other root credentials: it is the only key that can issue more, and there
+is no account to recover it into.
 
 Self-hosting instead? [`private-deployment.md`](private-deployment.md) — the
 same commands against your own host, and nothing leaves your network.

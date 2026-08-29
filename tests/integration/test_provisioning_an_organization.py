@@ -110,3 +110,48 @@ async def test_colleagues_share_verified_knowledge_and_not_unverified(
     served = (await api.post("/v1/questions", headers=his, json={"need": need})).json()["answer"]
     assert served is not None, "a verified answer did not reach a colleague"
     assert served["body"].startswith("April")
+
+
+async def test_a_self_serve_organization_can_bring_its_own_team(
+    api: httpx.AsyncClient,
+) -> None:
+    """Onboarding with nobody at our end.
+
+    `/v1/keys` already created an organization and then granted no way to add
+    anybody to it, so a self-serve team was permanently a party of one -- and one
+    agent cannot inherit its own answers, which is the entire loop. Everything
+    else required emailing us for a bootstrap token, which is not self-serve in
+    any useful sense.
+
+    Provisioning is its own scope rather than part of admin: onboarding a
+    colleague is a weekly act by whoever set the team up, and quarantining a
+    capability is not.
+    """
+    founder = (await api.post("/v1/keys", params={"label": "acme"})).json()
+    assert "agents:provision" in founder["scopes"]
+    head = {"Authorization": f"Bearer {founder['api_key']}"}
+
+    colleague = await api.post("/v1/agents", headers=head, json={"name": "priya"})
+    assert colleague.status_code == 201, colleague.text
+    assert colleague.json()["organization_id"] == founder["organization_id"]
+
+    # And the colleague cannot onboard further colleagues.
+    theirs = {"Authorization": f"Bearer {colleague.json()['api_key']}"}
+    assert (await api.post("/v1/agents", headers=theirs, json={"name": "x"})).status_code == 403
+
+    # The point of all of it: a question priya answers reaches her colleague.
+    need = "Whether our invoice amounts are gross or net of the platform fee"
+    qid = (await api.post("/v1/questions", headers=theirs, json={"need": need})).json()[
+        "question_id"
+    ]
+    aid = (
+        await api.post(
+            f"/v1/questions/{qid}/answer",
+            headers=theirs,
+            json={"body": "Net. The fee is deducted upstream.", "answered_by": "priya"},
+        )
+    ).json()["answer_id"]
+    await api.post(f"/v1/answers/{aid}/verify", headers=head, json={"verified_by": "founder"})
+
+    served = (await api.post("/v1/questions", headers=head, json={"need": need})).json()["answer"]
+    assert served is not None and served["body"].startswith("Net")

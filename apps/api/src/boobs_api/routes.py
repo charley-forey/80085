@@ -318,7 +318,11 @@ async def mint_key(
     agent_row = Agent(id=ids.new_id(ids.AGENT), organization_id=org.id, name=name, created_at=now())
     plaintext, key_hash = generate()
     # Read, write and run -- but never admin, and never the worker scope.
-    granted = sorted({Scope.EXPERIENCES_READ, Scope.EXPERIENCES_WRITE, Scope.EXECUTIONS_RUN})
+    # Founder scopes: ordinary work plus the ability to add colleagues to the
+    # organization this call just created. Without provisioning, a self-serve
+    # organization is permanently a party of one -- and one agent cannot
+    # inherit its own answers, which is the entire loop.
+    granted = sorted(Scope.FOUNDER)
     key = ApiKey(
         id=ids.new_id(ids.API_KEY),
         organization_id=org.id,
@@ -710,6 +714,8 @@ async def provision_agent(
         agent_id=agent_row.id,
         name=f"{request.name} provisioned",
         key_hash=key_hash,
+        # Ordinary scopes only. A colleague you onboard cannot onboard
+        # further colleagues -- that stays with whoever set the team up.
         scopes=sorted(Scope.ALL),
         created_at=now(),
     )

@@ -3820,3 +3820,38 @@ same unanswered thing.
 The instruments exist so that the first real deployment produces evidence rather
 than an anecdote, and the convergence question in particular cannot be answered
 by us at all -- it is a property of somebody's actual work.
+
+### 85. A self-serve organization that could never have a second person in it
+
+The loop verified in production, and walking a new organisation through setup
+found the thing that made it unusable by anybody who had not emailed us.
+
+`/v1/keys` is self-serve, needs no signup, and creates an organization. It then
+granted read, write and run -- and no way to add anybody to the organization it
+had just created. `POST /v1/agents` required `admin`, which only a bootstrap
+token issues. So a self-serve organisation was permanently a party of one, and
+one agent cannot inherit its own answers, which is the entire loop.
+
+The product was free to try and impossible to use, and the gap was invisible
+because every test to date provisioned through `bootstrap`.
+
+Provisioning is now its own scope. Onboarding a colleague is a weekly act by
+whoever set the team up; quarantining a capability and granting an execution
+tier are not, and bundling them meant the safe act required the dangerous
+permission. The first key of a self-serve organization gets `FOUNDER` -- ordinary
+work plus the right to bring colleagues into the organization it just made --
+and a provisioned colleague gets ordinary scopes only, so the ability to onboard
+stays where it started.
+
+Onboarding is now two calls and nobody at our end:
+
+    POST /v1/keys?label=acme      your organization and your founder key
+    POST /v1/agents               a key per person
+
+The bootstrap token still exists for our own seeding and for a self-hosted
+install that wants to name its organization. It is no longer on the path of
+anybody trying the product.
+
+**Also settled: decision 78 was right.** `pytest tests/unit tests/integration`
+now runs green at 517 tests. Every failure attributed to order-dependence was
+concurrency between test runs I had launched myself.

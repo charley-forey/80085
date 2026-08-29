@@ -34,7 +34,7 @@ ACTION_SCOPES: Final[dict[str, str]] = {
     # Issuing a key to a colleague inside your own organization. Named
     # separately from admin.keys because it is the one admin action an
     # ordinary enterprise deployment performs weekly rather than once.
-    "admin.provision": Scope.ADMIN,
+    "admin.provision": Scope.PROVISION,
     # Reading what everyone asked for and did not find. Its own name rather
     # than a reuse of admin.keys because this list is the audit surface for
     # "which actions exist"; an action called `keys` guarding a demand report

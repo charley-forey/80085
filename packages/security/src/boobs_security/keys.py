@@ -27,12 +27,21 @@ class Scope:
     # granted the other scopes: it cannot read the registry or record anything.
     WORKER: Final = "worker:execute"
     ADMIN: Final = "admin"
+    # Adding people to your own organization. Deliberately NOT part of ADMIN:
+    # onboarding a colleague is a weekly act by whoever set the team up, and
+    # quarantining a capability or granting an execution tier is not. Bundling
+    # them meant a self-serve organization could never add a second person to
+    # itself -- which is the one thing this product is for.
+    PROVISION: Final = "agents:provision"
 
     # What an ordinary agent gets. Deliberately excludes WORKER and ADMIN.
     ALL: Final = frozenset({EXPERIENCES_READ, EXPERIENCES_WRITE, EXECUTIONS_RUN, EXECUTIONS_VERIFY})
+    # What the first key of a self-serve organization gets: ordinary work, plus
+    # the ability to bring colleagues into the organization it just created.
+    FOUNDER: Final = ALL | frozenset({PROVISION})
     # Everything that may be granted. A scope outside this set is a typo, and
     # a typo that silently grants nothing is worse than a rejected request.
-    KNOWN: Final = ALL | frozenset({WORKER, ADMIN})
+    KNOWN: Final = ALL | frozenset({WORKER, ADMIN, PROVISION})
 
 
 def generate() -> tuple[str, str]:
