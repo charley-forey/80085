@@ -130,7 +130,7 @@ const bad = (s) => `  \x1b[1m✗\x1b[0m ${s}`;
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 
 const HELP = `
-  80085 — wire the shared brain into your agent.
+  80085 — stop your agent guessing about your data.
 
     npx @80085-ai/cli init [options]
 
@@ -171,7 +171,7 @@ async function main(argv) {
   if (args.help) return console.log(HELP), 0;
 
   const apiUrl = (args.apiUrl || process.env.BOOBS_API_URL || DEFAULT_API).replace(/\/+$/, '');
-  console.log(`\n  \x1b[7m 80085 \x1b[0m  the shared brain for AI agents\n`);
+  console.log(`\n  \x1b[7m 80085 \x1b[0m  your agent stops guessing about your data\n`);
 
   // --- find the configs -------------------------------------------------
   const found = args.target

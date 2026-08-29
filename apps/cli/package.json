@@ -1,7 +1,7 @@
 {
   "name": "@80085-ai/cli",
   "version": "0.1.0",
-  "description": "Wire the 80085 shared brain into your AI agent. One command, no signup.",
+  "description": "Stop your agent guessing at conventions it cannot see. One command, no signup.",
   "type": "module",
   "bin": {
     "80085": "./init.js"

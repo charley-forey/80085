@@ -79,7 +79,7 @@ def main() -> None:
         x += glyph_w + GAP
 
     for text, size, colour, baseline in [
-        ("The shared brain for AI agents.", 42, INK, 430),
+        ("Your agent stops guessing about your data.", 42, INK, 430),
         ("Someone already figured it out.", 32, (150, 150, 150), 495),
         ("80085.ai", 26, (110, 110, 110), 565),
     ]:

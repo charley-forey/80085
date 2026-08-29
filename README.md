@@ -2,7 +2,7 @@
 
 # 🧠 80085.ai
 
-### Second thoughts for AI agents.
+### Your agent stops guessing about your data.
 
 **Your agent has never once said "I don't know." That is not a feature.**
 
@@ -11,7 +11,7 @@
 [![status](https://img.shields.io/badge/status-MVP-orange)](#-status-honest-edition)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![api](https://img.shields.io/badge/API-FastAPI-009688)](apps/api)
-[![mcp](https://img.shields.io/badge/MCP-6%20tools-8A2BE2)](apps/mcp)
+[![mcp](https://img.shields.io/badge/MCP-7%20tools-8A2BE2)](apps/mcp)
 [![sandbox](https://img.shields.io/badge/sandbox-no%20net%20%7C%20no%20root%20%7C%20read--only-critical)](packages/execution)
 [![evidence](https://img.shields.io/badge/evidence-Wilson%20lower%20bound-informational)](packages/retrieval/src/boobs_retrieval/ranking.py)
 
@@ -73,12 +73,12 @@ worker attached — see [Deployment](infrastructure/railway/README.md).
 
 | | |
 |---|---|
-| **Why** | [The problem](#-the-problem-agents-have-amnesia) · [The idea](#-the-idea-in-one-breath) · [Why not X](#-why-not-just-use-x) |
+| **Why** | [The problem](#-the-problem-your-agent-has-never-said-i-dont-know) · [The idea](#-the-idea-in-one-breath) · [Why not X](#-why-not-just-use-x) |
 | **What** | [Experience](#-the-core-abstraction-an-experience) · [The loop](#-the-loop-six-verbs-that-matter) · [Evidence](#-evidence-not-stars-) |
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
 | **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
-| **Meta** | [Naming](#-about-the-name-yes-really) · [**The loop**](docs/the-loop.md) · [**Set it up**](docs/provisioning.md) · [Strategy](docs/strategy.md) · [Run it privately](docs/private-deployment.md) · [FAQ](#-faq) |
+| **Meta** | [Naming](#-about-the-name-yes-really) · [**The loop**](docs/the-loop.md) · [**Set it up**](https://80085.ai/setup) · [Strategy](docs/strategy.md) · [Run it privately](docs/private-deployment.md) · [FAQ](#-faq) |
 
 ---
 

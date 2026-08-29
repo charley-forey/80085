@@ -29,7 +29,8 @@ connects.
 ## Why a key, and why you never see a form
 
 Reading is free: `recall_experience` answers with no credential. Running and
-recording need one, because writing to a shared brain should be attributable.
+recording need one, because an answer your colleagues will inherit should
+say who stood behind it.
 So the install mints one and writes it in, and you never handle it. No email,
 no password, no account. The key identifies a contributor, not a person —
 enough to revoke one actor's work as a set, and nothing more.
