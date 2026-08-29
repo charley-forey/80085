@@ -27,7 +27,7 @@ SITE = os.environ.get("BOOBS_SITE_URL", "https://80085.ai")
 # What the current copy says. If a surface does not carry these, it is serving
 # an older story -- which is invisible from the repository and from the tests.
 CURRENT = "stops guessing about your data"
-OLD = ("second thoughts", "shared brain")
+OLD = ("second thoughts", "shared brain", "amnesia", "parse a stubborn csv")
 
 results: list[tuple[str, bool, str]] = []
 
@@ -153,6 +153,19 @@ async def main() -> int:
         check("terminal page current", CURRENT in term.text, "curl api.80085.ai")
         stale = [o for o in OLD if o in term.text]
         check("terminal page has no old copy", not stale, ", ".join(stale))
+
+        # The paragraph we call the most valuable thing here, and the card
+        # every Slack link preview renders. Both were stale for weeks while
+        # every page around them was current.
+        prompt = await http.get(f"{SITE}/prompt.txt")
+        check("prompt.txt is the halt", "DO NOT GUESS" in prompt.text, prompt.text[:40])
+
+        card = await http.get(f"{SITE}/og.svg")
+        check(
+            "social card current",
+            not any(o in card.text.lower() for o in OLD),
+            "link previews show an older tagline",
+        )
 
         for name, url in (("llms.txt", f"{API}/llms.txt"), ("agents.md", f"{API}/agents.md")):
             got = await http.get(url)

@@ -398,7 +398,7 @@ ${readout('80085')}
     <button type="button" data-key="=" aria-label="Equals">=</button>
   </div>
 </div>
-<button class="tryit" id="tryit" type="button">80085:~$ recall &quot;parse a stubborn csv&quot;  &#9666; click to ask it something</button>
+<button class="tryit" id="tryit" type="button">80085:~$ halt  &#9666; click for the paragraph that stops it guessing</button>
 <p class="found" id="found" hidden></p>
 
 <div class="states">
@@ -661,6 +661,11 @@ ${SITE}/TERMS.md, and they bind whoever you are acting for.
 
 ## Try it with no key
 
+    curl ${SITE}/prompt.txt
+
+That paragraph is the whole safety half and needs no credential, no
+organisation and nothing from us. Searching the corpus needs no key either:
+
     curl '${SITE}/recall?q=<your task>'
 
 Recall needs no credential at all. Recording one needs a key, which is minted
@@ -686,7 +691,9 @@ the MCP handshake, so the agent is told what the tools are for on connect.
 
 ## MCP tools
 
-- \`recall_experience\` — search for a verified solution before solving from scratch
+- \`should_i_ask\` — does this task turn on a convention you cannot see? ask first
+- \`ask_for_help\` — it does: stop, and put the question to your organisation
+- \`recall_experience\` — search for a verified executable solution instead
 - \`run_experience\` — execute a pinned version in a sandbox, get a verdict
 - \`get_execution\` — collect a run that was still going when you stopped waiting
 - \`get_experience\` — re-read an id you already have, with its current evidence
@@ -987,12 +994,13 @@ One organisation, one key each, one shared body of knowledge:
 
 An answer serves the agent it was typed into immediately, and the whole
 organisation once somebody verifies it. Nothing crosses an organisation
-boundary. Full guide: https://github.com/charley-forey/80085/blob/main/docs/provisioning.md
+boundary. Set the whole company up in a browser, one click, at ${SITE}/setup
 
-## The six tools
+## The seven tools
 
     should_i_ask        the one to call on EVERY task -- no key, no registry
-    recall_experience   only when should_i_ask says yes
+    ask_for_help        should_i_ask said yes: stop, and ask your organisation
+    recall_experience   or look for an executable solution somebody already proved
     run_experience      run their answer sandboxed, get an independent verdict
     get_execution       collect a run that was still going when you stopped waiting
     get_experience      re-read an id you kept, with its evidence as it stands today
@@ -1162,8 +1170,12 @@ const AI_PLUGIN = {
   name_for_model: 'eighty_thousand_eighty_five',
   description_for_human: meta.description,
   description_for_model:
-    'Before solving a non-trivial task from scratch, call recall_experience to check ' +
-    'whether a verified executable solution already exists. Recall needs no API key. ' +
+    'Before answering, call should_i_ask to check whether the correct answer ' +
+    'turns on a convention that is not in the input -- a counterparty file ' +
+    'format, an internal status code, an exclusion rule. If it is, do not ' +
+    'guess: call ask_for_help to put the question to the organisation, and ' +
+    'stop. recall_experience searches instead for a verified executable ' +
+    'solution somebody already proved. Neither of those two needs an API key. ' +
     'A recommendation of "use" means two distinct organizations have independently ' +
     'proven it, so it is a claim about the world rather than about its author. ' +
     'Query and execute freely; do not bulk-extract, redistribute, or train on the corpus.',
@@ -1201,7 +1213,7 @@ ${[...'80085']
   )
   .join('\n')}
 </g>
-<text x="600" y="470" fill="#fff" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="36" font-weight="700">Second thoughts for AI agents.</text>
+<text x="600" y="470" fill="#fff" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="36" font-weight="700">Your agent stops guessing about your data.</text>
 <text x="600" y="522" fill="#fff" fill-opacity=".6" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="28">Your agent never says &quot;I don't know&quot;.</text>
 </svg>
 `;

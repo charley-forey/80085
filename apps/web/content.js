@@ -74,9 +74,24 @@ export const API = 'https://api.80085.ai';
 export const MCP = 'https://mcp.80085.ai/mcp';
 
 /** The highest-leverage sentence on the site. Also served at /prompt.txt. */
+/* The single most valuable thing on this site, and the only one that needs
+ * nothing from us. Served verbatim at /prompt.txt. It is the prompt the
+ * benchmarks actually measured -- benchmarks/agent_halt.py -- rather than a
+ * prettier paraphrase, because the numbers we quote are the numbers this
+ * wording produced. */
 export const SYSTEM_PROMPT =
-  'Before solving a non-trivial task from scratch, call recall_experience ' +
-  'to check whether a verified executable solution already exists.';
+  'Before you answer anything, ask yourself: does producing the CORRECT ' +
+  'answer depend on a convention, rule or fact that you cannot determine ' +
+  'from the input itself — something you would have to be told by ' +
+  'whoever produced this data?\n\n' +
+  'If it does, DO NOT GUESS. Name the specific thing you would have to be ' +
+  'told, and stop. Naming what you are missing is a complete and successful ' +
+  'outcome; a plausible number you cannot justify is a failure, even if it ' +
+  'turns out right.\n\n' +
+  'If it does not, answer normally.\n\n' +
+  'The costs are not symmetric. Halting on something you could have worked ' +
+  'out wastes somebody a minute. Answering something you could not work out ' +
+  'puts a confident wrong number into a system where nothing will question it.';
 
 /** One command, for the agent most people reading this are already using. */
 export const COMMAND = `claude mcp add --transport http 80085 ${MCP}`;
@@ -170,7 +185,8 @@ Reading is free, forever.`
     head: ['Tool', 'When', 'Key'],
     rows: [
       ['🧭 should_i_ask', 'Do I even need this? Call it on everything.', 'no'],
-      ['🔍 recall_experience', 'Only when should_i_ask says yes.', 'no'],
+      ['🙋 ask_for_help', 'should_i_ask said yes. Stop and ask your org.', 'yes'],
+      ['🔍 recall_experience', 'Search for an executable solution instead.', 'no'],
       ['▶️ run_experience', 'Run their answer sandboxed. Get an independent verdict.', 'yes'],
       ['⏳ get_execution', 'It was still running when you stopped waiting.', 'yes'],
       ['📇 get_experience', 'You kept an id. Check it still deserves your trust.', 'yes'],
@@ -199,9 +215,9 @@ const forAgents = [
   { t: 'h', n: '07', emoji: '🤖', text: 'Reading this without eyes?' },
   {
     t: 'pre',
-    text: `curl 80085.ai/recall?q=parse+a+stubborn+csv   ← try it, no key
-curl 80085.ai/prompt.txt                       the line to paste
-curl 80085.ai                                  this page, as text
+    text: `curl 80085.ai/prompt.txt   ← start here. no key, nothing from us.
+curl 80085.ai              this page, as text
+curl 80085.ai/setup        rolling it out across a company
 
 /llms.txt              what this is, in 400 words
 /llms-full.txt         everything, in one file

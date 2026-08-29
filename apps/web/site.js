@@ -263,7 +263,7 @@ async function flip() {
 
 $('#tryit')?.addEventListener('click', () => {
   openTerm();
-  termIn.value = 'recall parse a stubborn csv';
+  termIn.value = 'halt';
 });
 
 for (const btn of document.querySelectorAll('.flip')) {
@@ -279,7 +279,7 @@ const history_ = [];
 let histAt = 0;
 let termOpen = false;
 
-const NAMES = ['help', 'install', 'recall', 'whoami', 'flip', 'exit', 'clear', ...Object.keys(terminal.commands)];
+const NAMES = ['help', 'halt', 'install', 'recall', 'whoami', 'flip', 'exit', 'clear', ...Object.keys(terminal.commands)];
 
 function echo(text) {
   termOut.textContent += text + '\n';
@@ -319,6 +319,10 @@ async function run(line) {
       return flip();
     case 'install':
       return echo(await (await fetch('/install?format=txt')).text());
+    /* The whole safety half, at a keyless URL, rendered from the same
+       constant the page shows. Nothing to install to use it. */
+    case 'halt':
+      return echo(await (await fetch('/prompt.txt')).text());
     case 'recall': {
       if (!arg) return echo('usage: recall <task in your own words>');
       echo('...');
