@@ -206,3 +206,97 @@ async def test_one_persons_answer_does_not_become_company_truth_until_verified(
     assert await questions.current_answer(db, question.id) is not None
     after = await questions.awaiting_verification(db, organization_id=org)
     assert not any(a.id == written.id for a, _ in after)
+
+
+async def test_a_disputed_answer_stops_being_served_immediately(db: Any) -> None:
+    """The gap that only appears once answers are believed.
+
+    Superseding an answer asserts what is true instead, and whoever notices the
+    damage is usually not whoever knows the right answer. Requiring a correction
+    before the bleeding stops means serving a known-bad answer to everyone who
+    asks in the meantime, and since decision 74 they act on it.
+    """
+    from boobs_api import questions
+
+    org, agent = "org_dispute_test", "agt_one"
+    question, _ = await questions.record(
+        db,
+        organization_id=org,
+        agent_id=agent,
+        need="Whether freight is included in the line total",
+    )
+    bad = await questions.answer(
+        db,
+        question_id=question.id,
+        organization_id=org,
+        body="Yes, always included.",
+        answered_by="sam",
+        asked_by_agent=agent,
+    )
+    await questions.verify(db, answer_id=bad.id, organization_id=org, verified_by="dev")
+    assert await questions.current_answer(db, question.id) is not None
+
+    await questions.dispute(
+        db,
+        answer_id=bad.id,
+        organization_id=org,
+        disputed_by="priya",
+        reason="Reconciliation was out by the surcharge on every EU order.",
+    )
+    assert await questions.current_answer(db, question.id) is None, "a disputed answer was served"
+    # And it is still there, with what it reached, because that is the first
+    # thing somebody needs when an answer turns out wrong.
+    assert bad.served >= 0
+    assert bad.disputed_by == "priya"
+
+
+async def test_an_unanswered_question_can_be_proceeded_on_visibly(db: Any) -> None:
+    """A blocked agent is what makes somebody switch the halt off.
+
+    Refusing an escape hatch does not prevent the guess. It prevents us knowing
+    about it. So the guess is recorded, the question stays unanswered, and
+    anything downstream is traceable to an assumption rather than a fact.
+    """
+    from boobs_api import questions
+
+    org = "org_assume_test"
+    question, _ = await questions.record(
+        db, organization_id=org, agent_id="agt_x", need="Which timezone the cutoff is expressed in"
+    )
+    marked = await questions.assume(
+        db,
+        question_id=question.id,
+        organization_id=org,
+        assumption="Assumed UTC because the other columns are ISO-8601 with Z.",
+    )
+    assert marked is not None and marked.assumed_at is not None
+
+    # An assumption is not an answer. It must not retire the question.
+    still_open = await questions.unanswered(db, organization_id=org)
+    assert any(q.id == question.id for q in still_open), "an assumption retired a question"
+
+
+async def test_convergence_says_whether_the_loop_is_paying_back(db: Any) -> None:
+    """The instrument for the thesis nobody has tested.
+
+    Questions are supposed to get answered once and stop recurring. If an
+    organisation has a long tail of near-unique conventions, nothing repeats and
+    the loop costs more than it returns. That is a real possible outcome and it
+    should be measurable rather than assumed.
+    """
+    from boobs_api import questions
+
+    org = "org_convergence_test"
+    repeated = "Whether our fiscal year starts in April"
+    await questions.record(db, organization_id=org, agent_id="a", need=repeated)
+    await questions.record(db, organization_id=org, agent_id="a", need=repeated)
+    await questions.record(
+        db, organization_id=org, agent_id="a", need="Whether SKU grade K0 is sellable stock"
+    )
+
+    stats = await questions.convergence(db, organization_id=org)
+    assert stats["distinct_questions"] == 2
+    assert stats["total_halts"] == 3
+    # One of three halts hit a question already asked.
+    assert stats["repeat_rate"] == pytest.approx(1 / 3, abs=0.01)
+    assert stats["answered_share"] == 0.0

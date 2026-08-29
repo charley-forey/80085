@@ -3772,3 +3772,51 @@ what.
 
 `docs/provisioning.md` is the page an organization is handed. One page, fifteen
 minutes, and it opens by saying the halt alone needs no account at all.
+
+### 84. Three gaps that only exist once the loop is real
+
+The loop closed and immediately raised three questions nothing in this file had
+asked. All three are ways the product fails in a real deployment rather than in
+a benchmark, which is why none of them surfaced until it was built.
+
+**Nobody answers.** Every design so far assumed the human replies. In practice a
+question sits for three days and the agent is blocked -- and a blocked agent is
+the most likely thing that makes somebody switch the halt off, which restores
+exactly the silent wrong answers this was all built to stop. That would be a
+complete round trip back to 6 of 18.
+
+Refusing an escape hatch does not prevent the guess. It prevents us knowing
+about it. So `assumed` records what an agent decided to proceed on, the question
+stays in the queue because an assumption is not an answer, and everything
+downstream is traceable to an assumption rather than a fact. We cannot make the
+human faster; we can make the guess visible, which is this project's own thesis
+applied to its own failure mode.
+
+`/v1/questions/stale` is the escalation surface. A question asked forty times
+over three days is not a backlog item, it is an outage nobody has noticed:
+either forty runs stopped, or somebody turned the halt off and forty wrong
+numbers went out.
+
+**An answer was wrong.** Supersession fixes the future and says nothing about
+the past, so "what did we get wrong because of this" had no answer at all.
+`served` counts what an answer actually reached, incremented where it is acted
+on rather than where it is stored. `disputed_*` is distinct from supersession on
+purpose: whoever noticed the damage is usually not whoever knows the right
+answer, and demanding a correction before the bleeding stops means serving a
+known-bad answer to everyone who asks meanwhile. A disputed answer stops being
+served immediately and stays in the table with its count.
+
+**Does it converge?** The thesis is that questions get answered once and stop
+recurring. If an organisation has a long tail of near-unique conventions then
+nothing repeats, every halt is a fresh interruption, and the loop costs more
+than it returns. That is a real possible outcome and it was being assumed rather
+than measured. `/v1/questions/convergence` reports the repeat rate, the answered
+share, how often answers were reused, and how often an agent proceeded on an
+assumption instead. Low repeat means it is not paying back. High repeat with a
+low answered share is the worst quadrant -- agents stopping over and over on the
+same unanswered thing.
+
+**Unmeasured, and the honest state:** all three have tests and none has data.
+The instruments exist so that the first real deployment produces evidence rather
+than an anecdote, and the convergence question in particular cannot be answered
+by us at all -- it is a property of somebody's actual work.

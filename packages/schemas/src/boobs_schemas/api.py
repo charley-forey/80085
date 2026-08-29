@@ -93,6 +93,23 @@ class ArtifactIn(Strict):
     size_bytes: int | None = None
 
 
+class AssumeRequest(Strict):
+    """What an agent decided to assume when nobody had answered in time."""
+
+    assumption: str = Field(min_length=1, max_length=2000)
+
+
+class DisputeAnswerRequest(Strict):
+    """Somebody saying an answer produced a wrong result.
+
+    `reason` is required. A dispute with no reason is indistinguishable from a
+    disagreement, and the two want completely different responses.
+    """
+
+    disputed_by: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=4000)
+
+
 class ProvisionAgentRequest(Strict):
     """A key for one more person or system inside an existing organization.
 

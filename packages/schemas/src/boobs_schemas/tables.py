@@ -446,6 +446,21 @@ class Question(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+    # What an agent decided to assume when nobody had answered in time.
+    #
+    # The design until now assumed the human replies. In practice a question
+    # sits for three days and the agent is blocked, and a blocked agent is the
+    # most likely reason somebody switches the halt off -- at which point the
+    # silent wrong answers come straight back and we have achieved nothing.
+    #
+    # So the escape hatch exists, and it is deliberately not silent. An agent
+    # that must proceed records what it assumed, and every number downstream of
+    # that assumption is traceable to it. We cannot make the human faster. We
+    # can make the guess visible, which is the entire thesis applied to our own
+    # failure mode.
+    assumed: Mapped[str | None] = mapped_column(Text)
+    assumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class Answer(Base):
     """What somebody said, once, so nothing has to ask again.
@@ -491,3 +506,20 @@ class Answer(Base):
     asked_by_agent: Mapped[str | None] = mapped_column(String(64))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verified_by: Mapped[str | None] = mapped_column(String(200))
+
+    # How many agents have acted on this, which is its blast radius.
+    #
+    # An answer that turns out wrong is worse than no answer, because agents are
+    # instructed to defer to it (DECISIONS 74) and nothing downstream questions
+    # what they produce. Superseding it fixes the future and says nothing about
+    # the past, so the first question anybody asks -- "what did we get wrong
+    # because of this" -- had no answer at all.
+    served: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Somebody says this produced a wrong result. Not a deletion and not a
+    # supersession: those assert what is true instead, and a dispute is
+    # frequently raised by whoever noticed the damage rather than whoever knows
+    # the right answer. A disputed answer stops being served immediately.
+    disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disputed_by: Mapped[str | None] = mapped_column(String(200))
+    disputed_reason: Mapped[str | None] = mapped_column(Text)

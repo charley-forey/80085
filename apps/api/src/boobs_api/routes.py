@@ -41,7 +41,9 @@ from boobs_retrieval.pipeline import RecallOutcome, visibility_clause
 from boobs_schemas import db as database
 from boobs_schemas.api import (
     AnswerQuestionRequest,
+    AssumeRequest,
     BootstrapRequest,
+    DisputeAnswerRequest,
     EventResponse,
     ExecuteRequest,
     ExecutionResponse,
@@ -884,6 +886,138 @@ async def read_awaiting_verification(
             for a, q in rows
         ]
     }
+
+
+@router.post("/questions/{question_id}/assume")
+async def assume_on_question(
+    question_id: str,
+    request: AssumeRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Record that an agent proceeded on a guess because nobody answered in time.
+
+    The escape hatch, and it exists for a reason worth stating plainly: a
+    blocked agent is the most likely thing that makes somebody switch the halt
+    off, and switching it off restores exactly the silent wrong answers this was
+    built to stop. Refusing an escape hatch does not prevent the guess. It only
+    prevents us knowing about it.
+
+    So the guess is allowed and recorded. Every number downstream is traceable
+    to it, and the question stays in the queue -- an assumption is not an answer
+    and retires nothing.
+    """
+    await limits.HALT.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "experience.record")
+    marked = await questions.assume(
+        db,
+        question_id=question_id,
+        organization_id=principal.organization_id,
+        assumption=request.assumption,
+    )
+    if marked is None:
+        raise NotFound(f"question {question_id} not found")
+    await release(db)
+    return {
+        "question_id": question_id,
+        "assumed": marked.assumed,
+        "note": (
+            "Recorded, and still unanswered. Anything computed from this is "
+            "traceable to an assumption rather than to a fact."
+        ),
+    }
+
+
+@router.post("/answers/{answer_id}/dispute")
+async def dispute_answer(
+    answer_id: str,
+    request: DisputeAnswerRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Say that an answer produced a wrong result. It stops being served at once.
+
+    Deliberately not the same thing as answering again. Superseding asserts what
+    is true instead, and whoever noticed the damage is usually not whoever knows
+    the right answer -- so demanding a correction before the bleeding stops means
+    serving a known-bad answer to everyone who asks in the meantime.
+
+    The answer stays, with its `served` count, because that count is the blast
+    radius somebody is about to need.
+    """
+    await limits.VERIFY.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "experience.record")
+    marked = await questions.dispute(
+        db,
+        answer_id=answer_id,
+        organization_id=principal.organization_id,
+        disputed_by=request.disputed_by,
+        reason=request.reason,
+    )
+    if marked is None:
+        raise NotFound(f"answer {answer_id} not found")
+    await release(db)
+    return {
+        "answer_id": answer_id,
+        "disputed_by": marked.disputed_by,
+        "reason": marked.disputed_reason,
+        "already_served_to": marked.served,
+        "note": (
+            "No longer served to anyone. `already_served_to` is how many agents "
+            "acted on it before you said so, which is where to start looking."
+        ),
+    }
+
+
+@router.get("/questions/stale")
+async def read_stale(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    older_than_hours: int = Query(default=24, ge=1, le=8760),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Questions nobody has answered, most-asked and oldest first.
+
+    The escalation surface. A question asked forty times over three days is not
+    a backlog item, it is an outage nobody has noticed: either forty agent runs
+    stopped, or somebody turned the halt off and forty wrong numbers went out.
+    """
+    await policy.authorize(principal, "experience.read")
+    rows = await questions.stale(
+        db,
+        organization_id=principal.organization_id,
+        older_than_hours=older_than_hours,
+        limit=limit,
+    )
+    moment = now()
+    return {
+        "stale": [
+            {
+                "question_id": q.id,
+                "need": q.need,
+                "asked": q.asked,
+                "hours_waiting": int((moment - q.created_at).total_seconds() // 3600),
+                "assumed": q.assumed,
+            }
+            for q in rows
+        ]
+    }
+
+
+@router.get("/questions/convergence")
+async def read_convergence(db: DbSession, principal: CurrentPrincipal) -> dict[str, Any]:
+    """Is this paying back, or is every question a new one?
+
+    The thesis is that questions get answered once and stop recurring. If an
+    organisation has a long tail of near-unique conventions then nothing repeats,
+    every halt is a fresh interruption, and the loop costs more than it returns.
+    That is a real possible outcome, and this is the instrument that would show
+    it rather than a claim anybody has to take on faith.
+    """
+    await policy.authorize(principal, "experience.read")
+    return await questions.convergence(db, organization_id=principal.organization_id)
 
 
 @router.get("/questions/unanswered")
