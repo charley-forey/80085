@@ -45,9 +45,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column("questions", sa.Column("assumed", sa.Text()))
     op.add_column("questions", sa.Column("assumed_at", sa.DateTime(timezone=True)))
-    op.add_column(
-        "answers", sa.Column("served", sa.Integer(), nullable=False, server_default="0")
-    )
+    op.add_column("answers", sa.Column("served", sa.Integer(), nullable=False, server_default="0"))
     op.add_column("answers", sa.Column("disputed_at", sa.DateTime(timezone=True)))
     op.add_column("answers", sa.Column("disputed_by", sa.String(200)))
     op.add_column("answers", sa.Column("disputed_reason", sa.Text()))

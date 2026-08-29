@@ -288,6 +288,60 @@ Every fixture is one we built. If you have one, we would rather
 find out we are wrong on your data than sell you on ours.`
   },
 
+  { t: 'h', n: '3c', emoji: '🏢', text: 'What you would actually run' },
+  {
+    t: 'pre',
+    text: `  POST api.80085.ai/v1/keys?label=acme   your org + founder key
+  POST api.80085.ai/v1/agents            a key per person, by name
+
+Two curl calls and nobody at our end. No signup, no email, no
+sales call. A key you hand a colleague cannot hand out more
+keys -- widening that means coming back to the founder one. 🚪`
+  },
+  {
+    t: 'pre',
+    text: `  agent halts     "I cannot determine whether ST=H rows count
+                   as settled"
+         |
+         v         serves that agent immediately
+  human answers   in the chat they were already watching. one
+                   sentence. the agent carries on.
+         |
+         v         now it serves the whole organisation
+  someone verifies  POST api.80085.ai/v1/answers/<id>/verify
+         |
+         v
+  every other agent inherits it. never asks again. 🔁`
+  },
+  {
+    t: 'pre',
+    text: `The split is not politeness. An agent told to defer believes
+what it is handed, so one person's sentence in one chat is not
+yet a fact about your company. A second human is the only thing
+standing between "priya reckons" and "this is how we do it". 🖊️
+
+Nothing crosses an organisation boundary. Ever.`
+  },
+  {
+    t: 'table',
+    head: ['api.80085.ai/v1/…', 'what it tells you'],
+    rows: [
+      ['questions/unanswered', 'what your agents are stuck on, most-asked first'],
+      ['questions/stale', 'nobody answered in N hours. an escalation surface.'],
+      ['questions/convergence', 'is any of this paying back yet']
+    ]
+  },
+  {
+    t: 'pre',
+    text: `Run end to end in production: an agent halted and wrote no
+number, a human answered it in one sentence, and a second agent
+asked the same thing in different words, got the answer, and
+wrote the correct value. ✅
+
+And still, per the box above: no real organisation's real
+convention has been through this. Every fixture is one of ours.`
+  },
+
   ...install,
 
   { t: 'h', n: '05', emoji: '🧩', text: 'What an Experience is' },

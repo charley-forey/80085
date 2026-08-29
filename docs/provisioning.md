@@ -9,7 +9,7 @@ your conventions are.
 
 ```
   your organisation                        ← provisioned once
-    ├── admin key                          ← you keep this. it issues the others.
+    ├── founder key                        ← you keep this. it issues the others.
     ├── priya   ─┐
     ├── dev      ├── one key each          ← every question and answer is theirs
     └── nightly-etl ─┘                        by name
@@ -47,7 +47,7 @@ same commands against your own host, and nothing leaves your network.
 
 ```bash
 curl -X POST https://api.80085.ai/v1/agents \
-  -H "Authorization: Bearer $ADMIN_KEY" \
+  -H "Authorization: Bearer $FOUNDER_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"name": "priya"}'
 ```
@@ -58,8 +58,8 @@ somebody will eventually ask about a number that turned out wrong.
 
 **Provisioned keys cannot provision.** A team lead handing out keys should not
 be handing out the ability to hand out keys — that is how an organisation stops
-being able to say who can do what. Widening a key means coming back to the admin
-credential, deliberately a heavier door.
+being able to say who can do what. Widening a key means coming back to the
+founder credential, deliberately a heavier door.
 
 ## Step 3 — each person points their agent at it
 
@@ -97,11 +97,11 @@ who needed the number gets the number.
 **Somebody verifies it, and then it is everyone's.**
 
 ```bash
-curl -H "Authorization: Bearer $ADMIN_KEY" \
+curl -H "Authorization: Bearer $FOUNDER_KEY" \
   https://api.80085.ai/v1/answers/awaiting-verification
 
 curl -X POST https://api.80085.ai/v1/answers/<id>/verify \
-  -H "Authorization: Bearer $ADMIN_KEY" \
+  -H "Authorization: Bearer $FOUNDER_KEY" \
   -H 'Content-Type: application/json' -d '{"verified_by": "sam"}'
 ```
 
@@ -115,7 +115,7 @@ it likes, gets the answer instead of stopping.
 ## The one report worth reading
 
 ```bash
-curl -H "Authorization: Bearer $ADMIN_KEY" \
+curl -H "Authorization: Bearer $FOUNDER_KEY" \
   https://api.80085.ai/v1/questions/unanswered
 ```
 
@@ -161,3 +161,48 @@ We tuned for the first (see [`benchmarks.md`](benchmarks.md)) and would again.
 paragraph in a system prompt and needs no account at all — that is the entire
 safety benefit, free, today. Everything here is about not answering the same
 question twice.
+
+## Before you deploy: test one of your own conventions
+
+Fifteen minutes, no real data, no account.
+
+`benchmarks/your_convention.py` takes one convention of yours — a file shape you
+receive, the rule that decides the answer, and what somebody who did not know
+the rule would compute instead. Invent the rows; the convention is the part that
+matters and the part we cannot make up.
+
+```bash
+# edit CASE at the top of the file, then:
+ANTHROPIC_API_KEY=... uv run python benchmarks/your_convention.py
+```
+
+Three outcomes, and the middle one is the most useful:
+
+| | what it means |
+|---|---|
+| unaided **wrong** | your agents are silently wrong about this today |
+| unaided **right** | they already know it — **do not build anything for it** |
+| with halt **halted** | they would have stopped and asked instead |
+
+We built six conventions from real industries expecting silent failure and our
+own agent got two of them right unaided, correctly, because they turned out to
+be standard practice rather than local convention. Finding that out cost us
+nothing and would have cost you a deployment.
+
+## Once it is running: is it paying back?
+
+```bash
+BOOBS_API_KEY=<any key in your org> uv run python scripts/pilot_report.py
+```
+
+One readout: are agents stopping, is anybody answering, is it converging, did
+anything turn out wrong. The number that matters is the **repeat rate** — the
+share of halts that hit a question already asked.
+
+If it is near zero, every halt is a new question and the corpus is not paying
+back, though the halt itself still is. If questions repeat but few are answered,
+that is the worst case: agents stopping over and over on the same unanswered
+thing, and the fix is twenty minutes on the queue.
+
+**We cannot predict that number for you.** It is a property of your work rather
+than of our code, and it is the one thing nobody has measured yet.

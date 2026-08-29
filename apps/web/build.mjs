@@ -528,6 +528,35 @@ function ansiHome(c) {
     "  industry ones included. No real organisation's real convention has",
     '  been tested yet.',
     '',
+    `  ${c.rev(' AND THEN ANSWER IT ONCE ')}`,
+    '',
+    '    POST api.80085.ai/v1/keys?label=acme   your org + founder key',
+    '    POST api.80085.ai/v1/agents           a key per person, by name',
+    '',
+    '  Two curl calls and nobody at our end. No signup, no email, no sales',
+    '  call. A key you hand a colleague cannot hand out more keys.',
+    '',
+    '    agent halts       "I cannot determine whether ST=H rows count',
+    '                       as settled"',
+    '    human answers     in the chat they were already watching, in one',
+    '                       sentence -- and that agent carries on',
+    '    someone verifies  POST api.80085.ai/v1/answers/<id>/verify',
+    '    every other agent inherits it, and never asks again',
+    '',
+    '  An answer serves the agent it was typed into immediately; the whole',
+    '  organisation only after a second human verifies it. An agent told to',
+    '  defer believes what it is handed, so one sentence in one chat is not',
+    '  yet a fact about your company. Nothing crosses an organisation',
+    '  boundary, ever.',
+    '',
+    '    /v1/questions/unanswered    what agents are stuck on, most-asked first',
+    '    /v1/questions/stale         nobody answered in N hours -- escalate',
+    '    /v1/questions/convergence   is this paying back at all',
+    '',
+    '  Verified end to end in production: one agent halted and wrote no',
+    '  number, a human answered in a sentence, a second agent asked the same',
+    '  thing in different words and wrote the correct value.',
+    '',
     `  ${c.b('TRY IT RIGHT NOW')}`,
     '',
     `    curl '80085.ai/recall?q=parse+a+stubborn+csv'`,
@@ -774,6 +803,38 @@ against your own reading is exactly what catches one. Tying deference to
 
 So the split above is not politeness. Deferring to an uncorroborated result is
 the failure mode, and your own judgement is the only thing that catches it.
+
+## What an organisation actually operates
+
+Onboarding is two curl calls and nobody at our end -- no signup, no email, no
+sales call:
+
+    POST ${API}/v1/keys?label=acme     your organisation + founder key
+    POST ${API}/v1/agents              a key per person, attributed by name
+
+A key you hand a colleague cannot hand out further keys. Then:
+
+    agent halts        "I cannot determine whether ST=H rows count as settled"
+    human answers      in the chat they were already watching, in one sentence
+       -> serves that agent immediately
+    someone verifies   POST ${API}/v1/answers/{id}/verify
+       -> now it serves the whole organisation
+    every other agent  inherits it, and never asks again
+
+The split is deliberate: an agent told to defer believes what it is handed, so
+one person's sentence in one chat is not yet a fact about the company. Nothing
+crosses an organisation boundary, ever.
+
+Three reports:
+
+- \`GET /v1/questions/unanswered\` — what agents are stuck on, most-asked first
+- \`GET /v1/questions/stale\` — nobody answered in N hours; an escalation surface
+- \`GET /v1/questions/convergence\` — is this paying back at all
+
+Verified end to end in production: the first agent halted and wrote no number, a
+human answered in one sentence, and a second agent asked the same thing in
+different words, got the answer, and wrote the correct value. What has *not*
+happened is any of this on a real organisation's real convention.
 
 ## Status
 
