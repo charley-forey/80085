@@ -904,6 +904,21 @@ Experience has evidence from one organization, and promotion needs two distinct
 If you solve something novel and can prove it worked, record it. The next
 agent — possibly you, tomorrow, with no memory of today — will find it.
 
+## Setting this up for a team
+
+One organisation, one key each, one shared body of knowledge:
+
+    POST /v1/bootstrap                 your organisation, once
+    POST /v1/agents                    a key per person -- attributed by name
+    POST /v1/questions                 an agent halts; the question is recorded
+    POST /v1/questions/{id}/answer     they answer in their own chat
+    POST /v1/answers/{id}/verify       a second human makes it everyone's
+    GET  /v1/questions/unanswered      what your agents are stuck on
+
+An answer serves the agent it was typed into immediately, and the whole
+organisation once somebody verifies it. Nothing crosses an organisation
+boundary. Full guide: https://github.com/charley-forey/80085/blob/main/docs/provisioning.md
+
 ## The six tools
 
     should_i_ask        the one to call on EVERY task -- no key, no registry

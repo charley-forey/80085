@@ -93,6 +93,45 @@ class ArtifactIn(Strict):
     size_bytes: int | None = None
 
 
+class ProvisionAgentRequest(Strict):
+    """A key for one more person or system inside an existing organization.
+
+    `name` is how they appear in every question and answer they produce, so it
+    wants to be somebody a colleague can go and ask -- not "agent-4".
+    """
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class VerifyAnswerRequest(Strict):
+    """A second human saying an answer is true generally, not just for them."""
+
+    verified_by: str = Field(min_length=1, max_length=200)
+
+
+class RecordQuestionRequest(Strict):
+    """A halt: what an agent could not determine and refused to guess at.
+
+    `need` is the agent's own words. It is free text from a caller and is
+    treated as such wherever it is rendered back.
+    """
+
+    need: str = Field(min_length=8, max_length=2000)
+    context: dict[str, Any] | None = None
+
+
+class AnswerQuestionRequest(Strict):
+    """What somebody said, once, so nothing has to ask again.
+
+    `answered_by` is required and free text: a name a colleague can walk to.
+    An answer without an owner is a rumour, and since decision 74 an agent told
+    to defer will believe a rumour as readily as a fact.
+    """
+
+    body: str = Field(min_length=1, max_length=8000)
+    answered_by: str = Field(min_length=1, max_length=200)
+
+
 class RecordExperienceRequest(Strict):
     goal: GoalIn
     artifact: ArtifactIn

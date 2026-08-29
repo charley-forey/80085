@@ -3722,3 +3722,53 @@ it is the same asymmetry argument as decision 76.
 flagged whether in-transit counts toward availability, which is a real second
 convention we had not thought to write down. A detector that finds questions its
 author missed is doing something more useful than pattern-matching.
+
+### 82. The halt loop, and the primitive that was missing
+
+The benchmarks pointed at a loop and nothing implemented it. An agent halted,
+somebody answered in a chat window, and the next agent halted on the same thing.
+The registry stored *solutions*, which is the thesis decisions 71 and 72 killed.
+
+`questions` and `answers` close it. A halt is recorded with the agent's own
+words for what it would have to be told; matching is semantic, so "is end_date
+inclusive here" and "does coverage run through the end date" are one question
+rather than two. An answer comes back in the same round trip when one exists, so
+an agent halting on something already solved does not halt at all.
+
+Three properties this table has that the corpus never did. It cannot be seeded
+with guesses -- every row begins with a real agent on real data that could not
+proceed, where the corpus we wrote turned out to be 36 of 37 things agents did
+not need (81). `asked` is the demand signal, and a question asked forty times
+and never answered is the most expensive row in the database. And an answer is
+not evidence: it carries a name rather than a count, because one organisation
+has one party and cannot corroborate anything (79), but it does have somebody
+accountable who can be asked why.
+
+**Two tiers, added once the deployment question was asked properly.** An answer
+is typed into one agent's chat by whoever was watching it work -- that is the
+right capture point, and routing it through a channel first would make halting
+cost more than guessing, which is the one thing that must never be true. But
+since decision 74 an agent told to defer believes what it is handed, so one
+person's sentence in one session must not silently become a fact the company
+defers to. Unverified serves the agent that asked. Verified serves the
+organisation. The separation between those two humans is procedural, not
+enforced, and the documentation says so rather than implying a check that does
+not exist.
+
+**And the primitive that was missing entirely.** `/v1/bootstrap` demands the
+root token and makes a whole new organization; `/v1/keys` is self-serve and also
+makes a whole new organization. Neither could add a second person to an existing
+one -- so an organization's knowledge could never be shared by more than one
+caller, which is the opposite of what this is for. It was invisible until the
+two-tier test needed two agents in one tenant and had to drop to the module
+layer to get them.
+
+`POST /v1/agents` issues a key inside the caller's own organization.
+`organization_id` comes from the principal and is not a parameter, so there is
+no request shape that provisions into somebody else's tenant. Ordinary scopes
+only: a team lead handing out keys must not hand out the ability to hand out
+keys, because that is how an organization stops being able to say who can do
+what.
+
+`docs/provisioning.md` is the page an organization is handed. One page, fifteen
+minutes, and it opens by saying the halt alone needs no account at all.

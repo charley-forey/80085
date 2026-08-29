@@ -31,6 +31,10 @@ ACTION_SCOPES: Final[dict[str, str]] = {
     "execution.read": Scope.EXPERIENCES_READ,
     "execution.verify": Scope.EXECUTIONS_VERIFY,
     "admin.keys": Scope.ADMIN,
+    # Issuing a key to a colleague inside your own organization. Named
+    # separately from admin.keys because it is the one admin action an
+    # ordinary enterprise deployment performs weekly rather than once.
+    "admin.provision": Scope.ADMIN,
     # Reading what everyone asked for and did not find. Its own name rather
     # than a reuse of admin.keys because this list is the audit surface for
     # "which actions exist"; an action called `keys` guarding a demand report
@@ -52,7 +56,13 @@ ACTION_SCOPES: Final[dict[str, str]] = {
 
 # Actions that change an object. These require ownership, never visibility.
 MUTATING_ACTIONS: Final[frozenset[str]] = frozenset(
-    {"experience.record", "admin.keys", "admin.execution_tiers", "admin.quarantine"}
+    {
+        "experience.record",
+        "admin.keys",
+        "admin.provision",
+        "admin.execution_tiers",
+        "admin.quarantine",
+    }
 )
 
 # The policy row the grant endpoint owns. An operator's hand-written `INSERT`

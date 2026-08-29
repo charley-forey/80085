@@ -78,7 +78,7 @@ worker attached — see [Deployment](infrastructure/railway/README.md).
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
 | **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
-| **Meta** | [Naming](#-about-the-name-yes-really) · [**The loop**](docs/the-loop.md) · [Strategy](docs/strategy.md) · [Run it privately](docs/private-deployment.md) · [Roadmap](#️-roadmap) · [FAQ](#-faq) |
+| **Meta** | [Naming](#-about-the-name-yes-really) · [**The loop**](docs/the-loop.md) · [**Set it up**](docs/provisioning.md) · [Strategy](docs/strategy.md) · [Run it privately](docs/private-deployment.md) · [FAQ](#-faq) |
 
 ---
 

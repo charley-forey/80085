@@ -20,6 +20,8 @@ EVENT: Final = "evt"
 VERIFICATION: Final = "vrf"
 POLICY: Final = "pol"
 RECALL_MISS: Final = "miss"
+QUESTION: Final = "q"
+ANSWER: Final = "ans"
 
 
 def new_id(prefix: str) -> str:

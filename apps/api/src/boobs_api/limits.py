@@ -140,6 +140,16 @@ RECALL = Window(60, 60, "recall")
 MINT = Window(5, 3600, "minting keys")
 RECORD = Window(30, 3600, "recording experiences")
 EXECUTE = Window(10, 3600, "executions")
+# Halts are cheap and are supposed to be frequent -- an agent that stops rather
+# than guessing is the product working, so this is generous. It exists because
+# a write path with no ceiling is a write path somebody fills with junk.
+HALT = Window(300, 3600, "recording halts")
+# Answers are typed by humans, so the honest ceiling is human speed.
+ANSWER = Window(60, 3600, "answering questions")
+# Verification and provisioning are both human-paced and both change what
+# other agents are allowed to believe, so neither is left without a ceiling.
+VERIFY = Window(60, 3600, "verifying answers")
+PROVISION = Window(30, 3600, "provisioning agents")
 # Verification is re-runnable by design -- the same execution may be verified
 # again by a different verifier -- and each one recomputes a version's
 # evidence. Dearer than a read, cheaper than a run.

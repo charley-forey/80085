@@ -408,3 +408,86 @@ class JobRun(Base):
     # What the job did, so a heartbeat that is alive but doing nothing is
     # distinguishable from one that is working.
     affected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class Question(Base):
+    """A halt: something an agent could not determine and refused to guess at.
+
+    The corpus this system was built around was written by us, guessing what
+    agents would need, and the benchmarks showed 36 of 37 entries were things
+    they did not need (DECISIONS 81). This table cannot make that mistake. Every
+    row originates in a real agent, on real data, that genuinely could not
+    proceed -- so the corpus can only grow in directions something actually
+    asked for.
+
+    `need` is the agent's own words for what it would have to be told. It is
+    free text from a caller and is treated as such everywhere it is rendered.
+
+    Tenant-scoped and it matters more here than anywhere else in the schema. A
+    question is "which reading of an end date does *this company* use", which is
+    a fact about one organisation's decisions and never leaves it.
+
+    `asked` counts how many times an agent halted on this same question. It is
+    the demand signal the recall-miss table only approximates: a question asked
+    forty times and never answered is the most expensive row in the database.
+    """
+
+    __tablename__ = "questions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    agent_id: Mapped[str | None] = mapped_column(String(64))
+    need: Mapped[str] = mapped_column(Text, nullable=False)
+    # What the agent was doing when it stopped. Enough for a human to answer
+    # without going and asking which file this was about.
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
+    asked: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Answer(Base):
+    """What somebody said, once, so nothing has to ask again.
+
+    Deliberately not evidence. Everything else in this schema earns trust by
+    accumulating verified runs from distinct parties, and inside one
+    organisation that is unavailable by construction -- there is only one party
+    (DECISIONS 79). What a single tenant has instead is an accountable human,
+    so an answer carries a name rather than a count.
+
+    That is weaker than corroboration in one way, since one person can be wrong,
+    and stronger in another: they can be asked why, and the mistake has an
+    owner. It is also how every internal runbook already works.
+
+    `superseded_by` rather than deletion, because an answer that turned out
+    wrong is the most interesting row in the table and destroying it destroys
+    the audit trail at exactly the moment somebody needs it.
+    """
+
+    __tablename__ = "answers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    question_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # Who is accountable. Free text on purpose: it is a name a colleague can
+    # walk to, not a foreign key into an identity system we do not have.
+    answered_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    answered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    superseded_by: Mapped[str | None] = mapped_column(String(64))
+
+    # Who asked, so an unverified answer can serve them and nobody else.
+    #
+    # An answer is typed into one agent's chat by whoever was watching it work.
+    # That is the right place to capture it -- they are already there, and
+    # waiting on a channel would make halting cost more than guessing. But one
+    # person's sentence in one session is not yet a fact about the company, and
+    # since decision 74 an agent told to defer believes what it is handed.
+    #
+    # So there are two tiers. Unverified serves the agent that asked, which is
+    # where the answer was already going to be used anyway. Verified serves the
+    # organisation, and requires a second human to say so.
+    asked_by_agent: Mapped[str | None] = mapped_column(String(64))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_by: Mapped[str | None] = mapped_column(String(200))

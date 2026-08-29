@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
-from boobs_api import leases, limits, misses, scheduler
+from boobs_api import leases, limits, misses, questions, scheduler
 from boobs_api.deps import ANONYMOUS, CurrentPrincipal, DbSession, MaybePrincipal, release
 from boobs_api.repositories import (
     ArtifactRepository,
@@ -40,6 +40,7 @@ from boobs_retrieval.embedding import active_embedder
 from boobs_retrieval.pipeline import RecallOutcome, visibility_clause
 from boobs_schemas import db as database
 from boobs_schemas.api import (
+    AnswerQuestionRequest,
     BootstrapRequest,
     EventResponse,
     ExecuteRequest,
@@ -51,6 +52,7 @@ from boobs_schemas.api import (
     LineageIn,
     LineageNode,
     LineageResponse,
+    ProvisionAgentRequest,
     QuarantineRequest,
     QuarantineResponse,
     RecallMatch,
@@ -59,7 +61,9 @@ from boobs_schemas.api import (
     RecallRequest,
     RecallResponse,
     RecordExperienceRequest,
+    RecordQuestionRequest,
     VerificationResponse,
+    VerifyAnswerRequest,
     VerifyRequest,
 )
 from boobs_schemas.tables import (
@@ -72,6 +76,7 @@ from boobs_schemas.tables import (
     JobRun,
     Organization,
     Policy,
+    Question,
     RecallMiss,
     Verification,
 )
@@ -655,6 +660,257 @@ async def set_quarantine(
 
 
 # ----------------------------------------------------------------- experience
+
+
+@router.post("/agents", status_code=status.HTTP_201_CREATED)
+async def provision_agent(
+    request: ProvisionAgentRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Issue a key to somebody else inside your own organization.
+
+    The primitive an enterprise deployment actually needs and the one that was
+    missing. `/v1/bootstrap` demands the root token and makes a whole new
+    organization; `/v1/keys` is self-serve and makes a whole new organization
+    too. Neither could add a second person to an existing one, which meant an
+    organization's knowledge could never be shared by more than one caller --
+    the exact opposite of what the product is for.
+
+    The new key lands in the caller's organization and can never land anywhere
+    else: `organization_id` comes from the authenticated principal and is not a
+    parameter. There is no request shape that provisions into somebody else's
+    tenant.
+
+    Ordinary agent scopes only. Admin is not inheritable here on purpose -- a
+    team lead handing out keys should not be able to hand out their own ability
+    to hand out keys, because that is how an organization loses track of who can
+    do what. Widening a key is `/v1/keys` with the root credential, deliberately
+    a heavier door.
+
+    `name` is how this caller appears in every question, answer and audit row it
+    produces, so it should be a person or a system somebody can go and ask.
+    """
+    await limits.PROVISION.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "admin.provision")
+
+    agent_row = Agent(
+        id=ids.new_id(ids.AGENT),
+        organization_id=principal.organization_id,
+        name=request.name,
+        created_at=now(),
+    )
+    plaintext, key_hash = generate()
+    key = ApiKey(
+        id=ids.new_id(ids.API_KEY),
+        organization_id=principal.organization_id,
+        agent_id=agent_row.id,
+        name=f"{request.name} provisioned",
+        key_hash=key_hash,
+        scopes=sorted(Scope.ALL),
+        created_at=now(),
+    )
+    for row in (agent_row, key):
+        db.add(row)
+        await db.flush()
+    # Committed here, not in the teardown: handing back a credential whose row
+    # is not yet visible to another connection is a 401 on the caller's very
+    # next request. See mint_key.
+    await release(db)
+    return {
+        "agent_id": agent_row.id,
+        "organization_id": principal.organization_id,
+        "api_key": plaintext,  # the only time the plaintext exists anywhere
+        "key_id": key.id,
+        "scopes": sorted(Scope.ALL),
+        "note": (
+            "Give this to one person or one system, not to a team. Everything it "
+            "asks and answers is attributed to it, and revoking it should cost "
+            "nobody else their access."
+        ),
+    }
+
+
+@router.post("/questions", status_code=status.HTTP_201_CREATED)
+async def record_question(
+    request: RecordQuestionRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Record a halt: something an agent could not determine and refused to guess.
+
+    Returns the answer in the same round trip when this organisation has already
+    answered it, so an agent that halts on a solved question does not have to
+    halt, wait, and ask again.
+
+    Deduplicated semantically, not by string. "is end_date inclusive here" and
+    "does coverage run through the end date" are the same question, and counting
+    them separately would turn the one useful report -- what agents are stuck on,
+    most-asked first -- into noise.
+    """
+    await limits.HALT.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "experience.record")
+    question, existing = await questions.record(
+        db,
+        organization_id=principal.organization_id,
+        agent_id=principal.agent_id,
+        need=request.need,
+        context=request.context,
+    )
+    await release(db)
+    return {
+        "question_id": question.id,
+        "asked": question.asked,
+        "answer": (
+            {
+                "body": existing.body,
+                "answered_by": existing.answered_by,
+                "answered_at": existing.answered_at.isoformat(),
+            }
+            if existing
+            else None
+        ),
+    }
+
+
+@router.post("/questions/{question_id}/answer", status_code=status.HTTP_201_CREATED)
+async def answer_question(
+    question_id: str,
+    request: AnswerQuestionRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Answer a question once, with a name against it.
+
+    Not evidence. Everything else here earns trust by accumulating verified runs
+    from distinct parties, which one organisation cannot do -- there is one
+    party (DECISIONS 79). What a single tenant has instead is somebody
+    accountable, so this carries a name rather than a count.
+    """
+    await limits.ANSWER.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "experience.record")
+    found = (
+        await db.execute(
+            select(Question).where(
+                Question.id == question_id,
+                Question.organization_id == principal.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise NotFound(f"question {question_id} not found")
+
+    written = await questions.answer(
+        db,
+        question_id=question_id,
+        organization_id=principal.organization_id,
+        body=request.body,
+        answered_by=request.answered_by,
+        asked_by_agent=found.agent_id,
+    )
+    await release(db)
+    return {
+        "answer_id": written.id,
+        "question_id": question_id,
+        "answered_by": written.answered_by,
+        "answered_at": written.answered_at.isoformat(),
+    }
+
+
+@router.post("/answers/{answer_id}/verify")
+async def verify_answer(
+    answer_id: str,
+    request: VerifyAnswerRequest,
+    http: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Promote an answer from one agent's session to the whole organisation.
+
+    Whoever typed the answer was solving their own problem. This is somebody
+    saying it is true generally, which is a different claim and the only one
+    that should reach agents nobody is watching.
+
+    The separation between those two people is procedural, not enforced: this
+    system cannot tell two humans apart, and pretending otherwise would be a
+    check that exists only in the documentation.
+    """
+    await limits.VERIFY.check(db, limits.client_ip(http))
+    await policy.authorize(principal, "experience.record")
+    promoted = await questions.verify(
+        db,
+        answer_id=answer_id,
+        organization_id=principal.organization_id,
+        verified_by=request.verified_by,
+    )
+    if promoted is None:
+        raise NotFound(f"answer {answer_id} not found")
+    await release(db)
+    return {
+        "answer_id": promoted.id,
+        "verified_by": promoted.verified_by,
+        "verified_at": promoted.verified_at.isoformat() if promoted.verified_at else None,
+    }
+
+
+@router.get("/answers/awaiting-verification")
+async def read_awaiting_verification(
+    db: DbSession, principal: CurrentPrincipal, limit: int = Query(default=50, ge=1, le=200)
+) -> dict[str, Any]:
+    """The approval queue: answers one person gave that nobody else confirmed.
+
+    Whether this is read by a dashboard, posted to a channel, or opened once a
+    week by whoever owns the data is not our decision to make. Ordered by how
+    many agents are waiting on it.
+    """
+    await policy.authorize(principal, "experience.read")
+    rows = await questions.awaiting_verification(
+        db, organization_id=principal.organization_id, limit=limit
+    )
+    return {
+        "awaiting": [
+            {
+                "answer_id": a.id,
+                "question_id": q.id,
+                "need": q.need,
+                "body": a.body,
+                "answered_by": a.answered_by,
+                "answered_at": a.answered_at.isoformat(),
+                "agents_waiting": q.asked,
+            }
+            for a, q in rows
+        ]
+    }
+
+
+@router.get("/questions/unanswered")
+async def read_unanswered(
+    db: DbSession, principal: CurrentPrincipal, limit: int = Query(default=50, ge=1, le=200)
+) -> dict[str, Any]:
+    """What your agents are stuck on, most-asked first.
+
+    The one report worth a human's attention. A question asked forty times and
+    never answered is the most expensive row here: forty runs that stopped, or
+    worse, forty that did not.
+    """
+    await policy.authorize(principal, "experience.read")
+    rows = await questions.unanswered(db, organization_id=principal.organization_id, limit=limit)
+    return {
+        "questions": [
+            {
+                "question_id": q.id,
+                "need": q.need,
+                "asked": q.asked,
+                "context": q.context,
+                "first_asked": q.created_at.isoformat(),
+                "last_asked": q.last_asked_at.isoformat(),
+            }
+            for q in rows
+        ]
+    }
 
 
 @router.post("/experiences", status_code=status.HTTP_201_CREATED)
