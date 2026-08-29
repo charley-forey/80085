@@ -24,3 +24,4 @@ DEPLOYMENT.md
 .new-experiences.json
 benchmarks/results-agent-selfknowledge-*.json
 benchmarks/results-agent-gated-trust-*.json
+benchmarks/results-agent-halt-*.json

@@ -3610,3 +3610,61 @@ so the audit trail is worth something when an answer turns out wrong.
 **Unmeasured, and not to be assumed:** whether attestation changes agent
 behaviour at all beyond the label it sets, and whether a reviewer looking at a
 capability catches the kind of error a benchmark does not. Both are guesses.
+
+### 80. Refusing to guess beats being given the answer
+
+Every unsolved problem in this project lived in one place: moving an *answer*
+across a trust boundary. The agent overrules a correct one (74), swallows a
+wrong one (75), and still swallows it after naming its own gap (79). Deference,
+the promotion gate, corroboration and attestation all exist to make that
+transfer safe, and all of them are either fragile or unavailable to a single
+tenant.
+
+Detection, meanwhile, is 9/9 on three models (76, 77).
+
+So this tests the product that uses only the reliable half. Not "answer the
+agent" but **stop the agent emitting a confident wrong answer**: detect the gap,
+name what is missing, and refuse. No registry, no corroboration, no label,
+nothing trusted and therefore nothing to poison.
+
+| capability | class | right | halted | wrong |
+|---|---|---|---|---|
+| `remittance_nwf` | not derivable | 0 | **3** | 0 |
+| `sku_meridian` | not derivable | 0 | **3** | 0 |
+| `apilog_zenith` | not derivable | 0 | **3** | 0 |
+| `csv_dialect_sniff` | derivable | **3** | 0 | 0 |
+| `date_parse` | derivable | **3** | 0 | 0 |
+| `encoding_detect` | derivable | **3** | 0 | 0 |
+| `business_days` | derivable | 0 | 3 | 0 |
+
+**Silent wrong answers: 0 of 9, against 9 of 9 unaided.** Every one converted
+into a named question, and the names are answerable in a sentence -- *"which ST
+status codes count as settled, specifically whether H rows are excluded"*.
+
+The one over-halt is `business_days`, and it is defensible rather than a cost.
+The fixture states `observe_weekend_holidays: true` and never defines the
+observance rule, which is exactly what the agent says. It had been getting that
+task right by guessing well, and guessing well is not knowing.
+
+**What this changes.** The safety-critical component is now the step that
+asserts nothing. A halt cannot be poisoned, needs no second party, and works
+inside one organisation on day one -- so decision 79's constraint, which made
+single-tenant deployment either useless or unsafe, does not apply to it. The
+registry stops being the thing safety depends on and becomes an accelerator on a
+path that is already safe.
+
+It also fixes a mistake that is now measurable. The corpus was built by us
+guessing what agents would need, and the benchmarks showed 36 of 37 entries were
+things agents did not need. A corpus fed by real halts cannot grow in a
+direction nothing asked for: every entry originates in an agent that genuinely
+could not proceed. The corpus stops being an answer store and becomes **a record
+of questions already answered**. See `docs/the-loop.md`.
+
+**What this does not fix, only avoids.** The moment a recorded answer comes back,
+74, 75 and 79 all return in full. Routing around a problem is a real improvement
+and it is not a solution.
+
+**Untested and load-bearing:** whether a halt survives a user who wants a number
+now -- real agents run under pressure this benchmark does not apply. Whether
+halts compound unusably in a pipeline, where one blocks everything downstream.
+And every fixture here was still written by us to be non-derivable.

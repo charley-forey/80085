@@ -78,7 +78,7 @@ worker attached — see [Deployment](infrastructure/railway/README.md).
 | **How** | [Architecture](#️-architecture) · [Retrieval](#-retrieval-how-recall-actually-works) · [Ranking](#️-ranking-the-actual-numbers) · [Sandbox](#-the-sandbox-assume-every-artifact-is-hostile) · [Verification](#-verification-claimed-vs-proven) |
 | **Use** | [Quickstart](#-quickstart) · [MCP](#-mcp-the-tools) · [HTTP API](#-http-api) · [Add an Experience](#-adding-an-experience) |
 | **Prove** | [Tests](#-tests-and-the-one-that-matters) · [Benchmarks](#-benchmarks-control-vs-treatment) |
-| **Meta** | [Naming](#-about-the-name-yes-really) · [**Strategy**](docs/strategy.md) · [**Run it privately**](docs/private-deployment.md) · [Roadmap](#️-roadmap) · [Non-goals](#-non-goals) · [FAQ](#-faq) |
+| **Meta** | [Naming](#-about-the-name-yes-really) · [**The loop**](docs/the-loop.md) · [Strategy](docs/strategy.md) · [Run it privately](docs/private-deployment.md) · [Roadmap](#️-roadmap) · [FAQ](#-faq) |
 
 ---
 
@@ -1192,6 +1192,42 @@ anything answers it.**
 > agreeing on four fixtures we wrote is still four fixtures we wrote. One real
 > organisation's real convention is the test that matters, and we do not have
 > one yet.
+
+### 🛑 And then the thing that actually worked
+
+Every unsolved problem lived in one place: moving an *answer* across a trust
+boundary. So we tested the product that uses only the reliable half — **detect
+the gap, name what is missing, and refuse to guess.** No registry, no
+corroboration, nothing trusted and therefore nothing to poison.
+
+| capability | class | right | halted | wrong |
+|---|---|---|---|---|
+| `remittance_nwf` | not derivable | 0 | **3** | 0 |
+| `sku_meridian` | not derivable | 0 | **3** | 0 |
+| `apilog_zenith` | not derivable | 0 | **3** | 0 |
+| `csv_dialect_sniff` | derivable | **3** | 0 | 0 |
+| `date_parse` | derivable | **3** | 0 | 0 |
+| `encoding_detect` | derivable | **3** | 0 | 0 |
+
+**Silent wrong answers: 0 of 9. It was 9 of 9 unaided.** 🎯
+
+Every one became a named, answerable question — *"which ST status codes count as
+settled, specifically whether H rows are excluded"*. A human answers that in a
+sentence. `business_days` also halted, and it was right to: its fixture says
+`observe_weekend_holidays: true` and never defines the rule. It had been getting
+that one right by guessing well, which is not the same as knowing.
+
+**So the safety-critical step is now the one that asserts nothing.** A halt
+cannot be poisoned, needs no second party, and works inside one organisation on
+day one. The registry stops being what safety depends on and becomes an
+accelerator on a path that is already safe. [Decision 80](DECISIONS.md) ·
+[`docs/the-loop.md`](docs/the-loop.md)
+
+It also fixes a mistake we can now measure: the corpus was built by us guessing
+what agents would need, and 36 of 37 entries turned out to be things they did
+not. **A corpus fed by real halts cannot grow in a direction nothing asked
+for.** It stops being an answer store and becomes a record of questions already
+answered. 🔁
 
 We would rather publish that than a launch. 🫡
 

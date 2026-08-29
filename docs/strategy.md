@@ -24,7 +24,10 @@ it right more often."* Both halves were measured. Both are false.
 | An agent can tell when it cannot derive the answer | `agent_selfknowledge.py` | **Yes. 9/9**, and it can name the missing convention. |
 | …on a cheap model too | `agent_selfknowledge.py` | **Yes. 9/9 on Opus 5, Sonnet 5 *and* Haiku 4.5.** |
 
-The last six rows are the strategy. Everything else is history.
+| Refusing to guess beats being given the answer | `agent_halt.py` | **Silent wrong answers 0/9**, was 9/9. Nine of nine named what they needed. |
+
+The last row is the strategy now. See [`the-loop.md`](the-loop.md); everything
+above it is how we got there.
 
 ## 2. The thing that is actually true
 
