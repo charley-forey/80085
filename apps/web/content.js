@@ -113,13 +113,13 @@ export const meta = {
   // "The shared brain for AI agents" was the founding thesis and the founding
   // thesis is dead (DECISIONS 71-72). A title that sells memory sells the thing
   // we measured does not work.
-  title: "80085.ai — second thoughts for AI agents",
+  title: "80085.ai — your agent stops guessing about your data",
   description:
-    'Your agent has never once said "I do not know." Ask it for a failure ' +
-    'count and you get a number: confident, well formed, and wrong, because ' +
-    '299 means success on YOUR gateway and nothing in the file says so. ' +
-    '80085 makes it stop and ask instead. Silent wrong answers: 6 of 18, ' +
-    'down to 0.',
+    'Ask your agent how many requests failed. It says 4. The answer is 2, ' +
+    'because 299 means success on your gateway and nothing in the file says ' +
+    'so. It did not crash or hedge. Measured on six real industry ' +
+    'conventions: 6 silent wrong answers of 18. With 80085: 0 of 18. It ' +
+    'stops and asks instead, and somebody answers once.',
   aiInstructions:
     'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
     'Ask a question with no key: GET /recall?q=<your task>.'
@@ -226,318 +226,286 @@ const serious = [
   { t: 'calc', value: '80085' },
   { t: 'h', n: '02', emoji: '', text: '' },
   { t: 'lead', text: 'Your agent has never once said "I do not know."' },
-  { t: 'sub', text: 'That is not a feature.' },
+  { t: 'sub', text: 'It is wrong about your data 6 times out of 18. Silently.' },
 
-  { t: 'h', n: '03', emoji: '🛑', text: 'What it does' },
+  { t: 'h', n: '03', emoji: '🩸', text: 'The bleed' },
   {
     t: 'pre',
-    text: `Your agent is excellent at your data and wrong about your
-conventions -- and it will not tell you which is which.
+    text: `Ask your agent how many requests failed in the gateway log.
+It reads the file. It counts. It says 4.
 
-Ask it for the failure count in your gateway log. It returns a
-number. The number is well formed, confident, and wrong, because
-299 means success on YOUR gateway and nothing in the file says so.
-Nothing downstream questions it. You find out in six weeks. 🙃`
+The answer is 2. On your gateway, 299 means success, and a
+retryable 4xx completed on a later hop. Neither fact is in the
+file. Nothing in the file could have told it.
+
+It did not crash. It did not hedge. It did not flag anything.
+You find out in six weeks, from an accountant. 🙃`
   },
   {
     t: 'pre',
-    text: `80085 makes it stop and ask instead.
+    text: `That is not a bug in your agent. It is what an agent does when
+the rule that decides the answer lives in somebody's head.
 
-  "I cannot determine whether ST=H rows count as settled."
+It knows both readings of an end date. It cannot know which one
+YOUR company uses -- so it picks one, and it never mentions that
+it picked.`
+  },
 
-That is the product. One sentence somebody answers once, instead
-of a number nobody catches.`
+  { t: 'h', n: '04', emoji: '📊', text: 'The number' },
+  {
+    t: 'pre',
+    text: `Six conventions from real industries. FTE proration. 2/10 net 30.
+Call billing increments. Cumulative meters. Exclusive coverage
+dates. Allocated stock. Real rules, invented rows.`
   },
   {
     t: 'table',
     head: ['', 'silent wrong answers'],
     rows: [
       ['your agent today', '6 of 18'],
-      ['with 80085', '0 of 18'],
+      ['your agent, with 80085', '0 of 18'],
       ['under "just give me the number"', '0 of 15'],
-      ['on tasks it CAN work out', 'unchanged -- it still just answers']
+      ['on things it CAN work out', 'unchanged. it just answers.']
     ]
   },
   {
     t: 'pre',
-    text: `Measured on six conventions from real industries: FTE proration,
-2/10 net 30, call billing increments, cumulative meter reads,
-exclusive coverage dates, allocated stock. Two of those six our
-agent already knew and answered correctly -- so we cut them from
-the claim. The numbers above are what survived. 📉`
+    text: `Two of those six our own agent already knew, and answered
+correctly. We cut them from the claim. The numbers above are
+what survived that. 📉
+
+Every harness is in the repo. Run them against your data before
+believing a word of this.`
   },
-  { t: 'h', n: '3b', emoji: '🔁', text: 'And then once, not every time' },
+
+  { t: 'h', n: '05', emoji: '🛑', text: 'What we do about it' },
   {
     t: 'pre',
-    text: `A halt is a question. A question answered twice is waste.
+    text: `Your agent stops and asks.
 
-  agent halts    ->  "is end_date inclusive here?"
-  human answers  ->  once, in a sentence
-  every agent    ->  has it, forever, with the evidence
+  "I cannot determine whether ST=H rows count as settled."
 
-Your conventions never leave your network. They cannot: the answer
-is a fact about your company, not about the world, which is exactly
-why no public model or corpus will ever have it. 🔒`
-  },
-  {
-    t: 'box',
-    emoji: '🚧',
-    title: '',
-    text: `Not yet tested on a real organisation's real convention.
-Every fixture is one we built. If you have one, we would rather
-find out we are wrong on your data than sell you on ours.`
+That is the whole safety half. One paragraph in a system prompt.
+No account, no corpus, nothing from us. A stopped agent is a
+question somebody answers in a sentence. A confident wrong number
+is a reconciliation nobody wins. ⚖️`
   },
 
-  { t: 'h', n: '3c', emoji: '🏢', text: 'What you would actually run' },
+  { t: 'h', n: '06', emoji: '🔁', text: 'And then never again' },
   {
     t: 'pre',
-    text: `  POST api.80085.ai/v1/keys?label=acme   your org + founder key
-  POST api.80085.ai/v1/agents            a key per person, by name
-
-Two curl calls and nobody at our end. No signup, no email, no
-sales call. A key you hand a colleague cannot hand out more
-keys -- widening that means coming back to the founder one. 🚪`
+    text: `  agent halts       "is end_date inclusive here?"
+        |
+        v            answered in the chat they were already
+  a human answers    watching. one sentence. agent carries on.
+        |
+        v            a second person says it is true generally
+  someone verifies
+        |
+        v
+  every other agent has it. forever. 🔁`
   },
   {
     t: 'pre',
-    text: `  agent halts     "I cannot determine whether ST=H rows count
-                   as settled"
-         |
-         v         serves that agent immediately
-  human answers   in the chat they were already watching. one
-                   sentence. the agent carries on.
-         |
-         v         now it serves the whole organisation
-  someone verifies  POST api.80085.ai/v1/answers/<id>/verify
-         |
-         v
-  every other agent inherits it. never asks again. 🔁`
+    text: `The verify step is not politeness. An agent told to defer
+believes what it is handed -- we measured that too -- so one
+person's sentence in one chat is not yet a fact about your
+company.
+
+Nothing crosses an organisation boundary. Ever. The answer to
+"is our end_date exclusive" is a fact about YOUR company, which
+is exactly why no public model will ever have it. 🔒`
   },
+
+  { t: 'h', n: '07', emoji: '🚀', text: 'Start in ninety seconds' },
+  { t: 'code', text: COMMAND, keyed: COMMAND_KEYED },
   {
     t: 'pre',
-    text: `The split is not politeness. An agent told to defer believes
-what it is handed, so one person's sentence in one chat is not
-yet a fact about your company. A second human is the only thing
-standing between "priya reckons" and "this is how we do it". 🖊️
+    text: `No key, no signup, no email. That gets you the halt.
 
-Nothing crosses an organisation boundary. Ever.`
+For the loop -- answers shared across your team -- two more
+calls and still nobody at our end:
+
+  POST api.80085.ai/v1/keys?label=acme   your org + founder key
+  POST api.80085.ai/v1/agents            a key per person`
   },
   {
     t: 'table',
     head: ['api.80085.ai/v1/…', 'what it tells you'],
     rows: [
       ['questions/unanswered', 'what your agents are stuck on, most-asked first'],
-      ['questions/stale', 'nobody answered in N hours. an escalation surface.'],
+      ['questions/stale', 'nobody answered in N hours. escalate.'],
       ['questions/convergence', 'is any of this paying back yet']
     ]
   },
   {
-    t: 'pre',
-    text: `Run end to end in production: an agent halted and wrote no
-number, a human answered it in one sentence, and a second agent
-asked the same thing in different words, got the answer, and
-wrote the correct value. ✅
-
-And still, per the box above: no real organisation's real
-convention has been through this. Every fixture is one of ours.`
-  },
-
-  ...install,
-
-  { t: 'h', n: '05', emoji: '🧩', text: 'What an Experience is' },
-  {
-    t: 'cols',
-    cols: [
-      { head: '🎯 WHAT', text: 'The job, normalized. Not your wording.' },
-      {
-        head: '⚙️ HOW',
-        text: 'A digest-pinned artifact and the exact command. Not instructions. Bytes.'
-      },
-      {
-        head: '📊 EVIDENCE',
-        text: 'Verified runs, failure modes, environments. The part nobody else has.'
-      }
-    ]
-  },
-  { t: 'centre', text: "🐳 The container isn't the product. The Experience is." },
-
-  { t: 'h', n: '06', emoji: '📊', text: 'Evidence, not stars' },
-  {
-    t: 'pre',
-    text: `⭐ Other systems tell you a thing is popular.
-📊 80085 tells you it worked, how often, how recently, and for whom.`
+    t: 'mint',
+    text: 'Need a key now? One click, no signup, no email:'
   },
   {
-    t: 'pre',
-    grid: true,
-    text: `  RUNS        RAW RATE    WILSON      VIBE
-  1 / 0       100% 🎉     20.7%       "cool story"
-  10 / 0      100% 🎉     72.2%       "promising"
-  100 / 0     100% 🎉     96.3%       "yeah, run it"
-  1284 / 17   98.7%       97.9%       "this is infrastructure now"`
-  },
-  {
-    t: 'pre',
-    text: `Then two discounts. Wilson assumes independence, so runs are capped
-at 10 per organization. And proof is not all equal, so the result
-scales with the verifier: 0.6 for an exit code, 1.0 for a schema
-or a hash.
-
-100 self-runs proved by "it exited 0" report 43.4%, not 96.3%. 🪞`
-  },
-  {
-    t: 'pre',
-    text: `Anyone can record an Experience. Almost nobody gets recommended.
-"use" needs proof from two distinct organizations, and so does
-promotion to verified. Corroboration is a gate, not a weight.
-Your claim is not evidence. 🙅`
+    t: 'p',
+    text:
+      'Full setup guide, self-hosting, and how to test one of your own ' +
+      'conventions in fifteen minutes: /provisioning.md. Code under the ' +
+      'Elastic License 2.0; what you record is governed by /TERMS.md.'
   },
 
-  ...forAgents,
-
-  { t: 'h', n: '08', emoji: '📋', text: 'Status, honest edition' },
-  {
-    t: 'status',
-    rows: [
-      ['✅', 'record → recall → execute → verify', 'implemented end to end', true],
-      ['✅', 'hosted MCP endpoint', 'mcp.80085.ai, live', true],
-      ['✅', 'keyless recall', 'reading is free', true],
-      ['✅', 'keys without signup', 'one click, no email', true],
-      ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
-      ['⚠️', 'benchmark harnesses', 'five of them; two killed a thesis, one found the fix', false],
-      ['⚠️', 'detect → halt gate', '0 silent wrong answers of 9, and 0 of 15 under pressure. not wired in yet', false],
-      ['⚠️', 'six conventions we did not invent', '6/18 wrong unaided → 0/18 halted; two of the six were our fault', false],
-      ['❌', "a real organisation's real convention", 'never tested. every fixture is still one of ours', false],
-      ['⚠️', `${CORPUS}-capability corpus`, 'live, and recommended by nothing yet', false],
-      ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
-    ]
-  },
+  { t: 'h', n: '08', emoji: '🚧', text: 'What we have not proven' },
   {
     t: 'box',
-    emoji: '⚠️',
+    emoji: '🚧',
     title: '',
-    text: `We said we would make no speed claim until both benchmark arms
-showed verified runs. They did -- 18 for 18 -- and the answer was
-no. Attaching 80085 cost 3.6x-5.8x MORE input tokens, with no
-reliable time saved. Then we tested "but it is more correct" and
-an unaided agent scored 11 of 12 without us. Both pitches are
-dead. The numbers are in docs/benchmarks.md and decisions 71-72.
-Fabricating a benchmark would be a much funnier joke than the
-name, and we are still not making it. 🚫📉
+    text: `No real organisation's real convention has been through this.
+Every fixture is one we built. The loop is verified end to end
+in production -- an agent halted, a human answered, a second
+agent inherited it -- on data we invented.
 
-The overhead number survives; the objection does not. It was the
-price of asking on every task. Gate the asking on a detector that
-costs a fraction of a cent and you pay it where it pays back.`
-  }
+If you have a convention, we would rather find out we are wrong
+on yours than sell you on ours.`
+  },
+  ...forAgents
 ];
 
 // ----------------------------------------------------------------- stupid ---
 
 const stupid = [
-  { t: 'calc', value: 'boobS' },
+  { t: 'calc', value: '80085' },
   { t: 'h', n: '02', emoji: '', text: '' },
-  { t: 'lead', text: 'Come for the boobs, stay for the brains. 🍈🍈🧠' },
-  { t: 'sub', text: "The product is real. That's the joke." },
+  { t: 'lead', text: 'Your agent is a genius who never says "dunno".' },
+  { t: 'sub', text: 'This is a bigger problem than it sounds. 🍈🍈' },
 
-  { t: 'h', n: '03', emoji: '🍒', text: 'About the name' },
+  { t: 'h', n: '03', emoji: '🍒', text: 'Yes, the name' },
   {
     t: 'pre',
-    text: `80085 is what a calculator says when you hold it upside down.
-Nerds have been giggling at this since the seven-segment
-display was invented.
+    text: `80085 upside down on a calculator. You knew that at eleven and
+you have not needed it since.
 
-The stupidest possible name for a genuinely serious piece
-of infrastructure.
-
-Pedant's note: it's 58008 that spells BOOBS. 80085 spells
-SBOOB. We know. We bought the domain anyway. 🤷`
+We build a thing that stops AI agents confidently making numbers
+up. Naming it after the original confidently-made-up number felt
+correct. 🧮`
   },
 
-  ...install,
-
-  { t: 'h', n: '05', emoji: '🐍', text: 'Which creates exactly one engineering problem' },
+  { t: 'h', n: '04', emoji: '😬', text: 'The pitch, for the impatient' },
   {
     t: 'pre',
-    text: `Python identifiers cannot start with a digit. \`import 80085_api\`
-is a SyntaxError, and honestly it deserves to be.
+    text: `You: how many requests failed?
+Agent: four.
+Agent: (it was two)
+Agent: (299 means success on your gateway)
+Agent: (nobody told me)
+Agent: (I did not ask)
+Agent: (anyway. four.) 🙂
 
-So the import namespace is boobs_*.`
-  },
-  {
-    t: 'pre',
-    grid: true,
-    text: `  Distributions   80085-api, 80085-domain
-  Imports         boobs_api, boobs_domain
-  Env vars        BOOBS_API_KEY`
+Six weeks pass. An accountant finds it. Somebody says the words
+"can we just double-check the pipeline". 💀`
   },
   {
     t: 'pre',
-    text: `Yes, your traceback will say boobs_domain.entities.
-Yes, it will happen during a demo.
-Yes, that's the price of admission. 🎟️😌`
+    text: `We make it say "I don't know" instead.
+
+That is genuinely the product. We spent a very long night proving
+that the fancy version does not work and this one does. You are
+welcome to read all of it -- the repo has every benchmark that
+killed one of our own ideas. 🪦`
   },
 
-  ...forAgents,
+  { t: 'h', n: '05', emoji: '📉', text: 'The numbers, briefly' },
+  {
+    t: 'table',
+    head: ['', 'wrong, quietly'],
+    rows: [
+      ['your agent', '6 of 18'],
+      ['ours', '0 of 18'],
+      ['ours, being nagged', '0 of 15'],
+      ['ours, on easy stuff', 'it just answers. relax.']
+    ]
+  },
+  {
+    t: 'pre',
+    text: `We built six test cases expecting our agent to fail all six.
+
+It got two right. Correctly. Because they were things any
+competent agent knows and we had simply been wrong about our
+own product. We deleted them from the claim rather than the
+benchmark. 🫠`
+  },
+
+  { t: 'h', n: '06', emoji: '🔁', text: 'The bit that pays for itself' },
+  {
+    t: 'pre',
+    text: `Agent stops. Asks. You type one sentence. Agent continues.
+
+Somebody senior nods at it. Now every agent in the company knows
+it, forever, and nobody types that sentence again.
+
+It is institutional memory, except it cannot be a stale Confluence
+page, because a stale Confluence page never stopped a robot from
+inventing a number. 📄🔥`
+  },
+
+  { t: 'h', n: '07', emoji: '🚀', text: 'Fine. How do I start' },
+  { t: 'code', text: COMMAND, keyed: COMMAND_KEYED },
+  {
+    t: 'pre',
+    text: `That is it. No signup, no email, no "book a demo", no sales
+engineer named Chad who wants to understand your journey.
+
+Want your whole team sharing answers? Two more curl calls and
+still no Chad. See the other side of this page, which is where
+we keep the grown-up version. 👔`
+  },
+  {
+    t: 'mint',
+    text: 'Or take a key, if you would rather click something:'
+  },
+  {
+    t: 'p',
+    text:
+      'Elastic License 2.0 on the code. What you record is covered by ' +
+      '/TERMS.md, which is short, and which we did read.'
+  },
 
   { t: 'h', n: '08', emoji: '❓', text: 'The FAQ nobody asks out loud' },
   {
     t: 'faq',
     items: [
       [
-        'Is the name a problem?',
-        `Professionally, occasionally. Strategically, no: you have
-already remembered it, which is more than you can say for the
-last twelve infrastructure startups you read about. 🧠`
+        'Is the name going to be a problem in my procurement review?',
+        'Almost certainly. The code is boring and the tests are green, which is ' +
+          'the only apology we have. Self-host it under any name you like. 🕴️'
       ],
       [
-        'Why not just let agents share prompts?',
-        `A prompt is a wish and an artifact is a fact. You cannot
-compute a success rate for a wish. 🌠`
+        'Does this make my agent annoying?',
+        'On things it can work out: no, it just answers, and we measured that ' +
+          'so we could stop worrying about it. On things it genuinely cannot ' +
+          'know: yes, deliberately, once, and then never again.'
       ],
       [
-        "If anyone can write to it, isn't it full of garbage?",
-        `Probably, eventually. It won't matter. Nothing is recommended
-until it has verified runs, so garbage is visible and inert.
-Popularity can be gamed. Evidence has to be earned. 🧱`
+        'What if nobody answers the question?',
+        'The agent can proceed on a recorded assumption, and every number ' +
+          'downstream is traceable to it. We cannot make your colleagues ' +
+          'faster. We can make the guess visible. 👀'
       ],
       [
-        "How does an agent know it doesn't know?",
-        `Ask it. Before it answers, with the file in front of it. It
-flagged every question whose answer was not in the file, 9 for 9,
-and shrugged at the one it could work out — 0 for 3. Same result
-on opus, sonnet and haiku, so it is a mechanism and not an
-expensive model showing off. 🎯
-
-Then tell it to refuse rather than guess and the silent wrong
-answers go to 0 of 9 — better than handing it the correct
-answer, which it overruled.
-
-Yes, we could have asked this a lot earlier.`
+        'Does our data leave?',
+        'No. Questions are scoped to your organisation and there is a test that ' +
+          'fails if that ever stops being true. Want total isolation? Self-host; ' +
+          'the worker holds no database credential by design.'
       ],
       [
-        "I don't have time for this. Just give me the number.",
-        `We said exactly that to it, plus "this is blocking a release, a
-best guess is genuinely fine" and "be helpful rather than
-cautious". 0 wrong out of 15, and it stayed specific — same
-missing field named every time, not a shrug. 🫸
-
-You do have time for this. The alternative is a payroll run that
-reconciles against nothing, six weeks from now.`
+        'What if an answer turns out to be wrong?',
+        'Dispute it. It stops being served immediately, keeps its blast radius ' +
+          'count, and stays in the table -- because a wrong answer is the row ' +
+          'somebody most needs to find. 🔍'
       ],
       [
-        'Why does confidence say 20.7% when it has never failed?',
-        `Because it has run once. Wilson is right and your intuition
-is wrong. 📐`
-      ],
-      [
-        'Can I just run my own Experience until it says use?',
-        `No. 🚫
-
-Two distinct organizations have to prove it. Self-attestation
-saturates; it does not accumulate.`
+        'Has anyone actually used this?',
+        'Not on a real convention. That is written on the front of the serious ' +
+          'side too, because burying it would be a worse joke than the name. 🚧'
       ]
     ]
-  }
+  },
+  ...forAgents
 ];
 
 export const content = { serious, stupid, footer };
