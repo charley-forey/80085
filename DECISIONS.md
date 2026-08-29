@@ -3855,3 +3855,35 @@ anybody trying the product.
 **Also settled: decision 78 was right.** `pytest tests/unit tests/integration`
 now runs green at 517 tests. Every failure attributed to order-dependence was
 concurrency between test runs I had launched myself.
+
+### 86. Checking what is served, not what was committed
+
+Three times in one session a thing was correct in the repository, passing its
+tests, pushed, and deployed -- and wrong for anybody actually using it.
+
+`apps/web/public` is generated and gitignored, so editing the built `agents.md`
+was undone by the next build before it was ever committed. `questions` and
+`answers` shipped with passing integration tests and no MCP tool, so the loop
+was reachable by curl and by nothing else. Both landing pages were rewritten and
+`curl 80085.ai` was not, because the terminal version is generated separately in
+`build.mjs` from a copy of the copy -- which for a minute looked like a failed
+deploy, on a deployment that had succeeded on the right commit.
+
+None of those was caught by a test, because none of them is a property of the
+repository. They are properties of what is served. The pattern is the same each
+time: a surface that is generated rather than written drifts silently, and the
+only thing that finds it is looking at it from outside.
+
+`scripts/verify_live.py` is that look, and it asserts nothing about the repo. It
+walks the deployed surfaces the way a stranger meets them -- health, the whole
+question loop end to end against production, self-serve provisioning, the MCP
+tool list, and whether each page of copy carries the current story or an older
+one. The copy check is the unusual half and the one that would have caught all
+three: it fails when a surface still contains wording we have replaced.
+
+24 of 24 at the time of writing, which is the first time every deployed surface
+has been current at once.
+
+**What it does not check:** that any of it is *useful*. Everything green here
+means the machine works, on data we invented, for conventions we wrote. The gap
+this cannot close is still the only one that matters.
