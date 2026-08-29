@@ -71,28 +71,63 @@ agent got them right anyway: 11 of 12. An agent is not a library call; it reads
 the file. So "the obvious implementation is wrong" is not enough on its own
 (decision 72).
 
-The bar that actually holds is stricter. Ask:
+The bar that actually holds is stricter, and it moved again once we stopped
+inventing the conventions ourselves (decision 81). Ask:
 
-> **Is the rule that decides the answer present in the input at all?**
+> **Does this encode a choice between conventions, made by one organisation or
+> one counterparty — rather than something an agent already knows?**
 
-If a sufficiently careful reader could recover it from the data, an agent will,
-and your capability is overhead. It qualifies when the rule lives somewhere the
-data does not: a counterparty's convention, an internal system's undocumented
-behaviour, an organisation's own workaround, a fact established after a model's
-training cutoff. On that class, an unaided agent scored **0 out of 9** — never
-right, never an error, always a plausible silent wrong answer (decisions 73-74).
+Not "knowledge the agent lacks". A *choice between conventions the agent has no
+basis to make*. It knows both readings of a period end date; inclusive and
+exclusive are both ordinary. What it cannot know is which one **your** company
+uses, so it picks one silently and is wrong 3 times out of 3. The answer is a
+fact about one organisation's decisions, not a fact about the world.
 
-Worked examples in the corpus: `remittance_nwf` (amounts in tenths of a cent),
-`apilog_zenith` (`299` is this gateway's success code), `sku_meridian`
-(quantities in cases of twelve). And one counter-example kept deliberately:
-`part_supersede_orbital` was **disqualified** because its rule leaked into its
-own fixture, and an unaided agent scored 3/3. A capability whose rule is
-recoverable from its own inputs tests nothing.
+**Two worked counter-examples, because we got these wrong ourselves.** We built
+`ap_early_payment` around `2/10 net 30` and `payroll_fte` around prorating
+salary by FTE. Both rules were absent from the input, so both cleared the old
+bar. Both are also standard trade and payroll practice, firmly in training, and
+the unaided agent answered them correctly 3/3 — no capability required. Absent
+from the file is not the same as unknowable. If a competent practitioner in that
+industry would read your fixture and say "well obviously it means X", the agent
+says it too, and your capability is overhead.
 
-**One more thing, and it is new.** Since agents are now instructed to *defer* to
-a verified result rather than weigh it against their own reading (decision 74), a
-wrong Experience is no longer ignored -- it is believed. Do not contribute a
-capability you are not confident is correct.
+What did qualify, from the same batch: `telecom_billed_seconds` (which rounding
+increment this carrier bills on), `policy_coverage_days` (whether this insurer's
+end date is inclusive), `inventory_available` (whether allocated — or in-transit
+— stock counts as available). Each is a local pick among options the agent knows
+perfectly well. Unaided, silent wrong answers **6 of 18**; with the halt in
+place, **0 of 18**.
+
+The older worked examples still hold: `remittance_nwf` (amounts in tenths of a
+cent), `apilog_zenith` (`299` is this gateway's success code), `sku_meridian`
+(quantities in cases of twelve) — an unaided agent scored **0 out of 9** on
+those, never right, never an error, always a plausible silent wrong answer
+(decisions 73-74).
+
+And one counter-example kept deliberately: `part_supersede_orbital` was
+**disqualified** because its rule leaked into its own fixture, and an unaided
+agent scored 3/3. A capability whose rule is recoverable from its own inputs
+tests nothing. `ap_early_payment` and `payroll_fte` fail the same test from the
+other direction — their rule is recoverable from the agent's training instead of
+from the file.
+
+So answer both questions in the pull request:
+
+> **What does the obvious implementation return, and why does nobody notice?**
+>
+> **Which two conventions could this be, and why can no one outside this
+> organisation tell which one is in force?**
+
+If you cannot name the *other* convention it plausibly could have been, there is
+no choice being encoded, and there is probably no capability either.
+
+**One more thing, and it is the reason the bar is this high.** A recorded answer
+is deferred to (decision 74), so a wrong Experience is not ignored — it is
+believed. Note also what a capability now competes with: the halt. An agent that
+detects the gap and refuses ships no wrong number at all, needs no corpus, and
+is safe on day one (decision 80). A capability only earns its place by turning
+that halt into an answer, which means being right.
 
 ## Pull requests
 

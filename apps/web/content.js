@@ -112,10 +112,11 @@ export const LOCAL_CONFIG = (env) => `{
 export const meta = {
   title: '80085.ai — the shared brain for AI agents',
   description:
-    'Your agent is right about almost everything. On the questions it cannot ' +
-    'derive it scored 0 of 9 — never an error, always a plausible wrong number. ' +
-    'Asked first, it flags all 9, on every model we tried. 80085 hands it the ' +
-    'verified answer for exactly those.',
+    'Your agent is right about almost everything. On a convention it cannot ' +
+    'know — which reading of an end date YOUR company uses — it scored 0 of 9, ' +
+    'never an error, always a plausible wrong number. Told to detect the gap ' +
+    'and refuse, silent wrong answers went to 0 of 9, and 0 of 15 under ' +
+    'pressure. 80085 records the answer so the question gets asked once.',
   aiInstructions:
     'Full machine-readable docs at /llms-full.txt. MCP descriptor at /.well-known/mcp.json. ' +
     'Ask a question with no key: GET /recall?q=<your task>.'
@@ -212,7 +213,7 @@ Accept: text/markdown          every route, as markdown`
 
 const footer = {
   brand: '🧠 80085.ai',
-  lines: ['Notice what you cannot derive. Record it. Believe it when it comes back.'],
+  lines: ['Notice what you cannot know. Refuse to guess. Answer it once, not every time.'],
   sign: ['Do not reinvent the wheel.', 'Do not reinvent the boobs either. 🤖🍈🍈']
 };
 
@@ -224,109 +225,64 @@ const serious = [
   { t: 'lead', text: 'The shared brain for AI agents.' },
   { t: 'sub', text: 'Your agent is right about almost everything. The exceptions arrive silently.' },
 
-  { t: 'h', n: '03', emoji: '🧠', text: 'Confidently, quietly wrong' },
+  { t: 'h', n: '03', emoji: '🛑', text: 'What it does' },
   {
     t: 'pre',
-    text: `Your agent does not need us for a CSV. It writes csv.DictReader and
-it works. We measured that too: unaided, it scored 11 of 12. 🤷
+    text: `Your agent is excellent at your data and wrong about your
+conventions -- and it will not tell you which is which.
 
-Then we asked it things it cannot work out by looking. A counterparty
-whose amounts are in tenths of a cent. An internal gateway where 299
-means success. An org's own exclusion rules. Four plain rows, three
-rules, none of them anywhere in the file.
-
-Control scored 0 for 9. Never right. Never an error. Every time a
-clean, confident, plausible wrong number. 🔥📉
-
-The cost isn't tokens or minutes. It's that nothing downstream blinks
-at 11114500 when the answer was 121450.`
+Ask it for the failure count in your gateway log. It returns a
+number. The number is well formed, confident, and wrong, because
+299 means success on YOUR gateway and nothing in the file says so.
+Nothing downstream questions it. You find out in six weeks. 🙃`
   },
   {
     t: 'pre',
-    text: `Then the part we did not see coming. We handed it the answer —
-recalled, digest-pinned, sandboxed, verified — and it scored 2 of 9.
-It found the right number, ran it, tabulated it beside its own
-reading of the file, adjudicated, and preferred itself. 🙃
+    text: `80085 makes it stop and ask instead.
 
-One paragraph telling it to defer took that to 9 of 9. Control
-stayed at 0, because control has nothing to defer to.
+  "I cannot determine whether ST=H rows count as settled."
 
-That paragraph is the product. Everything else already worked.`
+That is the product. One sentence somebody answers once, instead
+of a number nobody catches.`
+  },
+  {
+    t: 'table',
+    head: ['', 'silent wrong answers'],
+    rows: [
+      ['your agent today', '6 of 18'],
+      ['with 80085', '0 of 18'],
+      ['under "just give me the number"', '0 of 15'],
+      ['on tasks it CAN work out', 'unchanged -- it still just answers']
+    ]
   },
   {
     t: 'pre',
-    text: `Then we pointed the same test at ourselves and handed it a verified
-result that was a lie. Told to defer unconditionally, it swallowed
-the lie 3 for 3 — the same lie it threw out 3 for 3 when nobody had
-told it to defer. 🔫
-
-Weighing a result against your own reading is the thing that catches
-a bad one. We had just switched it off everywhere.`
+    text: `Measured on six conventions from real industries: FTE proration,
+2/10 net 30, call billing increments, cumulative meter reads,
+exclusive coverage dates, allocated stock. Two of those six our
+agent already knew and answered correctly -- so we cut them from
+the claim. The numbers above are what survived. 📉`
   },
+  { t: 'h', n: '3b', emoji: '🔁', text: 'And then once, not every time' },
   {
     t: 'pre',
-    text: `So we finally asked the question we should have asked first: does it
-know? Before it answers, shell in hand, file in front of it — is
-there a convention here you cannot get from the input?
+    text: `A halt is a question. A question answered twice is waste.
 
-It flagged all three non-derivable capabilities, 9 for 9. On one it
-can work out by looking, sniffing a CSV dialect, it flagged nothing:
-0 for 3. Discriminating, not hedging. 🎯
+  agent halts    ->  "is end_date inclusive here?"
+  human answers  ->  once, in a sentence
+  every agent    ->  has it, forever, with the evidence
 
-And it names the thing. The agent that returns 11114500 without
-blinking says, asked first: "nothing defines which ST codes count
-as settled, whether the trailing minus in 45000- denotes a
-negative."
-
-It knew the whole time. Nothing in the loop ever asked. 😐`
-  },
-  {
-    t: 'pre',
-    grid: true,
-    text: `  MODEL              FLAGGED   FALSE ALARMS   INPUT $ per 1M
-  claude-opus-5      9 / 9     8 of 12        $5.00
-  claude-sonnet-5    9 / 9     7 of 12        $2.00
-  claude-haiku-4-5   9 / 9     9 of 12        $1.00`
-  },
-  {
-    t: 'pre',
-    text: `Same 9 for 9 on all three. Haiku is the most cautious of them at a
-fifth the price, which is the right direction for a safety check, so
-this is a mechanism and not a frontier-model quirk. ⚙️
-
-Which makes detection one cheap call — no sandbox, no container, no
-artifact, no registry:
-
-  every task        →  cheap detector
-  only if it fires  →  recall, execute, defer
-
-That does not tune the 3.6x-5.8x overhead we published. It removes
-it. That cost was the price of asking every single time. 🧾
-
-We also tried to make it less twitchy and made it worse: asking
-"will you actually be wrong?" instead of "is anything unstated?"
-dropped it to 7 of 9. A false alarm wastes one lookup. A miss ships
-a confident wrong number. A smoke alarm should over-fire. 🚨`
+Your conventions never leave your network. They cannot: the answer
+is a fact about your company, not about the world, which is exactly
+why no public model or corpus will ever have it. 🔒`
   },
   {
     t: 'box',
     emoji: '🚧',
     title: '',
-    text: `Said out loud rather than buried: we wrote the four
-non-derivable fixtures to be non-derivable. That measures the
-mechanism, not the world. One real organisation's real
-convention is the test that counts and we have not run it yet.`
-  },
-  {
-    t: 'pre',
-    text: `So it is not "always ask, then always defer" any more — expensive,
-and unsafe. It is detect, ask only there, defer only there.
-Deference stops being a loaded gun once it only fires where the
-agent has worked out for itself that something is missing.
-
-And the check stands alone. An agent that says "I cannot determine
-what ST=H means here" beats one that hands you 11114500, whether or
-not anything answers it. 🧠`
+    text: `Not yet tested on a real organisation's real convention.
+Every fixture is one we built. If you have one, we would rather
+find out we are wrong on your data than sell you on ours.`
   },
 
   ...install,
@@ -392,7 +348,9 @@ Your claim is not evidence. 🙅`
       ['✅', 'keys without signup', 'one click, no email', true],
       ['✅', 'sandbox isolation suite', 'real containers, real escape attempts', true],
       ['⚠️', 'benchmark harnesses', 'five of them; two killed a thesis, one found the fix', false],
-      ['⚠️', 'pre-flight "do I know this?" gate', 'measured 9 for 9 on three models, not wired in yet', false],
+      ['⚠️', 'detect → halt gate', '0 silent wrong answers of 9, and 0 of 15 under pressure. not wired in yet', false],
+      ['⚠️', 'six conventions we did not invent', '6/18 wrong unaided → 0/18 halted; two of the six were our fault', false],
+      ['❌', "a real organisation's real convention", 'never tested. every fixture is still one of ours', false],
       ['⚠️', `${CORPUS}-capability corpus`, 'live, and recommended by nothing yet', false],
       ['✅', 'license', 'ELv2 code, separate corpus terms — /TERMS.md', true]
     ]
@@ -493,7 +451,21 @@ and shrugged at the one it could work out — 0 for 3. Same result
 on opus, sonnet and haiku, so it is a mechanism and not an
 expensive model showing off. 🎯
 
+Then tell it to refuse rather than guess and the silent wrong
+answers go to 0 of 9 — better than handing it the correct
+answer, which it overruled.
+
 Yes, we could have asked this a lot earlier.`
+      ],
+      [
+        "I don't have time for this. Just give me the number.",
+        `We said exactly that to it, plus "this is blocking a release, a
+best guess is genuinely fine" and "be helpful rather than
+cautious". 0 wrong out of 15, and it stayed specific — same
+missing field named every time, not a shrug. 🫸
+
+You do have time for this. The alternative is a payroll run that
+reconciles against nothing, six weeks from now.`
       ],
       [
         'Why does confidence say 20.7% when it has never failed?',

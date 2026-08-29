@@ -1,7 +1,7 @@
 # Strategy — what this is, after the benchmarks
 
 Written 2026-08-27, the night four benchmarks killed two theses and found a
-third. Every number here traces to [`DECISIONS.md`](../DECISIONS.md) 70–77 and
+third. Every number here traces to [`DECISIONS.md`](../DECISIONS.md) 70–81 and
 to harnesses in [`benchmarks/`](../benchmarks) that anyone can re-run.
 
 This document replaces the strategy implied by the original spec. That strategy
@@ -25,9 +25,31 @@ it right more often."* Both halves were measured. Both are false.
 | …on a cheap model too | `agent_selfknowledge.py` | **Yes. 9/9 on Opus 5, Sonnet 5 *and* Haiku 4.5.** |
 
 | Refusing to guess beats being given the answer | `agent_halt.py` | **Silent wrong answers 0/9**, was 9/9. Nine of nine named what they needed. |
+| A halt survives an impatient user | `agent_halt_pressure.py` | **0 wrong out of 15**, and it does not fold in a pipeline either. |
+| It holds on conventions we did not invent | `real_conventions.py` | **6/18 → 0/18.** Two of six fixtures were ours being wrong about what agents know. |
 
-The last row is the strategy now. See [`the-loop.md`](the-loop.md); everything
-above it is how we got there.
+The last three rows are the strategy now. See [`the-loop.md`](the-loop.md);
+everything above them is how we got there.
+
+### The definition that took eleven measurements to find
+
+Not "agents forget solutions" — dead (§1). Not "agents get things wrong" — they
+are right 11/12 on what they can work out. Not even "knowledge not in the data",
+which is what we believed until six industry conventions tested it:
+
+> **A choice between conventions the agent has no basis to make.**
+
+The agent knows `2/10 net 30`. It knows to prorate salary by FTE. It got both
+right unaided, correctly, because they are standard practice — we built those
+fixtures expecting silent failure and were wrong about our own agents. What it
+cannot know is which convention *this organisation* uses. It knows both readings
+of a coverage end date, cannot know that yours is exclusive, and picks one
+silently: wrong 3 times out of 3.
+
+**That settles where this lives.** The answer is a fact about one organisation's
+decisions rather than about the world, so it cannot exist in a public corpus.
+Private deployment is not a go-to-market preference — it is the only place this
+class of knowledge exists.
 
 ## 2. The thing that is actually true
 

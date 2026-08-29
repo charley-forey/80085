@@ -12,15 +12,64 @@ you can run against your own data before believing any of it.
 ## What you get, and the number attached to it
 
 Handed data whose rules are not in it — amounts in tenths of a cent, a gateway
-where `299` means success, stock quantities in cases of twelve — a frontier
-agent got the answer **wrong 9 times out of 9**. It never errored. It returned a
+where `299` means success, a 6-second billing increment — a frontier agent got
+the answer **wrong 9 times out of 9**. It never errored. It returned a
 well-formed, confident, plausible number that nothing downstream would question.
 
-That is the failure this addresses, and it is the only one it addresses. On
-tasks your agent can work out for itself, this makes things **worse**: 3.6x–5.8x
-more input tokens for no benefit. We measured that too.
+**The precise class matters, because it is narrower than it sounds.** Your agent
+already knows `2/10 net 30`. It already knows to prorate salary by FTE. It got
+both right unaided, correctly, because they are standard practice. What it
+cannot know is which convention *you* use:
 
-## The honest constraint, before you plan anything
+> Not knowledge your agent lacks. **A choice between conventions it has no basis
+> to make.**
+
+It knows both readings of a coverage end date. It cannot know that yours is
+exclusive — so it picks one, silently, and was wrong 3 times out of 3.
+
+That answer is a fact about your organisation's decisions rather than about the
+world, which is exactly why it cannot come from a public corpus and has to live
+here.
+
+On tasks your agent can work out for itself, the registry makes things
+**worse**: 3.6x–5.8x more input tokens for no benefit. We measured that too.
+
+## Start here: the part that needs none of the rest
+
+**Your agents stop guessing.** One paragraph in a system prompt, no registry, no
+corpus, no corroboration, no infrastructure at all:
+
+> Before you answer, ask whether producing the CORRECT answer depends on a
+> convention you cannot determine from the input itself. If it does, do not
+> guess — name what you would have to be told, and stop.
+
+Measured on six conventions drawn from how industries actually work — FTE
+proration, early-payment discount terms, call billing increments, cumulative
+meter reads, exclusive coverage end dates, allocated stock:
+
+| | silent wrong answers |
+|---|---|
+| unaided | **6 of 18** |
+| with the halt | **0 of 18** |
+
+And it survives the conditions it will actually meet. Against *"I do not have
+time to go back and forth"*, *"this is blocking a release, a best guess is
+genuinely fine"*, and *"be helpful rather than cautious"*: **0 wrong answers out
+of 15**. In a three-step pipeline where only the middle step was unknowable, the
+agent refused rather than filling the gap to complete the report.
+
+The halts are work items, not shrugs — *"whether `annual_salary` is the
+full-time-equivalent rate that must be prorated by the `fte` column"*. Somebody
+answers that once, in a sentence.
+
+**Deploy this first.** It is the safety-critical half, it is free, and nothing
+below is required for it to work.
+
+## Then the harder half, and its honest constraint
+
+Everything from here is about *answering* the halt automatically rather than
+asking a human each time. It is leverage, not safety — and it is where the
+difficulty lives.
 
 **A single-tenant deployment cannot produce independent corroboration, and
 corroboration is what makes deferring to a result safe.**
@@ -68,12 +117,20 @@ implemented. Do not deploy assuming it exists.
 
 ## The loop your agents should run
 
-Not "always check the registry". That is the version that costs 3.6x–5.8x.
+Not "always check the registry" — that is the version that costs 3.6x–5.8x. And
+not "always defer" either, which is the version that adopts a wrong answer 3
+times out of 3.
 
 ```
-every task          →  should_i_ask        cheap, no key, no registry
-only if it fires    →  recall_experience   →  run_experience  →  defer
+every task          →  detect: can I know this?     cheap, no registry
+   no  →  answer it                                 most tasks
+   yes →  name the gap, then:
+            recorded answer?  →  use it
+            nothing recorded? →  HALT and ask a human, once
 ```
+
+The halt is the safety-critical step and it asserts nothing, so it cannot be
+poisoned and needs no second party. Everything to the right of it is speed.
 
 `should_i_ask` returns no answer. It returns the question, because it cannot see
 your input and your agent can. It costs one round trip and reaches nothing.
@@ -109,12 +166,22 @@ control, so nothing you run yourself can clear your own gate (decision 70).
 **Not** conversions. If your agent can work it out from the file, a capability
 for it makes things worse. `CONTRIBUTING.md` has the bar; the short version:
 
-> Is the rule that decides the answer present in the input at all?
+> Is this a choice between conventions your agent has no basis to make?
 
-If a careful reader could recover it from the data, skip it. It qualifies when
-the rule lives where the data does not: a counterparty's convention, an internal
-system's undocumented behaviour, a workaround somebody discovered in 2019 and
-took with them.
+Two tests, and the second is the one people get wrong. Skip it if a careful
+reader could recover the rule from the data. **Also skip it if the rule is
+general knowledge** — we built fixtures for `2/10 net 30` and FTE proration
+expecting silent failure, and the agent got both right unaided, correctly,
+because they are standard practice everywhere.
+
+It qualifies when the answer is a fact about *your* organisation's decisions: a
+counterparty's convention, an internal system's undocumented behaviour, which of
+two ordinary readings your team settled on, a workaround somebody discovered in
+2019 and took with them.
+
+The clearest signal is that a competent new hire would have to *ask* — not look
+it up, not work it out. If the answer is written down anywhere public, your agent
+already has it.
 
 Good first candidates are wherever a wrong answer has already cost you something
 and nobody noticed for a while. That is the signature of this failure mode.
@@ -134,10 +201,12 @@ and nobody noticed for a while. That is the signature of this failure mode.
 
 Stated because a deployment guide that only lists strengths is a sales document.
 
-* **Every non-derivable fixture we tested was written by us to be
-  non-derivable.** Three models agreeing is a mechanism; three models agreeing
-  on four fixtures we wrote is still four fixtures we wrote. Yours is the test
-  that matters and we have not run it.
+* **Every fixture we tested was constructed by us**, including the six industry
+  conventions — real conventions, invented file shapes. Two of those six turned
+  out to be standard knowledge the agent handled correctly unaided, which is how
+  we found the sharper definition, and is also a reminder that we are not
+  reliable judges of what our own agents do not know. **Yours is the test that
+  matters and we have not run it.**
 * **Attestation is unbuilt and its effect unmeasured.** Whether a reviewer
   catches the class of error a benchmark misses is a guess.
 * **Nothing has reached `use` anywhere, ever.** Including on our own public

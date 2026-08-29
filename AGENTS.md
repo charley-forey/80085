@@ -5,67 +5,95 @@ states the rules that are not obvious from the code.
 
 ## What this is
 
-**80085 is a way for knowledge an agent cannot derive to win an argument
-against the agent's own confidence.** It carries that knowledge as a
-digest-pinned artifact, an executable run, and an independent verdict.
+**80085 stops an agent guessing about what it cannot know, and gets each of
+those questions answered once.** The loop is **detect → halt → (optionally)
+recall**: the agent notices that the answer turns on a convention absent from
+the input, names exactly what is missing, and refuses — and only then, if a
+record of that question already exists, does an answer come back.
+Read [`docs/the-loop.md`](docs/the-loop.md) before changing anything that
+touches this.
 
 It is not a coding agent, not a chat app, and not primarily a container
 registry. It is also not a memory. Storage and recall were never the
 bottleneck.
 
-The founding thesis was that an agent reuses a proven solution when
-discovering it is faster and more reliable than recreating it. Both halves
-were benchmarked and both are false. Treatment cost **3.6x to 5.8x more input
-tokens** than an agent with a `bash` tool and no registry, and nothing about
-time is measurable at achievable sample sizes — the same arm on the same task
-took 34.4s, 65.6s and 88.7s (DECISIONS 71). On the correctness cases an
-unaided agent scored **11 of 12**: it does not need us to be right about a
-delimiter it can read for itself (DECISIONS 72). The naive baselines in
-`benchmarks/correctness.py` are what a naive *library call* does, and an agent
-is not a library call.
+**Two earlier theses were measured and abandoned. Do not reintroduce either.**
 
-What replaced it, tested on four synthetic capabilities built for the purpose:
+The founding one was that an agent reuses a proven solution when discovering it
+is faster and more reliable than recreating it. Both halves are false.
+Treatment cost **3.6x to 5.8x more input tokens** than an agent with a `bash`
+tool and no registry, and nothing about time is measurable at achievable sample
+sizes — the same arm on the same task took 34.4s, 65.6s and 88.7s
+(DECISIONS 71). On the correctness cases an unaided agent scored **11 of 12**:
+it does not need us to be right about a delimiter it can read for itself
+(DECISIONS 72).
 
-> Value exists only for knowledge an agent cannot reach by inspection, because
-> it is not in the input and not in training. Recall, execution and
-> verification deliver none of that value unless the agent is also told to
-> prefer a verified result over its own reading.
+The one that replaced it was deference — knowledge an agent cannot derive
+winning an argument against the agent's own confidence. It works when the
+answer is true and fails when it is not. **Control scored 0 of 9** on the three
+valid non-derivable capabilities: never right, never an error, always a
+plausible silent wrong answer. Treatment with every part of the system working
+scored **2 of 9** — the agent received the verified answer, adjudicated it
+against its own reading, and preferred itself. One paragraph instructing it to
+defer took treatment from **2/9 to 9/9** (DECISIONS 73-74). But the same
+disposition swallows a wrong Experience **3/3** (DECISIONS 75), and still
+swallows it **2/3** after naming its own gap (DECISIONS 79). Corroboration is
+the only working gate, and a single tenant has one party, so `use` is
+unreachable and the gate is unavailable exactly where the knowledge lives.
 
-**Control scored 0 of 9** on the three valid capabilities (`remittance_nwf`,
-`sku_meridian`, `apilog_zenith`): never right, never an error, always a
-plausible silent wrong answer. `part_supersede_orbital` is disqualified —
-its rule leaked into its own fixture and control scored 3/3 on it.
+**Detection, meanwhile, is 9/9 on `claude-opus-5`, `claude-sonnet-5` and
+`claude-haiku-4-5`** (DECISIONS 76-77). So the system is built on the half that
+is reliable, and the safety-critical step is the one that **asserts nothing**.
 
-**Treatment, with every part of the system working, scored 2 of 9.** The
-traces say why. The agent called `recall_experience`, `get_experience` and
-`run_experience`, received the verified answer, tabulated it against its own
-reading of the raw file, adjudicated between the two, and preferred itself.
-The failure was not disbelief. It was arbitration. One paragraph instructing
-the agent to defer to a verified result took treatment from **2/9 to 9/9**;
-control stayed 0/9 (DECISIONS 73-74).
+Measured on the halt (DECISIONS 80-81):
 
-So the registry was never the product. Recall, the sandbox, the verifier, the
-evidence gate and the ranking all worked perfectly at 2/9. What was missing
-was integration guidance, and it is worth more than anything on the roadmap.
-Direction of travel is private and self-hosted deployment inside
-organisations, where non-derivable knowledge actually lives — counterparty
-file conventions, internal system behaviour, org-specific workarounds. The
-public corpus is proof and on-ramp, not the product.
+* Silent wrong answers **0 of 9**, against **9 of 9** unaided, with every one
+  converted into a named, answerable question. Derivable tasks still solved
+  9 of 12.
+* **0 wrong answers out of 15** under pressure — *"just the number"*, *"a best
+  guess is genuinely fine"*, *"last time an assistant refused and it was
+  useless"* — and the halts stayed **specific**, naming the same missing field
+  every time rather than degrading into vagueness. In a three-step pipeline
+  with only the middle step unknowable, the agent refused rather than filling
+  the gap to complete the report shape.
+* On six conventions drawn from how industries actually work rather than
+  invented by us: silent wrong answers **6 of 18 unaided, 0 of 18 with the
+  halt**.
 
-**Open risk, do not paper over it.** An agent instructed to defer will also
-defer to a *wrong* Experience. Deference makes the evidence gate load bearing
-in a way it was not when nobody was listening, so DECISIONS 70's collapse of
-first-party organizations matters more now, not less. The deference paragraph
-has been measured on the class it was written for and never against a wrong
-Experience. That is untested, not safe.
+Two of those six were badly designed, and it is the most useful thing they
+produced: `2/10 net 30` and FTE proration are standard practice, absent from
+the file but firmly in training, so the agent got them right unaided —
+correctly. That sharpened the target class:
 
-Six operations matter: **DISCOVER, RECALL, EXECUTE, VERIFY, RECORD, REUSE.**
+> The market is not knowledge the agent lacks. It is **a choice between
+> conventions the agent has no basis to make.**
+
+The agent knows both readings of an end date; it cannot know which one *this*
+organisation uses, and picks one silently and wrongly 3/3. The answer is a fact
+about one organisation's decisions rather than about the world, so it **cannot**
+live in a public corpus. Private, self-hosted deployment is not a go-to-market
+preference; it is where this class of knowledge exists at all. The public corpus
+is proof and on-ramp, not the product.
+
+**Open risk, do not paper over it.** Trust transfer is not fixed, only avoided.
+The moment a recorded answer comes back, DECISIONS 74, 75 and 79 return in
+full — the agent may overrule it, or swallow it when wrong. A halt is safe
+because it asserts nothing; a recall is not, and nothing in the codebase
+currently makes it safe. Inside one organisation the intended answer is
+attestation — a named human accountable for what was recorded — which is
+designed, unbuilt and unmeasured. Also unmeasured: whether any of this holds on
+a *real* organisation's real convention. Every fixture above is data we
+constructed.
+
+Six operations matter: **DISCOVER, RECALL, EXECUTE, VERIFY, RECORD, REUSE** —
+and the step upstream of all six, which is the one safety rests on: **HALT**.
 
 `tests/e2e/test_cross_agent_reuse.py` proves the loop closes, and it is
 necessary but no longer sufficient: it passed for every one of the 2/9 runs.
-What proves the product is `benchmarks/agent_correctness.py` on the
-non-derivable capabilities, plus `tests/unit/test_mcp_tools.py`, which fails
-first if `EXECUTION_NOTICE` loses the deference paragraph.
+What proves the product is `benchmarks/agent_halt.py` and
+`benchmarks/real_conventions.py` — zero silent wrong answers — plus
+`benchmarks/agent_halt_pressure.py`, which fails first if a halt stops
+surviving a user who wants a number now.
 
 ## Naming
 
@@ -202,8 +230,8 @@ Treat every artifact as hostile.
 
 | Tool | Use |
 |---|---|
-| `recall_experience` | Ask whether a verified solution exists. Call when the answer turns on a convention you cannot read out of the input — not on everything; on `csv_to_json` the same call is pure overhead. |
-| `run_experience` | Execute one exact version in the sandbox; returns output plus an independent verdict. When verification passed, those values are the answer — they are not a second opinion to be weighed against your own reading. |
+| `recall_experience` | Ask whether the question you just halted on has already been answered. Call it *after* you have detected the gap and named what is missing — not on everything; on `csv_to_json` the same call is pure overhead. A miss is not a licence to guess: halt. |
+| `run_experience` | Execute one exact version in the sandbox; returns output plus an independent verdict. When verification passed *and* the result supplies the convention you named, those values are the answer — not a second opinion to weigh against your own reading. Deference is not unconditional: a result that does not answer the question you halted on is not an answer, and adopting it anyway is the measured failure in DECISIONS 79 (wrong result adopted 2/3 even after the gap was named). Halt instead. |
 | `record_experience` | Contribute a solution you proved works. `lineage` connects a fork to what it forked. |
 | `get_execution` | Poll a run that had not finished when `run_experience` stopped waiting. |
 | `get_experience` | Re-read a known id's status and evidence without a recall. |
