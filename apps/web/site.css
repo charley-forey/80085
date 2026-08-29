@@ -672,3 +672,88 @@ footer {
     font-size: 10pt;
   }
 }
+
+/* --- team setup console -------------------------------------------------
+ *
+ * /setup used to be two curl commands per colleague, which is fine for one
+ * person trying it and a spreadsheet of credentials for a team lead onboarding
+ * twelve. This is the same two endpoints with a text box in front of them.
+ */
+
+.teamsetup {
+  border: 1px solid var(--ghost);
+  border-radius: 8px;
+  padding: var(--space);
+  margin: var(--space) 0;
+}
+
+.teamsetup input {
+  font: inherit;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ghost);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  min-width: 14rem;
+}
+
+.teamsetup button,
+.teamsetup a[download] {
+  font: inherit;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ghost);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.teamsetup button:hover,
+.teamsetup button:focus-visible,
+.teamsetup a[download]:hover,
+.teamsetup a[download]:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.teamsetup button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.teamsetup .hint {
+  font-size: var(--t-small);
+  opacity: 0.75;
+}
+
+/* A key is shown once and never again, so it must not be lost to an overflow. */
+.teamsetup pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.teamsetup .person {
+  border-top: 1px solid var(--ghost);
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.teamsetup .who {
+  font-weight: 700;
+}
+
+.teamsetup .err:empty {
+  display: none;
+}
+
+.teamsetup .err {
+  color: var(--ink);
+  background: var(--ghost);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  font-size: var(--t-small);
+}

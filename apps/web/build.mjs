@@ -155,6 +155,8 @@ function htmlNode(n) {
         n.rows.map((r) => '<tr>' + r.map((c) => `<td>${link(c)}</td>`).join('') + '</tr>').join('') +
         '</tbody></table>'
       );
+    case 'team':
+      return teamPanel();
     case 'cols':
       return (
         '<div class="cols">' +
@@ -274,6 +276,12 @@ function mdNode(n) {
       return n.cols.map((c) => `### ${c.head}\n\n${c.text}`).join('\n\n');
     case 'status':
       return n.rows.map(([icon, what, note]) => `- ${icon} **${what}** — ${note}`).join('\n');
+    case 'team':
+      return [
+        '> Set this up in a browser at ' + SITE + '/setup — one click for your',
+        '> organisation, then a name at a time for each person, with the config',
+        '> block already carrying their key. The curl commands below do the same.'
+      ].join('\n');
     case 'faq':
       return n.items.map(([q, a]) => `**❓ ${q}**\n\n${a}`).join('\n\n');
     case 'details':
@@ -426,7 +434,42 @@ ${states}
  * The small pages: /install, /key, /1337, 404. Same design system, no
  * calculator, no flip — they are destinations, not the site.
  */
-function shell({ title, value, body, noindex = false, path, description = meta.description, mint = false }) {
+/* The whole company, provisioned in a browser. /setup told a team lead to run
+ * two curl commands per colleague, which is fine for one person trying it and
+ * wrong for onboarding twelve -- they end up tracking credentials in a
+ * spreadsheet, which is the thing you least want a spreadsheet for.
+ *
+ * Same two endpoints the curl commands hit. This is a front end for them, not
+ * a second way of doing it. Driven by team.js. */
+const teamPanel = () =>
+  `<div class="teamsetup" data-api="${API}" data-mcp="${MCP}">` +
+  '<div class="step1">' +
+  '<p><input class="orgname" type="text" placeholder="your company name" ' +
+  'aria-label="your company name" maxlength="60"> ' +
+  '<button class="create" type="button">create my organisation</button></p>' +
+  '<p class="hint">No signup, no email, no card. One click and it exists.</p>' +
+  '</div>' +
+  '<div class="step2" hidden>' +
+  '<p class="hint">Your organisation: <code class="orgid"></code></p>' +
+  '<p class="hint"><strong>Founder key</strong> — the only key that can issue ' +
+  'more. There is no account and we cannot send it to you again.</p>' +
+  '<pre class="founder"></pre>' +
+  '<p><button class="copyfounder" type="button">copy</button> ' +
+  '<a class="savefounder" download="80085-founder-key.txt">save it</a></p>' +
+  '<hr>' +
+  '<p><input class="person" type="text" placeholder="priya" ' +
+  'aria-label="name of a person or system" maxlength="60"> ' +
+  '<button class="add" type="button">add to my team</button></p>' +
+  '<p class="hint">One per person, or per unattended system. Never per team: ' +
+  'everything a key asks and answers is attributed to whoever holds it.</p>' +
+  '<div class="people"></div>' +
+  '<p><a class="bulk" download="80085-team-keys.txt" hidden>save every key ' +
+  'and config</a></p>' +
+  '</div>' +
+  '<p class="err" role="alert"></p>' +
+  '</div>';
+
+function shell({ title, value, body, noindex = false, path, description = meta.description, mint = false, script = null }) {
   // A subpage that canonicalises to `/` is a subpage asking not to be indexed.
   // These are rewritten onto clean URLs by vercel.json, so the canonical is the
   // clean URL, never the /p/*.html file the rewrite happens to serve.
@@ -466,7 +509,7 @@ ${readout(value)}
 </div></div>
 ${body}
 </div>
-<script type="module" src="/small.js"></script>${mint ? '\n<script type="module" src="/key.js"></script>' : ''}
+<script type="module" src="/small.js"></script>${mint ? '\n<script type="module" src="/key.js"></script>' : ''}${script ? `\n<script type="module" src="${script}"></script>` : ''}
 </body>
 </html>
 `;
@@ -1200,7 +1243,18 @@ function setupBlock() {
   4. answer once     the first question anybody hits`
     },
 
-    { t: 'h', n: '02', emoji: '🔑', text: 'Step 1 — your organisation' },
+    { t: 'h', n: '02', emoji: '🖱️', text: 'Do it here' },
+    { t: 'team' },
+    {
+      t: 'pre',
+      text: `That is the whole thing. Give each person their block, they
+paste it into whatever they already use, and you are done.
+
+Everything below is the same two calls from a terminal, for
+anyone who would rather script it. 👇`
+    },
+
+    { t: 'h', n: '03', emoji: '🔑', text: 'Or from a terminal — your organisation' },
     { t: 'code', text: `curl -X POST '${API}/v1/keys?label=acme'` },
     {
       t: 'pre',
@@ -1220,7 +1274,7 @@ and we cannot send it to you again. 🔐`
         'own host.'
     },
 
-    { t: 'h', n: '03', emoji: '👥', text: 'Step 2 — a key for each person' },
+    { t: 'h', n: '04', emoji: '👥', text: 'Step 2 — a key for each person' },
     {
       t: 'code',
       text: `curl -X POST ${API}/v1/agents \\
@@ -1244,7 +1298,7 @@ Repeat for everyone. A key you hand out cannot hand out more
 keys -- widening that means coming back to the founder key. 🚪`
     },
 
-    { t: 'h', n: '04', emoji: '🔌', text: 'Step 3 — point their agents at it' },
+    { t: 'h', n: '05', emoji: '🔌', text: 'Step 3 — point their agents at it' },
     {
       t: 'pre',
       text: `Same endpoint everywhere, their own key in the header.
@@ -1289,7 +1343,7 @@ everybody out, and an answer typed by one person silently
 serves all of them.`
     },
 
-    { t: 'h', n: '05', emoji: '💬', text: 'Step 4 — the first question' },
+    { t: 'h', n: '06', emoji: '💬', text: 'Step 4 — the first question' },
     {
       t: 'pre',
       text: `Nothing else to configure. Somebody asks their agent for a
@@ -1324,7 +1378,7 @@ approval process is yours, and the queue is an API so it can
 be whatever you already use. 📥`
     },
 
-    { t: 'h', n: '06', emoji: '📈', text: 'Then: is it working?' },
+    { t: 'h', n: '07', emoji: '📈', text: 'Then: is it working?' },
     {
       t: 'table',
       head: ['ask this', 'and you learn'],
@@ -1345,7 +1399,7 @@ It is also the only honest list of what your company knows and
 has never written down. 📋`
     },
 
-    { t: 'h', n: '07', emoji: '❓', text: 'Before you roll it out' },
+    { t: 'h', n: '08', emoji: '❓', text: 'Before you roll it out' },
     {
       t: 'faq',
       items: [
@@ -1478,6 +1532,7 @@ log.push(
         'organisation, issue a key per person, point their agents at it, and ' +
         'answer the first question. No signup, no sales call.',
       value: '5ETUP',
+      script: '/team.js',
       body: html(setupBlock())
     })
   )
@@ -1679,7 +1734,7 @@ function installBlock() {
  * and nothing else does, so any static host can point at this one directory.
  * The browser modules are copied rather than bundled — three requests over
  * HTTP/2 costs less than owning a bundler. */
-for (const f of ['site.css', 'site.js', 'calc.js', 'seg.js', 'terminal.js', 'key.js']) {
+for (const f of ['site.css', 'site.js', 'calc.js', 'seg.js', 'terminal.js', 'key.js', 'team.js']) {
   cpSync(join(HERE, f), join(OUT, f));
 }
 cpSync(join(HERE, 'assets'), OUT, { recursive: true });
