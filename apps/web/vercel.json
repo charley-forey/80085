@@ -164,6 +164,87 @@
       "destination": "/p/install"
     },
     {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "query",
+          "key": "format",
+          "value": "md"
+        }
+      ],
+      "destination": "/setup.md"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "query",
+          "key": "format",
+          "value": "txt"
+        }
+      ],
+      "destination": "/setup.txt"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Cc]url|CURL|[Ww]get|WGET|[Hh]ttpie|HTTPie|libcurl).*"
+        }
+      ],
+      "destination": "/setup.ansi"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(ClaudeBot|Claude-User|Claude-SearchBot|GPTBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Bytespider|CCBot|Applebot-Extended|cohere-ai|Meta-ExternalAgent).*"
+        }
+      ],
+      "destination": "/setup.md"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": ".*text/html.*"
+        }
+      ],
+      "destination": "/p/setup"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": ".*text/markdown.*"
+        }
+      ],
+      "destination": "/setup.md"
+    },
+    {
+      "source": "/setup",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": ".*text/plain.*"
+        }
+      ],
+      "destination": "/setup.txt"
+    },
+    {
+      "source": "/setup",
+      "destination": "/p/setup"
+    },
+    {
       "source": "/",
       "destination": "/p/home"
     },

@@ -1136,7 +1136,7 @@ const AI_PLUGIN = {
  * Console. lastmod is the build stamp, which is honest here: every page in
  * public/ is regenerated from content.js on every build.
  */
-const INDEXABLE = ['/', '/install', '/key'];
+const INDEXABLE = ['/', '/setup', '/install', '/key'];
 const BUILT = new Date().toISOString().slice(0, 10);
 
 const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1183,6 +1183,282 @@ const log = [];
  * Moving the HTML somewhere the request never names leaves `/` and `/install`
  * unclaimed, so the rules actually run — and the last rule in each group is
  * the plain page. */
+/** The whole rollout, for somebody who has to do it on a Tuesday.
+ *
+ * Kept as one linear page on purpose. An onboarding split across tabs is an
+ * onboarding somebody loses their place in, and there are only four steps. */
+function setupBlock() {
+  return [
+    { t: 'h', n: '01', emoji: '🏢', text: 'Set up your company' },
+    {
+      t: 'pre',
+      text: `Four steps. Nobody at our end. Nothing to schedule.
+
+  1. one call        your organisation exists
+  2. one call each   your people have keys
+  3. paste config    their agents can reach it
+  4. answer once     the first question anybody hits`
+    },
+
+    { t: 'h', n: '02', emoji: '🔑', text: 'Step 1 — your organisation' },
+    { t: 'code', text: `curl -X POST '${API}/v1/keys?label=acme'` },
+    {
+      t: 'pre',
+      text: `Back comes your organisation and its founder key.
+
+  {"api_key": "sk_80085_...", "organization_id": "org_..."}
+
+Store it where you keep other root credentials. It is the only
+key that can issue more, there is no account to recover it into,
+and we cannot send it to you again. 🔐`
+    },
+    {
+      t: 'p',
+      text:
+        'No signup, no email, no sales call. If you would rather nothing left ' +
+        'your network at all, self-host and run the same commands against your ' +
+        'own host.'
+    },
+
+    { t: 'h', n: '03', emoji: '👥', text: 'Step 2 — a key for each person' },
+    {
+      t: 'code',
+      text: `curl -X POST ${API}/v1/agents \\
+  -H "Authorization: Bearer $FOUNDER_KEY" \\
+  -H 'Content-Type: application/json' \\
+  -d '{"name": "priya"}'`
+    },
+    {
+      t: 'pre',
+      text: `One key per person, or per unattended system. Never per team.
+
+The name appears on every question that key asks and every answer
+it gives, because "who said this was true" is the question
+somebody eventually asks about a number that turned out wrong.
+
+  priya          a person
+  dev            a person
+  nightly-etl    a system nobody is watching
+
+Repeat for everyone. A key you hand out cannot hand out more
+keys -- widening that means coming back to the founder key. 🚪`
+    },
+
+    { t: 'h', n: '04', emoji: '🔌', text: 'Step 3 — point their agents at it' },
+    {
+      t: 'pre',
+      text: `Same endpoint everywhere, their own key in the header.
+Whatever your people already use:`
+    },
+    {
+      t: 'pre',
+      text: `Claude Code
+
+  claude mcp add --transport http 80085 \
+    ${MCP} \
+    --header "Authorization: Bearer $THEIR_KEY"`
+    },
+    {
+      t: 'pre',
+      text: `Cursor, Windsurf, Claude Desktop, and anything else that
+takes an mcpServers block
+
+  { "mcpServers": { "80085": {
+      "url": "${MCP}",
+      "headers": { "Authorization": "Bearer THEIR_KEY" } } } }`
+    },
+    {
+      t: 'pre',
+      text: `Anything else that speaks MCP
+
+  transport   streamable-http
+  url         ${MCP}
+  header      Authorization: Bearer THEIR_KEY
+
+The endpoint holds no key of its own. It forwards each caller's,
+which is what makes one URL safe for a whole company. 🔁`
+    },
+    {
+      t: 'box',
+      emoji: '⚠️',
+      title: '',
+      text: `One key per person, in their own config. Sharing one key
+across a team is the only way to break this: everything gets
+attributed to whoever the key belongs to, revoking it locks
+everybody out, and an answer typed by one person silently
+serves all of them.`
+    },
+
+    { t: 'h', n: '05', emoji: '💬', text: 'Step 4 — the first question' },
+    {
+      t: 'pre',
+      text: `Nothing else to configure. Somebody asks their agent for a
+number, it hits a convention it cannot know, and it stops:
+
+  "I cannot determine whether ST=H rows count as settled."
+
+They answer it in the chat they were already watching. One
+sentence. The agent carries on and gets them their number.`
+    },
+    {
+      t: 'pre',
+      text: `That answer serves their agent immediately, and only theirs.
+For the whole company to inherit it, somebody says it is true
+generally:`
+    },
+    {
+      t: 'code',
+      text: `curl ${API}/v1/answers/awaiting-verification \\
+  -H "Authorization: Bearer $FOUNDER_KEY"
+
+curl -X POST ${API}/v1/answers/ANSWER_ID/verify \\
+  -H "Authorization: Bearer $FOUNDER_KEY" \\
+  -H 'Content-Type: application/json' \\
+  -d '{"verified_by": "sam"}'`
+    },
+    {
+      t: 'pre',
+      text: `Post that queue to a channel, wire it to a dashboard, or open
+it on a Friday. We deliberately ship none of those -- your
+approval process is yours, and the queue is an API so it can
+be whatever you already use. 📥`
+    },
+
+    { t: 'h', n: '06', emoji: '📈', text: 'Then: is it working?' },
+    {
+      t: 'table',
+      head: ['ask this', 'and you learn'],
+      rows: [
+        ['GET /v1/questions/unanswered', 'what your agents are stuck on, most-asked first'],
+        ['GET /v1/questions/stale', 'nobody has answered in N hours. escalate.'],
+        ['GET /v1/questions/convergence', 'whether answering things once is paying back'],
+        ['GET /v1/answers/awaiting-verification', 'what is waiting on a second pair of eyes']
+      ]
+    },
+    {
+      t: 'pre',
+      text: `Read the first one weekly. A question asked forty times and
+never answered is the most expensive row in your database --
+forty runs that stopped, or worse, forty that did not.
+
+It is also the only honest list of what your company knows and
+has never written down. 📋`
+    },
+
+    { t: 'h', n: '07', emoji: '❓', text: 'Before you roll it out' },
+    {
+      t: 'faq',
+      items: [
+        [
+          'Do we have to do any of this to start?',
+          'No. The halt is a paragraph in a system prompt and needs no key, no ' +
+            'organisation and nothing from us. That is the whole safety half. ' +
+            'Everything on this page is about not answering the same question twice.'
+        ],
+        [
+          'Does our data leave our network?',
+          'Questions and answers are scoped to your organisation and never ' +
+            'matched across a boundary — there is a test that fails if that ever ' +
+            'stops being true. For total isolation, self-host: the worker holds no ' +
+            'database credential by design.'
+        ],
+        [
+          'Who should verify answers?',
+          'Whoever would be asked in a meeting — usually not the engineer whose ' +
+            'agent halted. Two names on anything touching money. We cannot tell ' +
+            'two humans apart, so "not your own answer" is a rule you follow, not ' +
+            'one we enforce, and saying so is more useful than pretending.'
+        ],
+        [
+          'What if an answer turns out wrong?',
+          'Dispute it. It stops being served immediately, keeps a count of how ' +
+            'many agents already acted on it, and stays in the table — because ' +
+            'that count is where you start looking.'
+        ],
+        [
+          'What if nobody answers?',
+          'The agent can proceed on a recorded assumption and everything ' +
+            'downstream is traceable to it. We cannot make your colleagues faster. ' +
+            'We can make the guess visible.'
+        ],
+        [
+          'How do we know it will help us specifically?',
+          'Test one of your own conventions first, in fifteen minutes, with no ' +
+            'real data: benchmarks/your_convention.py in the repo. If your agent ' +
+            'already gets it right, it will say so, and you should not deploy this ' +
+            'for that case.'
+        ]
+      ]
+    }
+  ];
+}
+
+/** /setup for somebody who is already in a terminal, which is most of them. */
+function ansiSetup(c) {
+  const L = [
+    '',
+    `  ${c.b('80085.ai/setup')} — rolling this out across a company.`,
+    `  ${c.dim('Four steps. Nobody at our end. Nothing to schedule.')}`,
+    '',
+    `  ${c.rev(' 1. YOUR ORGANISATION ')}`,
+    '',
+    `    curl -X POST '${API}/v1/keys?label=acme'`,
+    '',
+    '  Back comes your organisation and its founder key. Store it where you',
+    '  keep other root credentials: it is the only key that can issue more,',
+    '  and there is no account to recover it into.',
+    '',
+    `  ${c.rev(' 2. A KEY PER PERSON ')}`,
+    '',
+    `    curl -X POST ${API}/v1/agents \\`,
+    '      -H "Authorization: Bearer $FOUNDER_KEY" \\',
+    `      -d '{"name": "priya"}'`,
+    '',
+    '  One key per person, or per unattended system. Never per team -- the',
+    '  name lands on every question that key asks and every answer it gives.',
+    '  A key you hand out cannot hand out more keys.',
+    '',
+    `  ${c.rev(' 3. POINT THEIR AGENTS AT IT ')}`,
+    '',
+    '    claude mcp add --transport http 80085 \\',
+    `      ${MCP} \\`,
+    '      --header "Authorization: Bearer $THEIR_KEY"',
+    '',
+    '  Cursor, Windsurf, Claude Desktop and anything else that takes an',
+    '  mcpServers block want the same URL and the same header. The endpoint',
+    '  holds no key of its own -- it forwards each caller\'s.',
+    '',
+    `  ${c.rev(' 4. THE FIRST QUESTION ')}`,
+    '',
+    '  Somebody asks their agent for a number, it hits a convention it cannot',
+    '  know, and it stops. They answer in the chat they were already watching.',
+    '  That serves their agent. For the whole company to inherit it:',
+    '',
+    `    curl ${API}/v1/answers/awaiting-verification \\`,
+    '      -H "Authorization: Bearer $FOUNDER_KEY"',
+    '',
+    `    curl -X POST ${API}/v1/answers/ID/verify \\`,
+    '      -H "Authorization: Bearer $FOUNDER_KEY" \\',
+    `      -d '{"verified_by": "sam"}'`,
+    '',
+    `  ${c.rev(' THEN: IS IT WORKING ')}`,
+    '',
+    '    GET /v1/questions/unanswered    what agents are stuck on',
+    '    GET /v1/questions/stale         nobody answered in N hours',
+    '    GET /v1/questions/convergence   is answering once paying back',
+    '',
+    '  Read the first weekly. A question asked forty times and never answered',
+    '  is the most expensive row in your database -- and the only honest list',
+    '  of what your company knows and has never written down.',
+    '',
+    `  ${c.dim('You need none of this to start. The halt is a paragraph in a system')}`,
+    `  ${c.dim('prompt and needs no key at all. This page is about not answering the')}`,
+    `  ${c.dim('same question twice.')}`,
+    ''
+  ];
+  return L.join('\n');
+}
+
 log.push(write('p/home.html', page()));
 log.push(write('home.md', bothStates()));
 log.push(write('home.ansi', ansiHome(A)));
@@ -1190,6 +1466,26 @@ log.push(write('home.txt', strip(ansiHome(PLAIN))));
 log.push(write('install.md', md(installBlock())));
 log.push(write('install.ansi', ansiInstall(A)));
 log.push(write('install.txt', strip(ansiInstall(PLAIN))));
+log.push(
+  write(
+    'p/setup.html',
+    shell({
+      title: 'Set up your company — 80085.ai',
+      path: '/setup',
+      mint: true,
+      description:
+        'Four steps to roll 80085 out across your company: create your ' +
+        'organisation, issue a key per person, point their agents at it, and ' +
+        'answer the first question. No signup, no sales call.',
+      value: '5ETUP',
+      body: html(setupBlock())
+    })
+  )
+);
+log.push(write('setup.md', md(setupBlock())));
+log.push(write('setup.ansi', ansiSetup(A)));
+log.push(write('setup.txt', strip(ansiSetup(PLAIN))));
+
 log.push(
   write(
     'p/install.html',

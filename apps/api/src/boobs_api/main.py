@@ -109,6 +109,7 @@ _SHELLS = ("curl", "wget", "httpie", "libcurl")
 _NEGOTIABLE = {
     "/": "home",
     "/install": "install",
+    "/setup": "setup",
     # The joke URLs. They are the share links people actually send.
     "/boobs": "home",
     "/58008": "home",

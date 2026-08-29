@@ -345,9 +345,9 @@ calls and still nobody at our end:
   {
     t: 'p',
     text:
-      'Full setup guide, self-hosting, and how to test one of your own ' +
-      'conventions in fifteen minutes: /provisioning.md. Code under the ' +
-      'Elastic License 2.0; what you record is governed by /TERMS.md.'
+      'Rolling this out across a company — a key per person, every client, ' +
+      'and the approval step: /setup. Code under the Elastic License 2.0; ' +
+      'what you record is governed by /TERMS.md.'
   },
 
   { t: 'h', n: '08', emoji: '🚧', text: 'What we have not proven' },
@@ -450,9 +450,8 @@ inventing a number. 📄🔥`
     text: `That is it. No signup, no email, no "book a demo", no sales
 engineer named Chad who wants to understand your journey.
 
-Want your whole team sharing answers? Two more curl calls and
-still no Chad. See the other side of this page, which is where
-we keep the grown-up version. 👔`
+Want your whole team sharing answers? That is /setup -- four
+steps, two of them curl, still no Chad. 👔`
   },
   {
     t: 'mint',
