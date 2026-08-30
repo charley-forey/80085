@@ -19,11 +19,10 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+A caller at a window boundary cannot get more than the configured limit
+across two adjacent windows: the previous window's count is weighted by how
+far into the current one we are, fading out as the window ages, which needs
+only the one row each window already writes.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -57,6 +56,9 @@ _COUNT: Final = text(
     ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
     RETURNING hits
     """
+)
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
 )
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
@@ -117,10 +119,26 @@ class Window:
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous_hits: int = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        elapsed_fraction = (time.time() - window_start) / self.seconds
+        if _weighted_count(hits, previous_hits, elapsed_fraction) > self.limit:
             raise self.refuse()
+
+
+def _weighted_count(current_hits: int, previous_hits: int, elapsed_fraction: float) -> float:
+    """A sliding window approximated from two fixed ones.
+
+    At the start of the current window elapsed_fraction is 0 and the previous
+    window counts in full; by its end elapsed_fraction is 1 and the previous
+    window has faded out completely, leaving only the current one.
+    """
+    return current_hits + previous_hits * (1 - elapsed_fraction)
 
 
 async def _sweep(db: AsyncSession) -> None:
