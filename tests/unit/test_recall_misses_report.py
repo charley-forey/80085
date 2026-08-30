@@ -45,6 +45,8 @@ class Session:
         if isinstance(statement, Select):
             self.selected = statement
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self.rows))
+        if "SELECT" in str(statement):  # the limiter's previous-window read
+            return SimpleNamespace(scalar_one_or_none=lambda: None)
         self.hits += 1
         return SimpleNamespace(scalar_one=lambda: self.hits)
 

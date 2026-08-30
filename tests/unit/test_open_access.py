@@ -142,10 +142,12 @@ class Counters:
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if "SELECT" in str(statement):  # the previous window's count, read not written
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
