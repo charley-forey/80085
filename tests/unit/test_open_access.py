@@ -195,6 +195,20 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_answer_verification_and_execution_verification_use_separate_limits() -> None:
+    """A duplicate `VERIFY = Window(...)` assignment in limits.py used to shadow
+    the first one, so verify_answer/dispute_answer silently ran under the
+    tighter 30/hour window meant only for re-verifying executions.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY.what == "verifying answers"
+    assert limits.VERIFY_EXECUTION.what == "verifications"
+    assert "limits.VERIFY.check" in inspect.getsource(routes.verify_answer)
+    assert "limits.VERIFY.check" in inspect.getsource(routes.dispute_answer)
+    assert "limits.VERIFY_EXECUTION.check" in inspect.getsource(routes.verify_execution)
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
