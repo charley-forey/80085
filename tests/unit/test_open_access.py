@@ -132,20 +132,23 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
 class Counters:
     """The rate_limits table, minus Postgres.
 
-    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`,
-    so a dict keyed the same way does the same arithmetic and these stay unit
-    tests. That the SQL means what this says it means -- including across
-    processes, which is the whole point of moving the counter into the
-    database -- is asserted in tests/integration/test_rate_limits.py.
+    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+    plus a read of the row next door, so a dict keyed the same way does the
+    same arithmetic and these stay unit tests. That the SQL means what this
+    says it means -- including across processes, which is the whole point of
+    moving the counter into the database -- is asserted in
+    tests/integration/test_rate_limits.py.
     """
 
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if str(statement).lstrip().startswith("SELECT"):  # the previous window, read-only
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
@@ -166,6 +169,28 @@ async def test_callers_are_limited_separately() -> None:
     await window.check(db, "2.2.2.2")  # type: ignore[arg-type] - must not raise
     with pytest.raises(RateLimited):
         await window.check(db, "1.1.1.1")  # type: ignore[arg-type]
+
+
+async def test_a_burst_right_at_the_boundary_still_mostly_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed window resets to zero at the boundary, so a caller who spends
+    the limit in the last second of one window and the first second of the
+    next gets 2x the limit in under two seconds. The sliding window weights
+    the previous window's count by how much of it has not yet decayed, so the
+    same caller is still refused just after the boundary."""
+    from boobs_api import limits as limits_module
+
+    window, db = Window(limit=10, seconds=60, what="testing"), Counters()
+    ip = "1.2.3.4"
+
+    monkeypatch.setattr(limits_module.time, "time", lambda: 60.0)
+    for _ in range(10):
+        await window.check(db, ip)  # fills the window that ends at t=120
+
+    monkeypatch.setattr(limits_module.time, "time", lambda: 120.0)
+    with pytest.raises(RateLimited):
+        await window.check(db, ip)  # the first hit of the next window
 
 
 async def test_limits_of_different_lengths_do_not_share_a_counter() -> None:

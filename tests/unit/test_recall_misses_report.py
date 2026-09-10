@@ -46,7 +46,7 @@ class Session:
             self.selected = statement
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self.rows))
         self.hits += 1
-        return SimpleNamespace(scalar_one=lambda: self.hits)
+        return SimpleNamespace(scalar_one=lambda: self.hits, scalar_one_or_none=lambda: self.hits)
 
     async def commit(self) -> None: ...
 
