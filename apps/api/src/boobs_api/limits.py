@@ -19,11 +19,12 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+The window is a sliding one, not a fixed one: a hit is weighted by the
+previous window's count, scaled by how much of that window's decay has not
+yet elapsed into this one. A caller who spends the limit right at a boundary
+still finds most of it counted against them in the next window, instead of
+starting over with a fresh one -- without storing a timestamp per hit, just
+one extra read of the row next door.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -58,6 +59,9 @@ _COUNT: Final = text(
     RETURNING hits
     """
 )
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
+)
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
 # lost the traffic that produced it anyway, and the implementation this
@@ -83,13 +87,13 @@ class Window:
         self.seconds = seconds
         self.what = what
 
-    def bucket(self, key: str) -> tuple[str, int]:
+    def bucket(self, key: str, now: float) -> tuple[str, int]:
         """The row this hit belongs to: (counter name plus key, window start).
 
         The window's name is part of the row key, so two limits of different
         lengths never share a row and one cutoff can expire all of them.
         """
-        return f"{self.what}:{key}", int(time.time()) // self.seconds * self.seconds
+        return f"{self.what}:{key}", int(now) // self.seconds * self.seconds
 
     def refuse(self) -> RateLimited:
         unit = "minute" if self.seconds == 60 else f"{self.seconds}s"
@@ -111,15 +115,27 @@ class Window:
         address conflicts on that one row. They would queue behind each other
         for the length of a whole handler, and the limiter would become the
         bottleneck it exists to prevent.
+
+        The previous window's row is read, never written -- it is already
+        finalized by the time this window opened -- so it costs one indexed
+        lookup by primary key, not a second lock.
         """
-        bucket, window_start = self.bucket(key)
+        now = time.time()
+        bucket, window_start = self.bucket(key, now)
         await db.execute(_DONT_WAIT_FOR_DISK)
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous: int | None = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none()
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        elapsed = min(max(now - window_start, 0.0), self.seconds) / self.seconds
+        weighted = (previous or 0) * (1 - elapsed) + hits
+        if weighted > self.limit:
             raise self.refuse()
 
 
