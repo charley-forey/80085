@@ -15,15 +15,16 @@ The window is now a row in `rate_limits`, which is the upgrade path
 to leases, and rate limiting alone does not justify bringing it back.
 
 Cost per limited request: one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
-on the request's own session -- a single round trip, a single-row primary key
-lookup, and no second pooled connection. Every thousandth check also deletes
-expired rows.
+for the current window plus one single-row lookup of the previous one, both on
+the request's own session -- no second pooled connection. Every thousandth
+check also deletes expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+Fixed windows, not sliding, so a caller at the boundary is weighted rather
+than reset for free: the previous window's count still counts against the new
+one, decaying linearly to zero as the new window fills, which is what stops a
+burst timed either side of the boundary from reading as two separate budgets.
+That needs only the previous window's row -- already kept around by the
+fixed-window design -- not a timestamp per hit.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -59,6 +60,11 @@ _COUNT: Final = text(
     """
 )
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
+# Read-only: peeking at the previous window must never create or touch its
+# row, or a caller who never hit the previous window would manufacture one.
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
+)
 # A counter is worth nothing after a crash: the process that comes back has
 # lost the traffic that produced it anyway, and the implementation this
 # replaces threw every counter away on each deploy. Waiting for the WAL to
@@ -99,7 +105,7 @@ class Window:
         )
 
     async def check(self, db: AsyncSession, key: str) -> None:
-        """Count this hit, and refuse if the window is already full.
+        """Count this hit, and refuse if the (weighted) window is already full.
 
         Committed immediately, and before the refusal is raised, for two
         reasons. A hit is a fact about what the caller did, not about whether
@@ -111,6 +117,10 @@ class Window:
         address conflicts on that one row. They would queue behind each other
         for the length of a whole handler, and the limiter would become the
         bottleneck it exists to prevent.
+
+        The previous window's count is read after that commit, so a caller who
+        never touched it reads back nothing rather than a row this check just
+        created.
         """
         bucket, window_start = self.bucket(key)
         await db.execute(_DONT_WAIT_FOR_DISK)
@@ -118,9 +128,26 @@ class Window:
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
         await db.commit()
+        previous = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
+        weighted = hits + previous * _carryover(time.time() - window_start, self.seconds)
         await _sweep(db)
-        if hits > self.limit:
+        if weighted > self.limit:
             raise self.refuse()
+
+
+def _carryover(elapsed: float, window_seconds: int) -> float:
+    """How much of the previous window's count still weighs against this one.
+
+    Decays linearly from 1 the instant a window opens to 0 once it closes, so
+    two adjacent fixed windows approximate one sliding one: a burst spent right
+    before the boundary is still almost fully counted right after it, and it
+    fades out exactly as fast as the new window fills up on its own.
+    """
+    return max(0.0, 1 - elapsed / window_seconds)
 
 
 async def _sweep(db: AsyncSession) -> None:

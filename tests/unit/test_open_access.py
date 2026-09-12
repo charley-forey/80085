@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 from starlette.requests import Request
 
-from boobs_api import routes
+from boobs_api import limits, routes
 from boobs_api.deps import ANONYMOUS, get_principal_or_anonymous
 from boobs_api.limits import RateLimited, Window, client_ip
 from boobs_common.errors import Unauthorized
@@ -142,10 +142,12 @@ class Counters:
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if statement is limits._PREVIOUS:  # a peek, never creates or bumps the row
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
@@ -156,6 +158,19 @@ async def test_a_window_allows_up_to_the_limit_then_refuses() -> None:
     window, db = Window(limit=3, seconds=60, what="testing"), Counters()
     for _ in range(3):
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
+    with pytest.raises(RateLimited):
+        await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
+
+
+async def test_a_spent_previous_window_still_counts_right_after_the_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two adjacent fixed windows must not double the limit for a caller who
+    times a burst either side of the boundary -- the previous window's count
+    has to still weigh against the new one the instant it opens."""
+    monkeypatch.setattr(limits.time, "time", lambda: 120.0)  # exactly on a boundary
+    window, db = Window(limit=10, seconds=60, what="testing"), Counters()
+    db.rows[("testing:1.2.3.4", 60)] = 10  # spent the previous window in full
     with pytest.raises(RateLimited):
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
 
@@ -187,8 +202,6 @@ async def test_the_message_says_what_to_do_about_it() -> None:
 
 def test_reading_is_the_most_generous_limit() -> None:
     """Whatever the numbers become, recall must stay the cheapest thing to do."""
-    from boobs_api import limits
-
     per_second = lambda w: w.limit / w.seconds  # noqa: E731
     assert per_second(limits.RECALL) > per_second(limits.RECORD)
     assert per_second(limits.RECORD) > per_second(limits.EXECUTE)
