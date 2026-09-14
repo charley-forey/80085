@@ -19,11 +19,12 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+The window is weighted, not fixed: a hit also reads the previous window's
+count and discounts it by how far into the current window we are, so a
+caller sitting on a boundary cannot get more than the configured limit
+across the two adjacent windows the way a bare fixed window would let them.
+That costs one extra read per hit, on the same row shape already in place --
+no new column, no second table.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -58,6 +59,9 @@ _COUNT: Final = text(
     RETURNING hits
     """
 )
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
+)
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
 # lost the traffic that produced it anyway, and the implementation this
@@ -76,20 +80,21 @@ _since_sweep = 0
 
 
 class Window:
-    """A fixed window of hits, per key, counted in the database."""
+    """A weighted window of hits, per key, counted in the database."""
 
     def __init__(self, limit: int, seconds: int, what: str) -> None:
         self.limit = limit
         self.seconds = seconds
         self.what = what
 
-    def bucket(self, key: str) -> tuple[str, int]:
+    def bucket(self, key: str, now: float | None = None) -> tuple[str, int]:
         """The row this hit belongs to: (counter name plus key, window start).
 
         The window's name is part of the row key, so two limits of different
         lengths never share a row and one cutoff can expire all of them.
         """
-        return f"{self.what}:{key}", int(time.time()) // self.seconds * self.seconds
+        now = time.time() if now is None else now
+        return f"{self.what}:{key}", int(now) // self.seconds * self.seconds
 
     def refuse(self) -> RateLimited:
         unit = "minute" if self.seconds == 60 else f"{self.seconds}s"
@@ -98,8 +103,8 @@ class Window:
             "Slow down, or run your own instance -- the whole thing is open source."
         )
 
-    async def check(self, db: AsyncSession, key: str) -> None:
-        """Count this hit, and refuse if the window is already full.
+    async def check(self, db: AsyncSession, key: str, now: float | None = None) -> None:
+        """Count this hit, and refuse if the weighted window is already full.
 
         Committed immediately, and before the refusal is raised, for two
         reasons. A hit is a fact about what the caller did, not about whether
@@ -111,15 +116,29 @@ class Window:
         address conflicts on that one row. They would queue behind each other
         for the length of a whole handler, and the limiter would become the
         bottleneck it exists to prevent.
+
+        The previous window's count is read, not upserted, so it never takes
+        a lock and never creates a row -- a window nobody hit stays absent
+        from the table, which is what keeps it small by construction.
+
+        `now` is only ever passed by tests; production always measures the
+        real clock.
         """
-        bucket, window_start = self.bucket(key)
+        now = time.time() if now is None else now
+        bucket, window_start = self.bucket(key, now)
         await db.execute(_DONT_WAIT_FOR_DISK)
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous: int = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        weight = max(0.0, 1 - (now - window_start) / self.seconds)
+        if hits + previous * weight > self.limit:
             raise self.refuse()
 
 
