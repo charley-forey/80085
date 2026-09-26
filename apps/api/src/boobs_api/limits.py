@@ -15,15 +15,15 @@ The window is now a row in `rate_limits`, which is the upgrade path
 to leases, and rate limiting alone does not justify bringing it back.
 
 Cost per limited request: one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
-on the request's own session -- a single round trip, a single-row primary key
-lookup, and no second pooled connection. Every thousandth check also deletes
-expired rows.
+plus one indexed read of the previous window's row, both on the request's own
+session -- two single-row primary key lookups, no second pooled connection.
+Every thousandth check also deletes expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+The window slides rather than resetting hard at the boundary: a caller who
+was at capacity in the previous window is still charged for a fading share of
+it, weighted by how far into the current window the request landed. That is
+what stops a caller doubling the limit by hitting hard on both sides of one
+boundary, for the price of the one extra read above.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -57,6 +57,9 @@ _COUNT: Final = text(
     ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
     RETURNING hits
     """
+)
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
 )
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
@@ -111,6 +114,10 @@ class Window:
         address conflicts on that one row. They would queue behind each other
         for the length of a whole handler, and the limiter would become the
         bottleneck it exists to prevent.
+
+        The read of the previous window that follows is a plain SELECT on a
+        row nothing here is writing, so it takes no lock and can happen after
+        that commit without reopening the race the commit exists to avoid.
         """
         bucket, window_start = self.bucket(key)
         await db.execute(_DONT_WAIT_FOR_DISK)
@@ -118,8 +125,14 @@ class Window:
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
         await db.commit()
+        previous: int = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await _sweep(db)
-        if hits > self.limit:
+        elapsed = min(1.0, (time.time() - window_start) / self.seconds)
+        if previous * (1 - elapsed) + hits > self.limit:
             raise self.refuse()
 
 

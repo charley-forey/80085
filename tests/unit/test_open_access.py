@@ -132,20 +132,23 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
 class Counters:
     """The rate_limits table, minus Postgres.
 
-    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`,
-    so a dict keyed the same way does the same arithmetic and these stay unit
-    tests. That the SQL means what this says it means -- including across
-    processes, which is the whole point of moving the counter into the
-    database -- is asserted in tests/integration/test_rate_limits.py.
+    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+    plus one plain read of the previous window's row, so a dict keyed the same
+    way does the same arithmetic and these stay unit tests. That the SQL means
+    what this says it means -- including across processes, which is the whole
+    point of moving the counter into the database -- is asserted in
+    tests/integration/test_rate_limits.py.
     """
 
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, query: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if "SELECT" in str(query):  # reading the previous window, not counting a hit
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
@@ -156,6 +159,19 @@ async def test_a_window_allows_up_to_the_limit_then_refuses() -> None:
     window, db = Window(limit=3, seconds=60, what="testing"), Counters()
     for _ in range(3):
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
+    with pytest.raises(RateLimited):
+        await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
+
+
+async def test_a_boundary_does_not_double_the_limit() -> None:
+    """A caller who was hammering the previous window used to get a fresh
+    budget the instant the next one opened -- up to 2x the limit across the
+    two. The window now slides: the previous window's count still counts,
+    fading out only as the new one fills in."""
+    window, db = Window(limit=3, seconds=60, what="testing"), Counters()
+    bucket, window_start = window.bucket("1.2.3.4")
+    db.rows[(bucket, window_start - window.seconds)] = 10  # spent the last window
+
     with pytest.raises(RateLimited):
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
 
