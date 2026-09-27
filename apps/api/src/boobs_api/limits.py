@@ -14,16 +14,18 @@ The window is now a row in `rate_limits`, which is the upgrade path
 `docs/scaling.md` names: Redis was deliberately removed when the queue moved
 to leases, and rate limiting alone does not justify bringing it back.
 
-Cost per limited request: one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
-on the request's own session -- a single round trip, a single-row primary key
-lookup, and no second pooled connection. Every thousandth check also deletes
-expired rows.
+Cost per limited request: one statement on the request's own session -- a
+single round trip and no second pooled connection -- that upserts the current
+window's row and reads the previous window's row alongside it. Every
+thousandth check also deletes expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+A caller at a window boundary no longer gets 2x the limit across two adjacent
+windows: the previous window's count is weighted by how much of it still
+overlaps "the last `seconds` seconds", which decays linearly from full weight
+at the instant the current window opens to zero at the instant it closes. That
+is the standard sliding-window-counter approximation -- exact only when hits
+are spread evenly through the previous window, which is the same assumption
+counting per-window already makes.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -48,14 +50,23 @@ class RateLimited(EightyKError):
     """Raised when a caller exceeds a window. Rendered as HTTP 429."""
 
 
-# One statement: the row is created or incremented and the new count comes
-# back, so two replicas cannot read-then-write over each other's count.
+# One statement: the current window's row is created or incremented, the
+# previous window's row (if any) is read alongside it, and the two are
+# combined into the one number `check` needs -- still a single round trip,
+# and still the only thing that ever writes, so two replicas cannot
+# read-then-write over each other's count.
 _COUNT: Final = text(
     """
-    INSERT INTO rate_limits (bucket, window_start, hits)
-    VALUES (:bucket, :window_start, 1)
-    ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
-    RETURNING hits
+    WITH bumped AS (
+        INSERT INTO rate_limits (bucket, window_start, hits)
+        VALUES (:bucket, :window_start, 1)
+        ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
+        RETURNING hits
+    )
+    SELECT bumped.hits + COALESCE(previous.hits, 0) * (1 - :elapsed_fraction)
+    FROM bumped
+    LEFT JOIN rate_limits AS previous
+        ON previous.bucket = :bucket AND previous.window_start = :previous_window_start
     """
 )
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
@@ -76,20 +87,25 @@ _since_sweep = 0
 
 
 class Window:
-    """A fixed window of hits, per key, counted in the database."""
+    """A window of hits, per key, counted in the database.
+
+    Storage is still one row per window, but a hit near the boundary also
+    weighs the previous window's row, so the count approximates a sliding
+    window rather than resetting hard at each edge.
+    """
 
     def __init__(self, limit: int, seconds: int, what: str) -> None:
         self.limit = limit
         self.seconds = seconds
         self.what = what
 
-    def bucket(self, key: str) -> tuple[str, int]:
+    def bucket(self, key: str, now: float) -> tuple[str, int]:
         """The row this hit belongs to: (counter name plus key, window start).
 
         The window's name is part of the row key, so two limits of different
         lengths never share a row and one cutoff can expire all of them.
         """
-        return f"{self.what}:{key}", int(time.time()) // self.seconds * self.seconds
+        return f"{self.what}:{key}", int(now) // self.seconds * self.seconds
 
     def refuse(self) -> RateLimited:
         unit = "minute" if self.seconds == 60 else f"{self.seconds}s"
@@ -112,14 +128,23 @@ class Window:
         for the length of a whole handler, and the limiter would become the
         bottleneck it exists to prevent.
         """
-        bucket, window_start = self.bucket(key)
+        now = time.time()
+        bucket, window_start = self.bucket(key, now)
         await db.execute(_DONT_WAIT_FOR_DISK)
-        hits: int = (
-            await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
+        weighted: float = (
+            await db.execute(
+                _COUNT,
+                {
+                    "bucket": bucket,
+                    "window_start": window_start,
+                    "previous_window_start": window_start - self.seconds,
+                    "elapsed_fraction": (now - window_start) / self.seconds,
+                },
+            )
         ).scalar_one()
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        if weighted > self.limit:
             raise self.refuse()
 
 
