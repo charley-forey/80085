@@ -132,10 +132,11 @@ def test_a_private_experience_is_invisible_to_anonymous() -> None:
 class Counters:
     """The rate_limits table, minus Postgres.
 
-    The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`,
-    so a dict keyed the same way does the same arithmetic and these stay unit
-    tests. That the SQL means what this says it means -- including across
-    processes, which is the whole point of moving the counter into the
+    The real limiter is one statement that upserts the current window's row,
+    reads the previous window's row alongside it, and weights the two into one
+    number, so a dict keyed the same way does the same arithmetic and these
+    stay unit tests. That the SQL means what this says it means -- including
+    across processes, which is the whole point of moving the counter into the
     database -- is asserted in tests/integration/test_rate_limits.py.
     """
 
@@ -147,7 +148,9 @@ class Counters:
             return None
         row = (params["bucket"], params["window_start"])
         self.rows[row] = self.rows.get(row, 0) + 1
-        return SimpleNamespace(scalar_one=lambda: self.rows[row])
+        previous = self.rows.get((params["bucket"], params["previous_window_start"]), 0)
+        weighted = self.rows[row] + previous * (1 - params["elapsed_fraction"])
+        return SimpleNamespace(scalar_one=lambda: weighted)
 
     async def commit(self) -> None: ...
 
@@ -183,6 +186,25 @@ async def test_the_message_says_what_to_do_about_it() -> None:
         await window.check(db, "1.2.3.4")  # type: ignore[arg-type]
     assert "recall" in str(caught.value)
     assert "open source" in str(caught.value)
+
+
+async def test_a_window_boundary_no_longer_doubles_the_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed window let a caller spend a full window right at t=0, then a full
+    second window right at t=60 -- 2x the limit inside 60 seconds. The sliding
+    weight on the previous window's count is what closes that gap: the instant
+    the new window opens, the old one still counts at full weight.
+    """
+    window, db, ip = Window(limit=2, seconds=60, what="testing"), Counters(), "8.8.8.8"
+
+    monkeypatch.setattr("boobs_api.limits.time.time", lambda: 0.0)
+    for _ in range(2):
+        await window.check(db, ip)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("boobs_api.limits.time.time", lambda: 60.0)
+    with pytest.raises(RateLimited):
+        await window.check(db, ip)  # type: ignore[arg-type]
 
 
 def test_reading_is_the_most_generous_limit() -> None:
