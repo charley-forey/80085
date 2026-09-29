@@ -195,6 +195,27 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_answer_verification_is_not_shadowed_by_execution_verification() -> None:
+    """Two windows were both once named VERIFY: the human-paced one for
+    promoting or disputing an answer, and the re-run one for verifying an
+    execution. The second definition silently shadowed the first, so both
+    answer routes ran under the execution window instead of their own.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY_ANSWER is not limits.VERIFY
+    assert (limits.VERIFY_ANSWER.limit, limits.VERIFY_ANSWER.seconds) == (60, 3600)
+    assert (limits.VERIFY.limit, limits.VERIFY.seconds) == (30, 3600)
+
+    by_path = {route.path: route.endpoint for route in routes.router.routes}
+    verify_answer = inspect.getsource(by_path["/v1/answers/{answer_id}/verify"])
+    dispute_answer = inspect.getsource(by_path["/v1/answers/{answer_id}/dispute"])
+    verify_execution = inspect.getsource(by_path["/v1/executions/{execution_id}/verify"])
+    assert "limits.VERIFY_ANSWER.check" in verify_answer
+    assert "limits.VERIFY_ANSWER.check" in dispute_answer
+    assert "limits.VERIFY.check" in verify_execution
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
