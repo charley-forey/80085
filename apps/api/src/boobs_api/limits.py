@@ -34,6 +34,7 @@ inventing them.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Final
 
@@ -170,33 +171,42 @@ GRANT = Window(20, 3600, "granting execution tiers")
 QUARANTINE = Window(20, 3600, "quarantining experiences")
 
 
+TRUSTED_PROXY_HOPS = "BOOBS_TRUSTED_PROXY_HOPS"
+
+
 def client_ip(request: Request) -> str:
     """The caller's address, as the proxy in front of us reports it.
 
-    The **last** entry in X-Forwarded-For, not the first. Each hop appends the
-    address it received the connection from, so everything to the left of the
-    final entry is whatever the client sent -- and reading the leftmost value
-    let any caller choose their own rate-limit bucket with one header. That
-    matters most for minting, which is the root of the Sybil tree: a fresh
-    organization per key, no identity behind it, and a spoofable limiter means
-    unlimited keys.
+    The last entry in X-Forwarded-For is whatever the nearest trusted hop
+    appended, and everything to its left is whatever the client sent --
+    reading the leftmost value let any caller choose their own rate-limit
+    bucket with one header. That matters most for minting, which is the root
+    of the Sybil tree: a fresh organization per key, no identity behind it,
+    and a spoofable limiter means unlimited keys.
 
-    ponytail: this assumes exactly one trusted hop, which is what Railway is
-    today. Put a CDN in front and the last entry becomes the CDN's edge
-    address, collapsing every caller into a handful of buckets -- at that
-    point take the Nth from the right, N being the number of proxies actually
-    run. A direct connection falls back to the socket address.
+    `BOOBS_TRUSTED_PROXY_HOPS` (default 1) is how many proxies actually sit
+    in front of us -- one, Railway's own edge, today. Put a CDN in front and
+    set it to 2: the last entry becomes the CDN's own address and the
+    genuine client is second from the right. A direct connection, or a
+    header with fewer entries than configured hops, falls back to the
+    leftmost entry it has, then to the socket address.
     """
-    # Railway documents X-Real-IP as "the client's remote IP" and sets it at
-    # the edge. It documents no X-Forwarded-For at all -- and in production the
-    # last entry of that header turned out to change with every connection,
-    # so a caller who opened a new connection per request never hit a limit:
-    # sixty-one keyless recalls on fresh connections, sixty-one 200s. The bucket
-    # was the edge's internal hop, not the caller.
-    real = request.headers.get("x-real-ip", "").strip()
-    if real:
-        return real
+    hops = max(1, int(os.environ.get(TRUSTED_PROXY_HOPS, "1") or "1"))
+    if hops == 1:
+        # Railway documents X-Real-IP as "the client's remote IP" and sets it
+        # at the edge. It documents no X-Forwarded-For at all -- and in
+        # production the last entry of that header turned out to change with
+        # every connection, so a caller who opened a new connection per
+        # request never hit a limit: sixty-one keyless recalls on fresh
+        # connections, sixty-one 200s. The bucket was the edge's internal
+        # hop, not the caller. X-Real-IP is only trustworthy at one hop: with
+        # a proxy in front of Railway it names that proxy, not the client.
+        real = request.headers.get("x-real-ip", "").strip()
+        if real:
+            return real
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded and forwarded.strip():
-        return forwarded.rsplit(",", 1)[-1].strip()
+        parts = forwarded.split(",")
+        hop = parts[-hops] if len(parts) >= hops else parts[0]
+        return hop.strip()
     return request.client.host if request.client else "unknown"
