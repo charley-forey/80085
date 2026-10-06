@@ -280,6 +280,24 @@ def test_the_bucket_is_the_address_the_edge_vouches_for() -> None:
     )
 
 
+def test_a_second_trusted_hop_reads_one_entry_further_left(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a CDN in front of Railway, the last X-Forwarded-For entry is the
+    CDN's own edge address, not the client's -- BOOBS_TRUSTED_PROXY_HOPS=2
+    reads the genuine client from one entry further left, and ignores
+    X-Real-IP, which at that point names the CDN rather than the client."""
+    monkeypatch.setenv("BOOBS_TRUSTED_PROXY_HOPS", "2")
+    assert (
+        client_ip(
+            _request(x_real_ip="198.51.100.9", x_forwarded_for="1.2.3.4, 203.0.113.7, 198.51.100.9")
+        )
+        == "203.0.113.7"
+    )
+    # Fewer entries than configured hops: fall back to the leftmost available.
+    assert client_ip(_request(x_forwarded_for="203.0.113.7")) == "203.0.113.7"
+
+
 # ------------------------------------------------------- minting without asking
 
 # A write needs a key, and there is no signup to send anyone to, so the local
