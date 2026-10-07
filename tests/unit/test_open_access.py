@@ -195,6 +195,25 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_an_answer_has_its_own_budget_from_verifying_an_execution() -> None:
+    """A second `VERIFY = Window(...)` once shadowed the first at module scope.
+
+    verify_answer and dispute_answer silently inherited verify_execution's
+    window (30/hour, "verifications") instead of their own (60/hour,
+    "verifying answers") -- the wrong limit and the wrong message, and the
+    original Window became dead code nothing could ever reach.
+    """
+    from boobs_api import limits
+
+    assert limits.ANSWER_VERIFY is not limits.VERIFY
+    assert (limits.ANSWER_VERIFY.limit, limits.ANSWER_VERIFY.what) == (60, "verifying answers")
+    assert (limits.VERIFY.limit, limits.VERIFY.what) == (30, "verifications")
+
+    for path in ("/v1/answers/{answer_id}/verify", "/v1/answers/{answer_id}/dispute"):
+        route = next(r for r in routes.router.routes if r.path == path)  # type: ignore[attr-defined]
+        assert "limits.ANSWER_VERIFY" in inspect.getsource(route.endpoint)  # type: ignore[attr-defined]
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write

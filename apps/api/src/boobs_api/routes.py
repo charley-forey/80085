@@ -846,7 +846,7 @@ async def verify_answer(
     system cannot tell two humans apart, and pretending otherwise would be a
     check that exists only in the documentation.
     """
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.ANSWER_VERIFY.check(db, limits.client_ip(http))
     await policy.authorize(principal, "experience.record")
     promoted = await questions.verify(
         db,
@@ -953,7 +953,7 @@ async def dispute_answer(
     The answer stays, with its `served` count, because that count is the blast
     radius somebody is about to need.
     """
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.ANSWER_VERIFY.check(db, limits.client_ip(http))
     await policy.authorize(principal, "experience.record")
     marked = await questions.dispute(
         db,
