@@ -195,6 +195,23 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_an_answer_is_not_rationed_by_the_execution_window() -> None:
+    """`verify_answer` and `dispute_answer` once called `limits.VERIFY` too --
+    the same name a later assignment in limits.py rebinds three lines down to
+    the execution-verification window. Python's last-assignment-wins silently
+    shadowed the human-paced 60/hour window the comment above it promises, and
+    every answer verification or dispute paid the execution window's 30/hour
+    instead.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY_ANSWER is not limits.VERIFY
+    assert limits.VERIFY_ANSWER.limit == 60
+    assert limits.VERIFY_ANSWER.what == "verifying answers"
+    for endpoint in (routes.verify_answer, routes.dispute_answer):
+        assert "limits.VERIFY_ANSWER" in inspect.getsource(endpoint)
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
