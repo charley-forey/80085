@@ -195,6 +195,23 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_an_answer_is_not_the_same_limit_as_verifying_an_execution() -> None:
+    """VERIFY (a human promoting or disputing an answer) and VERIFY_EXECUTION
+    (re-running a verifier over a stored execution) used to both be assigned
+    to the single module-level name VERIFY, so the second assignment silently
+    shadowed the first: verify_answer and dispute_answer spent their hits out
+    of the 30/hour execution bucket instead of their own 60/hour one.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY is not limits.VERIFY_EXECUTION
+    assert limits.VERIFY.what == "verifying answers"
+    assert limits.VERIFY_EXECUTION.what == "verifications"
+    assert "limits.VERIFY.check" in inspect.getsource(routes.verify_answer)
+    assert "limits.VERIFY.check" in inspect.getsource(routes.dispute_answer)
+    assert "limits.VERIFY_EXECUTION.check" in inspect.getsource(routes.verify_execution)
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write

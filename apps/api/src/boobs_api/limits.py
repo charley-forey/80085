@@ -153,7 +153,14 @@ PROVISION = Window(30, 3600, "provisioning agents")
 # Verification is re-runnable by design -- the same execution may be verified
 # again by a different verifier -- and each one recomputes a version's
 # evidence. Dearer than a read, cheaper than a run.
-VERIFY = Window(30, 3600, "verifications")
+#
+# A distinct name from VERIFY above: that one is a human promoting or
+# disputing an answer, this one is re-running a verifier over a stored
+# execution, and the two used to collide on one module-level name -- the
+# second assignment silently shadowed the first, so verify_answer and
+# dispute_answer spent their hits out of this 30/hour bucket instead of
+# their own 60/hour one.
+VERIFY_EXECUTION = Window(30, 3600, "verifications")
 # The admin demand report. Cheap to serve and held behind ADMIN already, so
 # this is not protecting the database -- it is bounding how fast a leaked admin
 # key can page through every gap in the corpus.
