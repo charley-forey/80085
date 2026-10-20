@@ -20,10 +20,7 @@ services:
       retries: 20
 
   minio:
-    # minio/minio on Docker Hub now returns "pull access denied" for an
-    # anonymous pull (MinIO moved distribution off Docker Hub); quay.io is
-    # the same image, still published.
-    image: quay.io/minio/minio:latest
+    image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
