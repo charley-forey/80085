@@ -195,6 +195,22 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_an_answer_does_not_share_a_budget_with_verifying_an_execution() -> None:
+    """Two unrelated write paths once collided on the same variable name, so
+    `verify_answer` and `dispute_answer` silently spent `verify_execution`'s
+    budget: a caller verifying many executions would find answer-verification
+    refused, and vice versa, despite the two having nothing to do with each
+    other."""
+    from boobs_api import limits
+
+    assert limits.VERIFY_ANSWER.what != limits.VERIFY.what
+    assert limits.VERIFY_ANSWER.bucket("1.2.3.4") != limits.VERIFY.bucket("1.2.3.4")
+    for name in ("verify_answer", "dispute_answer"):
+        source = inspect.getsource(getattr(routes, name))
+        assert "limits.VERIFY_ANSWER.check" in source, name
+    assert "limits.VERIFY.check" in inspect.getsource(routes.verify_execution)
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
