@@ -195,6 +195,27 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_an_answer_is_not_throttled_by_execution_verification() -> None:
+    """`VERIFY` (re-runnable execution verification) and the human-paced
+    answer-verification window used to share one name, so the second
+    definition silently overwrote the first and both `/answers/.../verify`
+    and `/answers/.../dispute` ended up throttled by the wrong window.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY_ANSWER is not limits.VERIFY
+    assert limits.VERIFY_ANSWER.what == "verifying answers"
+    assert limits.VERIFY.what == "verifications"
+
+    by_path = {route.path: route.endpoint for route in routes.router.routes}
+    for path in ("/v1/answers/{answer_id}/verify", "/v1/answers/{answer_id}/dispute"):
+        source = inspect.getsource(by_path[path])
+        assert "limits.VERIFY_ANSWER" in source, f"{path} is not using VERIFY_ANSWER"
+
+    execution_verify = inspect.getsource(by_path["/v1/executions/{execution_id}/verify"])
+    assert "limits.VERIFY.check" in execution_verify
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
