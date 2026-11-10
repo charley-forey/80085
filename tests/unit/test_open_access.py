@@ -195,6 +195,22 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_answer_verification_and_execution_reverification_have_separate_windows() -> None:
+    """Two Windows were both once named VERIFY; the second silently replaced the
+    first in the module namespace, so every route below shared the dearer,
+    30-per-hour "verifications" bucket under the "verifying answers" name.
+    REVERIFY now holds that second one, and the routes must reach it.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY is not limits.REVERIFY
+    assert limits.VERIFY.what == "verifying answers"
+    assert limits.REVERIFY.what == "verifications"
+    assert inspect.getsource(routes.verify_answer).count("limits.VERIFY.check") == 1
+    assert inspect.getsource(routes.dispute_answer).count("limits.VERIFY.check") == 1
+    assert inspect.getsource(routes.verify_execution).count("limits.REVERIFY.check") == 1
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
