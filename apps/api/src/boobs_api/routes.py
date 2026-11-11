@@ -1516,7 +1516,7 @@ async def verify_execution(
     # to leave open: it is the endpoint that mints evidence, and evidence is
     # what the whole registry sells. Re-running a verifier is also arbitrary
     # work over stored artefacts, so it costs real CPU as well as credibility.
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.VERIFY_EXECUTION.check(db, limits.client_ip(http))
     execution = await ExecutionRepository(db).get(principal, execution_id)
     await policy.authorize(principal, "execution.verify", execution)
     if execution.status not in TERMINAL:

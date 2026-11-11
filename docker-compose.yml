@@ -20,7 +20,12 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # MinIO pulled minio/minio off Docker Hub in September 2026 ("pull access
+    # denied for minio/minio, repository does not exist") and quay.io/minio/minio
+    # followed shortly after. Chainguard's mirror is the maintained replacement:
+    # same server binary and command line, and it ships `mc` so the healthcheck
+    # below needs no change.
+    image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin

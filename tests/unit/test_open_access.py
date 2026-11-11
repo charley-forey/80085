@@ -195,6 +195,30 @@ def test_reading_is_the_most_generous_limit() -> None:
     assert per_second(limits.RECALL) > per_second(limits.VERIFY)
 
 
+def test_verifying_answers_is_a_different_window_from_verifying_executions() -> None:
+    """VERIFY and VERIFY_EXECUTION once shared one name, so the second
+    definition silently replaced the first: verify_answer and dispute_answer
+    were counted and refused against the tighter execution-verification
+    window, with that window's message, instead of their own.
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY is not limits.VERIFY_EXECUTION
+    assert limits.VERIFY.what == "verifying answers"
+    assert limits.VERIFY.limit == 60
+    assert limits.VERIFY_EXECUTION.what == "verifications"
+    assert limits.VERIFY_EXECUTION.limit == 30
+
+
+def test_answer_verification_routes_use_the_answer_window() -> None:
+    """verify_answer and dispute_answer promote or retract a human's answer,
+    not a sandbox run, so they must use VERIFY rather than VERIFY_EXECUTION.
+    """
+    for endpoint in (routes.verify_answer, routes.dispute_answer):
+        assert "limits.VERIFY.check" in inspect.getsource(endpoint)
+    assert "limits.VERIFY_EXECUTION.check" in inspect.getsource(routes.verify_execution)
+
+
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
 # an authenticated, idempotent write against the caller's own organization --
 # throttling it would slow down burning a leaked key, which is the one write
