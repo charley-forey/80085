@@ -19,11 +19,13 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+Sliding, not fixed: a caller at a window boundary can no longer get up to 2x
+the limit across two adjacent windows. Each check weights the previous
+window's count by how much of it has not yet been overtaken by the current
+one, so a caller who filled the previous window cannot simply wait for the
+clock to roll over and spend the same budget again immediately. That needs
+one extra read of a row the previous check already wrote -- no timestamp per
+hit, no new column.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -58,6 +60,12 @@ _COUNT: Final = text(
     RETURNING hits
     """
 )
+# Read-only: the window it names is already over and nothing increments it
+# again, so this never races with the upsert above -- it costs a row lookup,
+# not a lock.
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
+)
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
 # lost the traffic that produced it anyway, and the implementation this
@@ -68,15 +76,30 @@ _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # afterwards inherits it.
 _DONT_WAIT_FOR_DISK: Final = text("SET LOCAL synchronous_commit = off")
 
-# The longest window any limit below uses. A row older than this can never be
-# counted again, whichever window wrote it.
+# The longest window any limit below uses. Swept rows are kept for twice this
+# long: a row is read as "the previous window" for the whole of the window
+# that follows it, so it has to outlive its own window by one more.
 _LONGEST_WINDOW: Final = 3600
+_SWEEP_HORIZON: Final = 2 * _LONGEST_WINDOW
 _SWEEP_EVERY: Final = 1000
 _since_sweep = 0
 
 
+def weighted_hits(current: int, previous: int, elapsed_fraction: float) -> float:
+    """A trailing-window estimate, blended from two fixed windows.
+
+    `elapsed_fraction` is how far into the current window the clock already
+    is: 0 right at the boundary, 1 right before the next one. The previous
+    window counts in full at the boundary and linearly less as the current
+    window fills, so a caller who spent a whole window cannot refill the
+    budget just by waiting for the clock to tick over.
+    """
+    weight = max(0.0, min(1.0, 1.0 - elapsed_fraction))
+    return current + previous * weight
+
+
 class Window:
-    """A fixed window of hits, per key, counted in the database."""
+    """A sliding window of hits, per key, counted in the database."""
 
     def __init__(self, limit: int, seconds: int, what: str) -> None:
         self.limit = limit
@@ -99,7 +122,7 @@ class Window:
         )
 
     async def check(self, db: AsyncSession, key: str) -> None:
-        """Count this hit, and refuse if the window is already full.
+        """Count this hit, and refuse if the trailing window is already full.
 
         Committed immediately, and before the refusal is raised, for two
         reasons. A hit is a fact about what the caller did, not about whether
@@ -117,9 +140,15 @@ class Window:
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous: int = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        elapsed_fraction = (time.time() - window_start) / self.seconds
+        if weighted_hits(hits, previous, elapsed_fraction) > self.limit:
             raise self.refuse()
 
 
@@ -130,7 +159,7 @@ async def _sweep(db: AsyncSession) -> None:
     if _since_sweep < _SWEEP_EVERY:
         return
     _since_sweep = 0
-    await db.execute(_SWEEP, {"cutoff": int(time.time()) - _LONGEST_WINDOW})
+    await db.execute(_SWEEP, {"cutoff": int(time.time()) - _SWEEP_HORIZON})
     await db.commit()
 
 

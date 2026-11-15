@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 from starlette.requests import Request
 
-from boobs_api import routes
+from boobs_api import limits, routes
 from boobs_api.deps import ANONYMOUS, get_principal_or_anonymous
 from boobs_api.limits import RateLimited, Window, client_ip
 from boobs_common.errors import Unauthorized
@@ -142,10 +142,12 @@ class Counters:
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if statement is limits._PREVIOUS:  # read-only: never writes a row
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 
