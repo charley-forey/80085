@@ -19,11 +19,11 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+Windows overlap rather than reset cleanly at the boundary: the previous
+window's count is weighted by how far into the current one we are, so a
+caller right after a boundary is still charged for most of what they did just
+before it. That costs one extra read of a row that already exists -- no new
+column, no second write.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -57,6 +57,9 @@ _COUNT: Final = text(
     ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
     RETURNING hits
     """
+)
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
 )
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
@@ -117,10 +120,27 @@ class Window:
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        if weighted_hits(hits, previous, window_start, self.seconds, time.time()) > self.limit:
             raise self.refuse()
+
+
+def weighted_hits(hits: int, previous: int, window_start: int, seconds: int, now: float) -> float:
+    """The current window's count, plus the previous window's decaying in.
+
+    At the instant the window opens, a caller who just filled the previous
+    one is still charged for nearly all of it; by the time the window is
+    about to close, the previous window no longer counts at all. That is what
+    stops a hit near the boundary buying a second full window a moment later.
+    """
+    elapsed = (now - window_start) / seconds
+    return hits + previous * (1 - elapsed)
 
 
 async def _sweep(db: AsyncSession) -> None:

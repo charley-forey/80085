@@ -21,6 +21,7 @@ from sqlalchemy import Select
 from starlette.requests import Request
 
 from boobs_api import routes
+from boobs_api.limits import _PREVIOUS
 from boobs_common.clock import now
 from boobs_common.errors import Forbidden
 from boobs_domain.protocols import Principal
@@ -45,6 +46,8 @@ class Session:
         if isinstance(statement, Select):
             self.selected = statement
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self.rows))
+        if statement is _PREVIOUS:  # a read of the previous window, not a hit
+            return SimpleNamespace(scalar_one_or_none=lambda: None)
         self.hits += 1
         return SimpleNamespace(scalar_one=lambda: self.hits)
 
