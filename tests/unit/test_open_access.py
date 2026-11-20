@@ -21,7 +21,7 @@ from starlette.requests import Request
 
 from boobs_api import routes
 from boobs_api.deps import ANONYMOUS, get_principal_or_anonymous
-from boobs_api.limits import RateLimited, Window, client_ip
+from boobs_api.limits import _PREVIOUS, RateLimited, Window, client_ip
 from boobs_common.errors import Unauthorized
 from boobs_domain.enums import Visibility
 from boobs_domain.protocols import Principal
@@ -133,19 +133,22 @@ class Counters:
     """The rate_limits table, minus Postgres.
 
     The real limiter is one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`,
-    so a dict keyed the same way does the same arithmetic and these stay unit
-    tests. That the SQL means what this says it means -- including across
-    processes, which is the whole point of moving the counter into the
-    database -- is asserted in tests/integration/test_rate_limits.py.
+    plus a read of the previous window's row to weight it in, so a dict keyed
+    the same way does the same arithmetic and these stay unit tests. That the
+    SQL means what this says it means -- including across processes, which is
+    the whole point of moving the counter into the database -- is asserted in
+    tests/integration/test_rate_limits.py.
     """
 
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int], int] = {}
 
-    async def execute(self, _: Any, params: dict[str, Any] | None = None) -> Any:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         if params is None:  # the SET LOCAL that keeps this commit off the disk
             return None
         row = (params["bucket"], params["window_start"])
+        if statement is _PREVIOUS:  # a read: never creates a row, never counts
+            return SimpleNamespace(scalar_one_or_none=lambda: self.rows.get(row))
         self.rows[row] = self.rows.get(row, 0) + 1
         return SimpleNamespace(scalar_one=lambda: self.rows[row])
 

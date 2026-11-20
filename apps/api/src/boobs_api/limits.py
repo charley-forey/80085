@@ -19,11 +19,11 @@ on the request's own session -- a single round trip, a single-row primary key
 lookup, and no second pooled connection. Every thousandth check also deletes
 expired rows.
 
-ponytail: fixed windows, not sliding. A caller at a window boundary can get up
-to 2x the limit across two adjacent windows. That is the price of counting one
-row instead of storing a timestamp per hit; the upgrade path is to weight the
-previous window's count by how far into the current one we are, which needs
-the same single row.
+Windows are weighted, not fixed: a hit still counts against the previous
+window for a while after the boundary, shrinking linearly as the current
+window goes on, so a caller cannot get up to 2x the limit by hitting it once
+on each side of a boundary. That costs one extra read of the same row shape
+already in `rate_limits` -- no new column, no new table.
 
 ponytail: the sweep is a full scan of a table that is small by construction --
 one row per caller per window per hour. Add an index on `window_start` if it
@@ -58,6 +58,9 @@ _COUNT: Final = text(
     RETURNING hits
     """
 )
+_PREVIOUS: Final = text(
+    "SELECT hits FROM rate_limits WHERE bucket = :bucket AND window_start = :window_start"
+)
 _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # A counter is worth nothing after a crash: the process that comes back has
 # lost the traffic that produced it anyway, and the implementation this
@@ -68,15 +71,30 @@ _SWEEP: Final = text("DELETE FROM rate_limits WHERE window_start < :cutoff")
 # afterwards inherits it.
 _DONT_WAIT_FOR_DISK: Final = text("SET LOCAL synchronous_commit = off")
 
-# The longest window any limit below uses. A row older than this can never be
-# counted again, whichever window wrote it.
+# The longest window any limit below uses.
 _LONGEST_WINDOW: Final = 3600
+# A row survives for two windows, not one: `check` reads the previous window's
+# row to weight it into the current one, and a sweep that kept only one window
+# would delete that row before anything could read it.
+_RETENTION: Final = 2 * _LONGEST_WINDOW
 _SWEEP_EVERY: Final = 1000
 _since_sweep = 0
 
 
+def _weighted_count(hits: int, previous_hits: int, elapsed_fraction: float) -> float:
+    """Current-window hits plus a linearly decaying share of the previous
+    window's, so a caller cannot get up to 2x the limit by hitting it once on
+    each side of a boundary. `elapsed_fraction` is clamped so a clock that
+    landed exactly on a boundary, or float error either side of one, cannot
+    carry more or less than one full window's worth of weight.
+    """
+    weight = min(1.0, max(0.0, elapsed_fraction))
+    return hits + previous_hits * (1 - weight)
+
+
 class Window:
-    """A fixed window of hits, per key, counted in the database."""
+    """A window of hits, per key, counted in the database and weighted across
+    its boundary."""
 
     def __init__(self, limit: int, seconds: int, what: str) -> None:
         self.limit = limit
@@ -117,9 +135,15 @@ class Window:
         hits: int = (
             await db.execute(_COUNT, {"bucket": bucket, "window_start": window_start})
         ).scalar_one()
+        previous_hits: int = (
+            await db.execute(
+                _PREVIOUS, {"bucket": bucket, "window_start": window_start - self.seconds}
+            )
+        ).scalar_one_or_none() or 0
         await db.commit()
         await _sweep(db)
-        if hits > self.limit:
+        elapsed_fraction = (time.time() - window_start) / self.seconds
+        if _weighted_count(hits, previous_hits, elapsed_fraction) > self.limit:
             raise self.refuse()
 
 
@@ -130,7 +154,7 @@ async def _sweep(db: AsyncSession) -> None:
     if _since_sweep < _SWEEP_EVERY:
         return
     _since_sweep = 0
-    await db.execute(_SWEEP, {"cutoff": int(time.time()) - _LONGEST_WINDOW})
+    await db.execute(_SWEEP, {"cutoff": int(time.time()) - _RETENTION})
     await db.commit()
 
 
