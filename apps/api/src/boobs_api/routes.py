@@ -846,7 +846,7 @@ async def verify_answer(
     system cannot tell two humans apart, and pretending otherwise would be a
     check that exists only in the documentation.
     """
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.VERIFY_ANSWER.check(db, limits.client_ip(http))
     await policy.authorize(principal, "experience.record")
     promoted = await questions.verify(
         db,
@@ -953,7 +953,7 @@ async def dispute_answer(
     The answer stays, with its `served` count, because that count is the blast
     radius somebody is about to need.
     """
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.VERIFY_ANSWER.check(db, limits.client_ip(http))
     await policy.authorize(principal, "experience.record")
     marked = await questions.dispute(
         db,
@@ -1516,7 +1516,7 @@ async def verify_execution(
     # to leave open: it is the endpoint that mints evidence, and evidence is
     # what the whole registry sells. Re-running a verifier is also arbitrary
     # work over stored artefacts, so it costs real CPU as well as credibility.
-    await limits.VERIFY.check(db, limits.client_ip(http))
+    await limits.VERIFY_EXECUTION.check(db, limits.client_ip(http))
     execution = await ExecutionRepository(db).get(principal, execution_id)
     await policy.authorize(principal, "execution.verify", execution)
     if execution.status not in TERMINAL:

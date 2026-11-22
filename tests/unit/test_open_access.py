@@ -192,7 +192,29 @@ def test_reading_is_the_most_generous_limit() -> None:
     per_second = lambda w: w.limit / w.seconds  # noqa: E731
     assert per_second(limits.RECALL) > per_second(limits.RECORD)
     assert per_second(limits.RECORD) > per_second(limits.EXECUTE)
-    assert per_second(limits.RECALL) > per_second(limits.VERIFY)
+    assert per_second(limits.RECALL) > per_second(limits.VERIFY_ANSWER)
+    assert per_second(limits.RECALL) > per_second(limits.VERIFY_EXECUTION)
+
+
+def test_verify_answer_and_verify_execution_are_not_the_same_window() -> None:
+    """`VERIFY` used to be defined twice in limits.py: the human-paced window
+    for promoting/disputing an answer, then a second, unrelated window for
+    re-running an execution verifier, bound to the same name. The second
+    definition silently shadowed the first, so verify_answer and
+    dispute_answer were throttled under the execution window's tighter limit
+    (30/hour) and its "verifications" message instead of their own (60/hour,
+    "verifying answers").
+    """
+    from boobs_api import limits
+
+    assert limits.VERIFY_ANSWER is not limits.VERIFY_EXECUTION
+    assert limits.VERIFY_ANSWER.limit == 60
+    assert limits.VERIFY_ANSWER.what == "verifying answers"
+    assert limits.VERIFY_EXECUTION.limit == 30
+    assert limits.VERIFY_EXECUTION.what == "verifications"
+    assert "limits.VERIFY_ANSWER" in inspect.getsource(routes.verify_answer)
+    assert "limits.VERIFY_ANSWER" in inspect.getsource(routes.dispute_answer)
+    assert "limits.VERIFY_EXECUTION" in inspect.getsource(routes.verify_execution)
 
 
 # Guarded by BOOBS_BOOTSTRAP_TOKEN rather than by a window; and revocation is
